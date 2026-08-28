@@ -1398,46 +1398,6 @@ func TestExtractSessionID_ClaudeAPITopLevelSystem(t *testing.T) {
 	}
 }
 
-func TestExtractSessionID_GeminiFormat(t *testing.T) {
-	t.Parallel()
-
-	// Gemini format with systemInstruction and contents
-	payload := []byte(`{
-		"systemInstruction": {"parts": [{"text": "You are a helpful assistant."}]},
-		"contents": [
-			{"role": "user", "parts": [{"text": "Hello Gemini"}]},
-			{"role": "model", "parts": [{"text": "Hi there!"}]}
-		]
-	}`)
-
-	got := ExtractSessionID(nil, payload, nil)
-	if got == "" {
-		t.Error("ExtractSessionID() with Gemini format should return hash-based session ID")
-	}
-	if !strings.HasPrefix(got, "msg:") {
-		t.Errorf("ExtractSessionID() = %q, want prefix 'msg:'", got)
-	}
-
-	// Same payload should produce same hash
-	got2 := ExtractSessionID(nil, payload, nil)
-	if got != got2 {
-		t.Errorf("ExtractSessionID() not stable: got %q then %q", got, got2)
-	}
-
-	// Different user message should produce different hash
-	differentPayload := []byte(`{
-		"systemInstruction": {"parts": [{"text": "You are a helpful assistant."}]},
-		"contents": [
-			{"role": "user", "parts": [{"text": "Hello different"}]},
-			{"role": "model", "parts": [{"text": "Hi there!"}]}
-		]
-	}`)
-	got3 := ExtractSessionID(nil, differentPayload, nil)
-	if got == got3 {
-		t.Errorf("ExtractSessionID() should produce different hash for different user message")
-	}
-}
-
 func TestExtractSessionID_OpenAIResponsesAPI(t *testing.T) {
 	t.Parallel()
 

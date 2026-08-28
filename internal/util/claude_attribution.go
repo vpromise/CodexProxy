@@ -18,8 +18,8 @@ func IsClaudeCodeAttributionSystemText(text string) bool {
 }
 
 // StripClaudeCodeAttributionSystem removes Claude Code billing/CCH attribution
-// blocks from a Messages body. Other system content is kept. Providers such as
-// Kimi and Antigravity may treat this block as prompt text, so callers use this
+// blocks from a Messages body. Other system content is kept. Compatible gateways
+// may treat this block as prompt text, so callers use this
 // helper when the active policy has not explicitly opted into a full CLI profile.
 func StripClaudeCodeAttributionSystem(payload []byte) []byte {
 	system := gjson.GetBytes(payload, "system")

@@ -28,7 +28,18 @@ func (h *Handler) GetConfig(c *gin.Context) {
 		c.JSON(200, gin.H{})
 		return
 	}
-	c.JSON(200, new(*h.cfg))
+	raw, errMarshal := json.Marshal(h.cfg)
+	if errMarshal != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "config_encode_failed", "message": errMarshal.Error()})
+		return
+	}
+	var response map[string]any
+	if errUnmarshal := json.Unmarshal(raw, &response); errUnmarshal != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "config_encode_failed", "message": errUnmarshal.Error()})
+		return
+	}
+	delete(response, "plugins")
+	c.JSON(http.StatusOK, response)
 }
 
 type releaseInfo struct {
@@ -255,12 +266,6 @@ func (h *Handler) PutRequestLog(c *gin.Context) {
 }
 
 // Websocket auth
-func (h *Handler) GetWebsocketAuth(c *gin.Context) {
-	c.JSON(200, gin.H{"ws-auth": h.cfg.WebsocketAuth})
-}
-func (h *Handler) PutWebsocketAuth(c *gin.Context) {
-	h.updateBoolField(c, func(v bool) { h.cfg.WebsocketAuth = v })
-}
 
 // Request retry
 func (h *Handler) GetRequestRetry(c *gin.Context) {

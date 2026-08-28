@@ -8,11 +8,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher/synthesizer"
 )
 
-type geminiKeyWithAuthIndex struct {
-	config.GeminiKey
-	AuthIndex string `json:"auth-index,omitempty"`
-}
-
 type claudeKeyWithAuthIndex struct {
 	config.ClaudeKey
 	AuthIndex string `json:"auth-index,omitempty"`
@@ -20,16 +15,6 @@ type claudeKeyWithAuthIndex struct {
 
 type codexKeyWithAuthIndex struct {
 	config.CodexKey
-	AuthIndex string `json:"auth-index,omitempty"`
-}
-
-type xaiKeyWithAuthIndex struct {
-	config.XAIKey
-	AuthIndex string `json:"auth-index,omitempty"`
-}
-
-type vertexCompatKeyWithAuthIndex struct {
-	config.VertexCompatKey
 	AuthIndex string `json:"auth-index,omitempty"`
 }
 
@@ -82,72 +67,6 @@ func (h *Handler) liveAuthIndexByID() map[string]string {
 			continue
 		}
 		out[id] = idx
-	}
-	return out
-}
-
-func (h *Handler) geminiKeysWithAuthIndex() []geminiKeyWithAuthIndex {
-	if h == nil {
-		return nil
-	}
-	liveIndexByID := h.liveAuthIndexByID()
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cfg == nil {
-		return nil
-	}
-
-	idGen := synthesizer.NewStableIDGenerator()
-	out := make([]geminiKeyWithAuthIndex, len(h.cfg.GeminiKey))
-	for i := range h.cfg.GeminiKey {
-		entry := h.cfg.GeminiKey[i]
-		authIndex := ""
-		key := strings.TrimSpace(entry.APIKey)
-		base := strings.TrimSpace(entry.BaseURL)
-		proxyURL := strings.TrimSpace(entry.ProxyURL)
-		prefix := strings.TrimSpace(entry.Prefix)
-		if key != "" || base != "" {
-			id, _ := idGen.Next("gemini:apikey", key, base, proxyURL, prefix, config.FormatSortedHeaders(entry.Headers))
-			authIndex = liveIndexByID[id]
-		}
-		out[i] = geminiKeyWithAuthIndex{
-			GeminiKey: entry,
-			AuthIndex: authIndex,
-		}
-	}
-	return out
-}
-
-func (h *Handler) interactionsKeysWithAuthIndex() []geminiKeyWithAuthIndex {
-	if h == nil {
-		return nil
-	}
-	liveIndexByID := h.liveAuthIndexByID()
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cfg == nil {
-		return nil
-	}
-
-	idGen := synthesizer.NewStableIDGenerator()
-	out := make([]geminiKeyWithAuthIndex, len(h.cfg.InteractionsKey))
-	for i := range h.cfg.InteractionsKey {
-		entry := h.cfg.InteractionsKey[i]
-		authIndex := ""
-		key := strings.TrimSpace(entry.APIKey)
-		base := strings.TrimSpace(entry.BaseURL)
-		proxyURL := strings.TrimSpace(entry.ProxyURL)
-		prefix := strings.TrimSpace(entry.Prefix)
-		if key != "" || base != "" {
-			id, _ := idGen.Next("gemini-interactions:apikey", key, base, proxyURL, prefix, config.FormatSortedHeaders(entry.Headers))
-			authIndex = liveIndexByID[id]
-		}
-		out[i] = geminiKeyWithAuthIndex{
-			GeminiKey: entry,
-			AuthIndex: authIndex,
-		}
 	}
 	return out
 }
@@ -213,65 +132,6 @@ func (h *Handler) codexKeysWithAuthIndex() []codexKeyWithAuthIndex {
 		out[i] = codexKeyWithAuthIndex{
 			CodexKey:  entry,
 			AuthIndex: authIndex,
-		}
-	}
-	return out
-}
-
-func (h *Handler) xaiKeysWithAuthIndex() []xaiKeyWithAuthIndex {
-	if h == nil {
-		return nil
-	}
-	liveIndexByID := h.liveAuthIndexByID()
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cfg == nil {
-		return nil
-	}
-
-	idGen := synthesizer.NewStableIDGenerator()
-	out := make([]xaiKeyWithAuthIndex, len(h.cfg.XAIKey))
-	for i := range h.cfg.XAIKey {
-		entry := h.cfg.XAIKey[i]
-		authIndex := ""
-		key := strings.TrimSpace(entry.APIKey)
-		base := strings.TrimSpace(entry.BaseURL)
-		proxyURL := strings.TrimSpace(entry.ProxyURL)
-		prefix := strings.TrimSpace(entry.Prefix)
-		if key != "" || base != "" {
-			id, _ := idGen.Next("xai:apikey", key, base, proxyURL, prefix, config.FormatSortedHeaders(entry.Headers))
-			authIndex = liveIndexByID[id]
-		}
-		out[i] = xaiKeyWithAuthIndex{
-			XAIKey:    entry,
-			AuthIndex: authIndex,
-		}
-	}
-	return out
-}
-
-func (h *Handler) vertexCompatKeysWithAuthIndex() []vertexCompatKeyWithAuthIndex {
-	if h == nil {
-		return nil
-	}
-	liveIndexByID := h.liveAuthIndexByID()
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cfg == nil {
-		return nil
-	}
-
-	idGen := synthesizer.NewStableIDGenerator()
-	out := make([]vertexCompatKeyWithAuthIndex, len(h.cfg.VertexCompatAPIKey))
-	for i := range h.cfg.VertexCompatAPIKey {
-		entry := h.cfg.VertexCompatAPIKey[i]
-		id, _ := idGen.Next("vertex:apikey", entry.APIKey, entry.BaseURL, entry.ProxyURL)
-		authIndex := liveIndexByID[id]
-		out[i] = vertexCompatKeyWithAuthIndex{
-			VertexCompatKey: entry,
-			AuthIndex:       authIndex,
 		}
 	}
 	return out

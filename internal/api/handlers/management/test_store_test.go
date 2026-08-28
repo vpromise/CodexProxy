@@ -2,10 +2,23 @@ package management
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
+	"testing"
 
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
+
+func writeTestConfigFile(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if errWrite := os.WriteFile(path, []byte("{}\n"), 0o600); errWrite != nil {
+		t.Fatalf("failed to write test config: %v", errWrite)
+	}
+	return path
+}
 
 type memoryAuthStore struct {
 	mu    sync.Mutex

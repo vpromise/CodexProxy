@@ -16,15 +16,15 @@ import (
 func TestPostOAuthCallbackCreatesMissingAuthDir(t *testing.T) {
 
 	authDir := filepath.Join(t.TempDir(), "missing-auth")
-	state := "test-antigravity-state"
-	RegisterOAuthSession(state, "antigravity")
+	state := "test-anthropic-state"
+	RegisterOAuthSession(state, "anthropic")
 	defer CompleteOAuthSession(state)
 
 	h := NewHandlerWithoutConfigFilePath(&config.Config{AuthDir: authDir}, nil)
 	router := gin.New()
 	router.POST("/v0/management/oauth-callback", h.PostOAuthCallback)
 
-	body := `{"provider":"antigravity","redirect_url":"http://localhost:59788/oauth-callback?state=test-antigravity-state&code=test-code"}`
+	body := `{"provider":"anthropic","redirect_url":"http://localhost:59788/oauth-callback?state=test-anthropic-state&code=test-code"}`
 	req := httptest.NewRequest(http.MethodPost, "/v0/management/oauth-callback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -35,7 +35,7 @@ func TestPostOAuthCallbackCreatesMissingAuthDir(t *testing.T) {
 		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, w.Code, w.Body.String())
 	}
 
-	callbackPath := filepath.Join(authDir, ".oauth-antigravity-"+state+".oauth")
+	callbackPath := filepath.Join(authDir, ".oauth-anthropic-"+state+".oauth")
 	data, errRead := os.ReadFile(callbackPath)
 	if errRead != nil {
 		t.Fatalf("expected callback file to be written: %v", errRead)
@@ -52,8 +52,8 @@ func TestPostOAuthCallbackCreatesMissingAuthDir(t *testing.T) {
 
 func TestGetOAuthCallbackWritesPluginProviderCallback(t *testing.T) {
 	authDir := filepath.Join(t.TempDir(), "missing-auth")
-	state := "test-geminicli-state"
-	if errRegister := RegisterPluginOAuthSession(state, "gemini-cli", nil); errRegister != nil {
+	state := "test-customoauth-state"
+	if errRegister := RegisterPluginOAuthSession(state, "custom-oauth", nil); errRegister != nil {
 		t.Fatalf("register plugin oauth session: %v", errRegister)
 	}
 	defer CompleteOAuthSession(state)
@@ -71,7 +71,7 @@ func TestGetOAuthCallbackWritesPluginProviderCallback(t *testing.T) {
 		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, w.Code, w.Body.String())
 	}
 
-	callbackPath := filepath.Join(authDir, ".oauth-gemini-cli-"+state+".oauth")
+	callbackPath := filepath.Join(authDir, ".oauth-custom-oauth-"+state+".oauth")
 	data, errRead := os.ReadFile(callbackPath)
 	if errRead != nil {
 		t.Fatalf("expected callback file to be written: %v", errRead)
@@ -117,8 +117,7 @@ func TestGetOAuthCallbackDoesNotAliasPluginProvider(t *testing.T) {
 }
 
 func TestWriteOAuthCallbackFileForPendingSessionCreatesMissingAuthDirForCallbackProviders(t *testing.T) {
-	// xAI uses device-code flow and no longer writes callback files.
-	providers := []string{"anthropic", "codex", "gemini", "antigravity"}
+	providers := []string{"anthropic", "codex"}
 	for _, provider := range providers {
 		t.Run(provider, func(t *testing.T) {
 			authDir := filepath.Join(t.TempDir(), "missing-auth")

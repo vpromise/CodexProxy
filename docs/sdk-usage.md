@@ -106,10 +106,10 @@ Programmatic execution is available on the manager:
 
 ```go
 // Non‑streaming
-resp, err := core.Execute(ctx, []string{"gemini"}, req, opts)
+resp, err := core.Execute(ctx, []string{"codex"}, req, opts)
 
 // Streaming
-chunks, err := core.ExecuteStream(ctx, []string{"gemini"}, req, opts)
+chunks, err := core.ExecuteStream(ctx, []string{"codex"}, req, opts)
 for ch := range chunks { /* ... */ }
 ```
 
@@ -160,4 +160,4 @@ _ = svc.Shutdown(ctx)
 
 - Hot reload: changes to `config.yaml` and `auths/` are picked up automatically.
 - Request logging can be toggled at runtime via the Management API.
-- Gemini Web features (`gemini-web.*`) are honored in the embedded server.
+- The scoped service registers native Codex and Claude executors plus configured OpenAI-compatible gateways.

@@ -139,18 +139,6 @@ func extractRequestScopedErrorRules(auth *Auth, cfg *internalconfig.Config) []in
 		if index >= 0 && index < len(cfg.CodexKey) {
 			return cfg.CodexKey[index].RequestScopedErrors
 		}
-	case "xai":
-		if index >= 0 && index < len(cfg.XAIKey) {
-			return cfg.XAIKey[index].RequestScopedErrors
-		}
-	case "gemini":
-		if index >= 0 && index < len(cfg.GeminiKey) {
-			return cfg.GeminiKey[index].RequestScopedErrors
-		}
-	case "interactions", "gemini-interactions":
-		if index >= 0 && index < len(cfg.InteractionsKey) {
-			return cfg.InteractionsKey[index].RequestScopedErrors
-		}
 	}
 
 	return nil

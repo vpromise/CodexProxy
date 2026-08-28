@@ -49,9 +49,9 @@ type Auth struct {
 	ID string `json:"id"`
 	// Index is a stable runtime identifier derived from auth metadata (not persisted).
 	Index string `json:"-"`
-	// Provider is the upstream provider key (e.g. "gemini", "claude").
+	// Provider is the upstream provider key (for example, "codex" or "claude").
 	Provider string `json:"provider"`
-	// Prefix optionally namespaces models for routing (e.g., "teamA/gemini-3-pro-preview").
+	// Prefix optionally namespaces models for routing (for example, "teamA/gpt-5-codex").
 	Prefix string `json:"prefix,omitempty"`
 	// FileName stores the relative or absolute path of the backing auth file.
 	FileName string `json:"-"`
@@ -377,14 +377,8 @@ func (a *Auth) indexSeed() string {
 		switch {
 		case compatName != "" || strings.EqualFold(provider, "openai-compatibility"):
 			apiPrefix = "openai-compatibility"
-		case strings.EqualFold(provider, "gemini"):
-			apiPrefix = "gemini-api-key"
-		case strings.EqualFold(provider, "gemini-interactions"):
-			apiPrefix = "interactions-api-key"
 		case strings.EqualFold(provider, "codex"):
 			apiPrefix = "codex-api-key"
-		case strings.EqualFold(provider, "xai"):
-			apiPrefix = "xai-api-key"
 		case strings.EqualFold(provider, "claude"):
 			apiPrefix = "claude-api-key"
 		}

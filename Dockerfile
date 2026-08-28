@@ -1,3 +1,17 @@
+FROM oven/bun:1.3.14 AS management-builder
+
+WORKDIR /web
+
+ARG VERSION=dev
+
+COPY management-webui/package.json management-webui/bun.lock ./
+
+RUN bun install --frozen-lockfile
+
+COPY management-webui/ ./
+
+RUN VERSION="${VERSION}" bun run build
+
 FROM golang:1.26-bookworm AS builder
 
 WORKDIR /app
@@ -9,6 +23,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+
+COPY --from=management-builder /web/dist/index.html ./internal/managementasset/bundled/index.html
 
 ARG VERSION=dev
 ARG COMMIT=none

@@ -132,20 +132,20 @@ func TestFileSynthesizer_Synthesize_ValidAuthFile(t *testing.T) {
 	}
 }
 
-func TestFileSynthesizer_Synthesize_LegacyKimiFingerprintProfile(t *testing.T) {
+func TestFileSynthesizerSynthesizeClaudeFingerprintProfile(t *testing.T) {
 	tempDir := t.TempDir()
 	authData := map[string]any{
-		"type":                "kimi",
-		"access_token":        "kimi-access-token",
-		"refresh_token":       "kimi-refresh-token",
+		"type":                "claude",
+		"access_token":        "claude-access-token",
+		"refresh_token":       "claude-refresh-token",
 		"fingerprint-profile": "claude-code-cli",
 	}
 	data, errMarshal := json.Marshal(authData)
 	if errMarshal != nil {
-		t.Fatalf("marshal kimi auth: %v", errMarshal)
+		t.Fatalf("marshal Claude auth: %v", errMarshal)
 	}
-	if err := os.WriteFile(filepath.Join(tempDir, "kimi-auth.json"), data, 0644); err != nil {
-		t.Fatalf("failed to write kimi auth file: %v", err)
+	if err := os.WriteFile(filepath.Join(tempDir, "claude-auth.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write Claude auth file: %v", err)
 	}
 
 	auths, err := NewFileSynthesizer().Synthesize(&SynthesisContext{
@@ -160,8 +160,8 @@ func TestFileSynthesizer_Synthesize_LegacyKimiFingerprintProfile(t *testing.T) {
 	if len(auths) != 1 {
 		t.Fatalf("expected 1 auth, got %d", len(auths))
 	}
-	if auths[0].Provider != "kimi" {
-		t.Fatalf("provider = %q, want kimi", auths[0].Provider)
+	if auths[0].Provider != "claude" {
+		t.Fatalf("provider = %q, want claude", auths[0].Provider)
 	}
 	if got := auths[0].Attributes["fingerprint_profile"]; got != "claude-code-cli" {
 		t.Fatalf("attributes fingerprint_profile = %q, want claude-code-cli", got)
@@ -174,15 +174,15 @@ func TestFileSynthesizer_Synthesize_LegacyKimiFingerprintProfile(t *testing.T) {
 	}
 }
 
-func TestFileSynthesizer_Synthesize_IgnoresGeminiProviderFile(t *testing.T) {
+func TestFileSynthesizerIgnoresUnsupportedProviderFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	authData := map[string]any{
-		"type":  "gemini",
-		"email": "gemini@example.com",
+		"type":  "unsupported",
+		"email": "unsupported@example.com",
 	}
 	data, _ := json.Marshal(authData)
-	err := os.WriteFile(filepath.Join(tempDir, "gemini-auth.json"), data, 0644)
+	err := os.WriteFile(filepath.Join(tempDir, "unsupported-auth.json"), data, 0644)
 	if err != nil {
 		t.Fatalf("failed to write auth file: %v", err)
 	}
@@ -200,29 +200,29 @@ func TestFileSynthesizer_Synthesize_IgnoresGeminiProviderFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(auths) != 0 {
-		t.Fatalf("expected Gemini auth file to be ignored, got %d auths", len(auths))
+		t.Fatalf("expected unsupported auth file to be ignored, got %d auths", len(auths))
 	}
 }
 
 func TestSynthesizeAuthFileExpandsPluginMultiAuths(t *testing.T) {
 	tempDir := t.TempDir()
-	fullPath := filepath.Join(tempDir, "geminicli.json")
-	raw := []byte(`{"type":"gemini-cli","excluded_models":["model-a"],"headers":{"X-Test":"value"}}`)
+	fullPath := filepath.Join(tempDir, "customoauth.json")
+	raw := []byte(`{"type":"custom-oauth","excluded_models":["model-a"],"headers":{"X-Test":"value"}}`)
 
 	ctx := &SynthesisContext{
 		Config:  &config.Config{},
 		AuthDir: tempDir,
 		Now:     time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC),
 		PluginAuthParser: multiAuthParserFunc(func(ctx context.Context, req pluginapi.AuthParseRequest) ([]*coreauth.Auth, bool, error) {
-			if req.Provider != "gemini-cli" || req.Path != fullPath || req.FileName != "geminicli.json" {
+			if req.Provider != "custom-oauth" || req.Path != fullPath || req.FileName != "customoauth.json" {
 				t.Fatalf("ParseAuths request = %#v, want file context", req)
 			}
 			return []*coreauth.Auth{
 				{
-					ID:       "geminicli.json",
-					Provider: "gemini-cli",
+					ID:       "customoauth.json",
+					Provider: "custom-oauth",
 					Metadata: map[string]any{
-						"type": "gemini-cli",
+						"type": "custom-oauth",
 						"headers": map[string]any{
 							"X-Test": "value",
 						},
@@ -230,10 +230,10 @@ func TestSynthesizeAuthFileExpandsPluginMultiAuths(t *testing.T) {
 				},
 				nil,
 				{
-					ID:       "geminicli-project-a.json",
-					Provider: "gemini-cli",
+					ID:       "customoauth-project-a.json",
+					Provider: "custom-oauth",
 					Metadata: map[string]any{
-						"type":       "gemini-cli",
+						"type":       "custom-oauth",
 						"project_id": "project-a",
 						"headers": map[string]any{
 							"X-Test": "value",
@@ -302,8 +302,8 @@ func TestSynthesizeAuthFileSkipsInvalidPluginAuthWeight(t *testing.T) {
 
 func TestSynthesizeAuthFileAppliesSourceDisabledToPluginMultiAuths(t *testing.T) {
 	tempDir := t.TempDir()
-	fullPath := filepath.Join(tempDir, "geminicli.json")
-	raw := []byte(`{"type":"gemini-cli","disabled":true}`)
+	fullPath := filepath.Join(tempDir, "customoauth.json")
+	raw := []byte(`{"type":"custom-oauth","disabled":true}`)
 
 	ctx := &SynthesisContext{
 		Config:  &config.Config{},
@@ -311,8 +311,8 @@ func TestSynthesizeAuthFileAppliesSourceDisabledToPluginMultiAuths(t *testing.T)
 		Now:     time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC),
 		PluginAuthParser: multiAuthParserFunc(func(context.Context, pluginapi.AuthParseRequest) ([]*coreauth.Auth, bool, error) {
 			return []*coreauth.Auth{
-				{ID: "geminicli.json", Provider: "gemini-cli", Metadata: map[string]any{"type": "gemini-cli"}},
-				{ID: "geminicli-project-a.json", Provider: "gemini-cli", Metadata: map[string]any{"type": "gemini-cli", "project_id": "project-a"}},
+				{ID: "customoauth.json", Provider: "custom-oauth", Metadata: map[string]any{"type": "custom-oauth"}},
+				{ID: "customoauth-project-a.json", Provider: "custom-oauth", Metadata: map[string]any{"type": "custom-oauth", "project_id": "project-a"}},
 			}, true, nil
 		}),
 	}
@@ -717,17 +717,17 @@ func TestFileSynthesizer_Synthesize_OAuthModelAliases(t *testing.T) {
 	}
 }
 
-func TestFileSynthesizer_Synthesize_IgnoresGeminiOAuthFile(t *testing.T) {
+func TestFileSynthesizerIgnoresUnsupportedOAuthFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	authData := map[string]any{
-		"type":       "gemini",
+		"type":       "unsupported",
 		"email":      "multi@example.com",
 		"project_id": "project-a, project-b, project-c",
 		"priority":   " 10 ",
 	}
 	data, _ := json.Marshal(authData)
-	err := os.WriteFile(filepath.Join(tempDir, "gemini-multi.json"), data, 0644)
+	err := os.WriteFile(filepath.Join(tempDir, "unsupported-multi.json"), data, 0644)
 	if err != nil {
 		t.Fatalf("failed to write auth file: %v", err)
 	}
@@ -745,7 +745,7 @@ func TestFileSynthesizer_Synthesize_IgnoresGeminiOAuthFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(auths) != 0 {
-		t.Fatalf("expected Gemini auth file to be ignored, got %d auths", len(auths))
+		t.Fatalf("expected unsupported auth file to be ignored, got %d auths", len(auths))
 	}
 }
 

@@ -297,15 +297,13 @@ func TestParseCodexQuotaEventHeadersRejectsControlCharactersInLimitName(t *testi
 }
 
 // Codex quota parsing must stay on the codex-specific websocket entry point.
-// The generic entry point is shared with other providers (xAI), whose frames
-// must never be reinterpreted as codex quota data: an xAI error frame really
-// does carry x-ratelimit-* headers, and merging them here would forge codex
-// quota headers into an unrelated provider's request log.
+// Generic compatible-provider frames must never be reinterpreted as Codex quota
+// data because that would forge Codex headers into another request log.
 func TestGenericWebsocketEntryPointDoesNotObserveCodexQuota(t *testing.T) {
 	frame := []byte(`{"type":"error","headers":{"x-ratelimit-remaining-requests":"0","retry-after":"60"}}`)
 
 	genericCtx := internallogging.WithResponseHeadersHolder(context.Background())
-	internallogging.SetResponseHeaders(genericCtx, http.Header{"X-Request-Id": []string{"xai-1"}})
+	internallogging.SetResponseHeaders(genericCtx, http.Header{"X-Request-Id": []string{"compat-1"}})
 	AppendAPIWebsocketResponse(genericCtx, nil, frame)
 	generic := internallogging.GetResponseHeaders(genericCtx)
 	if got := generic.Get("X-Ratelimit-Remaining-Requests"); got != "" {
@@ -314,7 +312,7 @@ func TestGenericWebsocketEntryPointDoesNotObserveCodexQuota(t *testing.T) {
 	if got := generic.Get("Retry-After"); got != "" {
 		t.Fatalf("generic websocket entry point observed retry-after: %q", got)
 	}
-	if got := generic.Get("X-Request-Id"); got != "xai-1" {
+	if got := generic.Get("X-Request-Id"); got != "compat-1" {
 		t.Fatalf("generic websocket entry point disturbed response headers: %q", got)
 	}
 

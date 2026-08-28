@@ -96,7 +96,7 @@ func TestEnsureCacheControl(t *testing.T) {
 	})
 
 	// Test case 5: tools without any system prompt. Native always sends a system
-	// prompt, so this shape only reaches CPA from OpenAI/Gemini translation where the
+	// prompt, so this shape only reaches CPA from OpenAI translation where the
 	// caller supplied no system message. Without a tools breakpoint the sole marker
 	// would sit on the volatile final message and a stateless caller would rewrite
 	// the whole tools prefix on every request.

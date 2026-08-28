@@ -120,9 +120,6 @@ func (s *Service) syncPluginRuntimeConfigForConfig(ctx context.Context, cfg *con
 	}
 	s.pluginHost.RegisterUsagePlugins()
 	sdktranslator.SetPluginHooks(s.pluginHost)
-	if s.server != nil {
-		s.server.RefreshPluginManagementRoutes()
-	}
 	return ctx.Err() == nil
 }
 
@@ -166,7 +163,7 @@ func (s *Service) registerModelsForAuthBatch(ctx context.Context, auths []*corea
 	}
 	tasks := make([]modelRegistrationTask, 0, len(auths))
 	for _, auth := range auths {
-		if auth == nil {
+		if auth == nil || !s.supportsAuth(auth) {
 			continue
 		}
 		authForRegistration := auth.Clone()

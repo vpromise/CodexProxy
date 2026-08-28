@@ -1274,7 +1274,7 @@ func TestCodexAlphaSearchRecordsRequestLog(t *testing.T) {
 	}
 }
 
-func TestManagementResponseExposesPluginSupportHeaderForCORS(t *testing.T) {
+func TestManagementResponseExposesVersionHeadersForCORS(t *testing.T) {
 	t.Setenv("MANAGEMENT_PASSWORD", "test-management-key")
 
 	server := newTestServer(t)
@@ -1286,10 +1286,6 @@ func TestManagementResponseExposesPluginSupportHeaderForCORS(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusUnauthorized, rr.Body.String())
 	}
-	if got := rr.Header().Get("X-CPA-SUPPORT-PLUGIN"); got != pluginhost.SupportPluginHeaderValue() {
-		t.Fatalf("X-CPA-SUPPORT-PLUGIN = %q, want %q", got, pluginhost.SupportPluginHeaderValue())
-	}
-
 	exposedHeaders := make(map[string]struct{})
 	for _, headerName := range strings.Split(rr.Header().Get("Access-Control-Expose-Headers"), ",") {
 		headerName = strings.ToLower(strings.TrimSpace(headerName))
@@ -1414,101 +1410,43 @@ func TestManagementUsageRequiresManagementAuthAndPopsArray(t *testing.T) {
 	}
 }
 
-func TestManagementPluginsRouteRegistered(t *testing.T) {
+func TestManagementPluginRoutesAreNotRegistered(t *testing.T) {
 	t.Setenv("MANAGEMENT_PASSWORD", "test-management-key")
 
 	server := newTestServer(t)
-	enabled := true
-	server.cfg.Plugins.Configs = map[string]proxyconfig.PluginInstanceConfig{
-		"sample": {Enabled: &enabled, Priority: 4},
-	}
-	if errWrite := os.WriteFile(server.configFilePath, []byte("{}\n"), 0o600); errWrite != nil {
-		t.Fatalf("failed to write config file: %v", errWrite)
-	}
 
-	req := httptest.NewRequest(http.MethodGet, "/v0/management/plugins", nil)
-	req.Header.Set("Authorization", "Bearer test-management-key")
-	rr := httptest.NewRecorder()
-	server.engine.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	cases := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/v0/management/plugins"},
+		{method: http.MethodGet, path: "/v0/management/plugin-store"},
+		{method: http.MethodGet, path: "/v0/management/plugins/sample/config"},
+		{method: http.MethodPost, path: "/v0/management/plugin-store/sample/install"},
+		{method: http.MethodGet, path: "/v0/resource/plugins/sample/status"},
 	}
-
-	var payload struct {
-		PluginsEnabled bool  `json:"plugins_enabled"`
-		Plugins        []any `json:"plugins"`
-	}
-	if errUnmarshal := json.Unmarshal(rr.Body.Bytes(), &payload); errUnmarshal != nil {
-		t.Fatalf("unmarshal response: %v body=%s", errUnmarshal, rr.Body.String())
-	}
-	if payload.Plugins == nil {
-		t.Fatalf("plugins field = nil, want array; body=%s", rr.Body.String())
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/v0/management/plugins/sample/config", nil)
-	req.Header.Set("Authorization", "Bearer test-management-key")
-	rr = httptest.NewRecorder()
-	server.engine.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("config status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
-	}
-	var configPayload struct {
-		Enabled  bool `json:"enabled"`
-		Priority int  `json:"priority"`
-	}
-	if errUnmarshal := json.Unmarshal(rr.Body.Bytes(), &configPayload); errUnmarshal != nil {
-		t.Fatalf("unmarshal config response: %v body=%s", errUnmarshal, rr.Body.String())
-	}
-	if !configPayload.Enabled || configPayload.Priority != 4 {
-		t.Fatalf("plugin config = %#v, want enabled true priority 4", configPayload)
-	}
-
-	req = httptest.NewRequest(http.MethodDelete, "/v0/management/plugins/sample", nil)
-	req.Header.Set("Authorization", "Bearer test-management-key")
-	rr = httptest.NewRecorder()
-	server.engine.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("delete status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	for _, tc := range cases {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Authorization", "Bearer test-management-key")
+		rr := httptest.NewRecorder()
+		server.engine.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("%s %s status = %d, want %d body=%s", tc.method, tc.path, rr.Code, http.StatusNotFound, rr.Body.String())
+		}
 	}
 }
 
-func TestVideosRoutesKeepXAINativeAndExposeOpenAIPrefix(t *testing.T) {
+func TestVideoRoutesAreNotRegistered(t *testing.T) {
 	server := newTestServer(t)
 
-	nativeReq := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(`{"model":"sora-2","prompt":"make a video"}`))
-	nativeReq.Header.Set("Authorization", "Bearer test-key")
-	nativeReq.Header.Set("Content-Type", "application/json")
-	nativeRR := httptest.NewRecorder()
-	server.engine.ServeHTTP(nativeRR, nativeReq)
-	if nativeRR.Code != http.StatusBadRequest {
-		t.Fatalf("native status = %d, want %d body=%s", nativeRR.Code, http.StatusBadRequest, nativeRR.Body.String())
-	}
-	if !strings.Contains(nativeRR.Body.String(), "/v1/videos/generations") {
-		t.Fatalf("expected /v1/videos to keep xAI native validation, body=%s", nativeRR.Body.String())
-	}
-
-	openAIReq := httptest.NewRequest(http.MethodPost, "/openai/v1/videos", strings.NewReader(`{"model":`))
-	openAIReq.Header.Set("Authorization", "Bearer test-key")
-	openAIReq.Header.Set("Content-Type", "application/json")
-	openAIRR := httptest.NewRecorder()
-	server.engine.ServeHTTP(openAIRR, openAIReq)
-	if openAIRR.Code != http.StatusBadRequest {
-		t.Fatalf("openai create status = %d, want %d body=%s", openAIRR.Code, http.StatusBadRequest, openAIRR.Body.String())
-	}
-	if !strings.Contains(openAIRR.Body.String(), "body must be valid JSON") {
-		t.Fatalf("expected /openai/v1/videos create handler, body=%s", openAIRR.Body.String())
-	}
-
-	contentReq := httptest.NewRequest(http.MethodGet, "/openai/v1/videos/video_123/content?variant=thumbnail", nil)
-	contentReq.Header.Set("Authorization", "Bearer test-key")
-	contentRR := httptest.NewRecorder()
-	server.engine.ServeHTTP(contentRR, contentReq)
-	if contentRR.Code != http.StatusBadRequest {
-		t.Fatalf("content status = %d, want %d body=%s", contentRR.Code, http.StatusBadRequest, contentRR.Body.String())
-	}
-	if !strings.Contains(contentRR.Body.String(), "variant") {
-		t.Fatalf("expected /openai/v1/videos content handler, body=%s", contentRR.Body.String())
+	for _, path := range []string{"/v1/videos", "/v1/videos/generations", "/openai/v1/videos", "/openai/v1/videos/video_123/content"} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer test-key")
+		rr := httptest.NewRecorder()
+		server.engine.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("path %s status = %d, want %d body=%s", path, rr.Code, http.StatusNotFound, rr.Body.String())
+		}
 	}
 }
 
@@ -1538,11 +1476,34 @@ func TestHomeEnabledHidesManagementEndpointsAndControlPanel(t *testing.T) {
 	})
 }
 
+func TestBundledManagementPanelIgnoresLegacyStaticAsset(t *testing.T) {
+	staticDir := t.TempDir()
+	t.Setenv("MANAGEMENT_STATIC_PATH", staticDir)
+	if errWrite := os.WriteFile(filepath.Join(staticDir, "management.html"), []byte("<html>upstream full panel</html>"), 0o600); errWrite != nil {
+		t.Fatalf("write legacy management asset: %v", errWrite)
+	}
+
+	server := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/management.html", nil)
+	rr := httptest.NewRecorder()
+	server.engine.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "CLI Proxy API Management Center") {
+		t.Fatal("response is missing the bundled management panel")
+	}
+	if strings.Contains(rr.Body.String(), "upstream full panel") {
+		t.Fatal("legacy external management asset overrode the bundled panel")
+	}
+}
+
 func TestExampleAPIKeySafeModeShowsWarningAndKeepsManagement(t *testing.T) {
 	t.Setenv("MANAGEMENT_PASSWORD", "test-management-key")
 	staticDir := t.TempDir()
 	t.Setenv("MANAGEMENT_STATIC_PATH", staticDir)
-	if err := os.WriteFile(filepath.Join(staticDir, "management.html"), []byte("<html>management app</html>"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(staticDir, "management.html"), []byte("<html>upstream full panel</html>"), 0o600); err != nil {
 		t.Fatalf("failed to write management asset: %v", err)
 	}
 
@@ -1600,8 +1561,11 @@ func TestExampleAPIKeySafeModeShowsWarningAndKeepsManagement(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
 		}
-		if !strings.Contains(rr.Body.String(), "management app") {
-			t.Fatalf("management panel body missing: %s", rr.Body.String())
+		if !strings.Contains(rr.Body.String(), "CLI Proxy API Management Center") {
+			t.Fatalf("bundled management panel body missing: %s", rr.Body.String())
+		}
+		if strings.Contains(rr.Body.String(), "upstream full panel") {
+			t.Fatalf("external management asset overrode the bundled panel: %s", rr.Body.String())
 		}
 	})
 
@@ -1853,13 +1817,7 @@ func TestModelsWithClientVersionReturnsCodexCatalog(t *testing.T) {
 			ContextLength: 123456,
 			Thinking:      &registry.ThinkingSupport{Levels: []string{"none", "minimal", "low", "medium", "unsupported", "high", "xhigh"}},
 		},
-		{ID: "grok-imagine-image-quality", Object: "model", OwnedBy: "xai", Type: "openai"},
 		{ID: "gpt-image-2", Object: "model", OwnedBy: "openai", Type: "openai"},
-		{ID: "grok-imagine-image", Object: "model", OwnedBy: "xai", Type: "openai"},
-		{ID: "grok-imagine-image-2.0", Object: "model", OwnedBy: "xai", Type: "openai"},
-		{ID: "grok-imagine-video", Object: "model", OwnedBy: "xai", Type: "openai"},
-		{ID: "grok-imagine-video-1.5", Object: "model", OwnedBy: "xai", Type: "openai"},
-		{ID: "grok-imagine-video-1.5-preview", Object: "model", OwnedBy: "xai", Type: "openai"},
 	})
 	t.Cleanup(func() {
 		modelRegistry.UnregisterClient(clientID)
@@ -1956,15 +1914,7 @@ func TestModelsWithClientVersionReturnsCodexCatalog(t *testing.T) {
 		t.Fatal("expected custom model to omit availability_nux")
 	}
 
-	hiddenModels := map[string]bool{
-		"grok-imagine-image-quality":     false,
-		"gpt-image-2":                    false,
-		"grok-imagine-image":             false,
-		"grok-imagine-image-2.0":         false,
-		"grok-imagine-video":             false,
-		"grok-imagine-video-1.5":         false,
-		"grok-imagine-video-1.5-preview": false,
-	}
+	hiddenModels := map[string]bool{"gpt-image-2": false}
 	for _, model := range resp.Models {
 		slug, _ := model["slug"].(string)
 		if _, ok := hiddenModels[slug]; !ok {
@@ -2307,7 +2257,7 @@ func TestFormatHomeClaudeModelIncludesAnthropicSchemaFields(t *testing.T) {
 	}
 }
 
-func TestDecodeHomeModelsKeepsTokenMetadata(t *testing.T) {
+func TestDecodeHomeModelsKeepsScopedTokenMetadata(t *testing.T) {
 	entries, errDecode := decodeHomeModels([]byte(`{
 		"claude": [
 			{
@@ -2323,6 +2273,13 @@ func TestDecodeHomeModelsKeepsTokenMetadata(t *testing.T) {
 				"name": "models/gemini-3-pro",
 				"inputTokenLimit": 1048576,
 				"outputTokenLimit": 65536
+			}
+		],
+		"openai-compatible-example": [
+			{
+				"id": "compatible-model",
+				"context_length": 128000,
+				"max_completion_tokens": 16384
 			}
 		]
 	}`))
@@ -2341,12 +2298,15 @@ func TestDecodeHomeModelsKeepsTokenMetadata(t *testing.T) {
 	if claudeEntry.contextLength != 200000 || claudeEntry.maxCompletionTokens != 64000 {
 		t.Fatalf("claude token metadata = %d/%d, want 200000/64000", claudeEntry.contextLength, claudeEntry.maxCompletionTokens)
 	}
-	geminiEntry, ok := byID["gemini-3-pro"]
-	if !ok {
-		t.Fatalf("expected gemini-3-pro entry, got %v", byID)
+	if _, ok := byID["gemini-3-pro"]; ok {
+		t.Fatalf("unexpected out-of-scope Gemini entry in %v", byID)
 	}
-	if geminiEntry.contextLength != 1048576 || geminiEntry.maxCompletionTokens != 65536 {
-		t.Fatalf("gemini token metadata = %d/%d, want 1048576/65536", geminiEntry.contextLength, geminiEntry.maxCompletionTokens)
+	compatibleEntry, ok := byID["compatible-model"]
+	if !ok {
+		t.Fatalf("expected compatible-model entry, got %v", byID)
+	}
+	if compatibleEntry.contextLength != 128000 || compatibleEntry.maxCompletionTokens != 16384 {
+		t.Fatalf("compatible token metadata = %d/%d, want 128000/16384", compatibleEntry.contextLength, compatibleEntry.maxCompletionTokens)
 	}
 }
 
@@ -2386,13 +2346,38 @@ func TestHomeModelsErrorMessage(t *testing.T) {
 	}
 }
 
-func TestInteractionsRouteRegistered(t *testing.T) {
+func TestGeminiRoutesAreNotRegistered(t *testing.T) {
 	server := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1beta/interactions", strings.NewReader(`{"model":"gemini-3.5-flash","input":"hi"}`))
-	req.Header.Set("Authorization", "Bearer test-key")
-	rr := httptest.NewRecorder()
-	server.engine.ServeHTTP(rr, req)
-	if rr.Code == http.StatusNotFound {
-		t.Fatalf("status = %d, want route registered; body=%s", rr.Code, rr.Body.String())
+	for _, path := range []string{"/v1beta/interactions", "/v1beta/models", "/v1beta/models/gemini:generateContent"} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer test-key")
+		rr := httptest.NewRecorder()
+		server.engine.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("path %s status = %d, want %d body=%s", path, rr.Code, http.StatusNotFound, rr.Body.String())
+		}
+	}
+}
+
+func TestRemovedProviderManagementRoutesAreNotRegistered(t *testing.T) {
+	t.Setenv("MANAGEMENT_PASSWORD", "test-management-key")
+	server := newTestServer(t)
+	paths := []string{
+		"/v0/management/gemini-api-key",
+		"/v0/management/interactions-api-key",
+		"/v0/management/xai-api-key",
+		"/v0/management/vertex-api-key",
+		"/v0/management/antigravity-auth-url",
+		"/v0/management/kimi-auth-url",
+		"/v0/management/xai-auth-url",
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer test-management-key")
+		rr := httptest.NewRecorder()
+		server.engine.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("path %s status = %d, want %d body=%s", path, rr.Code, http.StatusNotFound, rr.Body.String())
+		}
 	}
 }

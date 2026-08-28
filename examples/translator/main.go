@@ -9,29 +9,29 @@ import (
 )
 
 func main() {
-	rawRequest := []byte(`{"messages":[{"content":[{"text":"Hello! Gemini","type":"text"}],"role":"user"}],"model":"gemini-2.5-pro","stream":false}`)
-	fmt.Println("Has gemini->openai response translator:", translator.HasResponseTransformerByFormatName(
-		translator.FormatGemini,
+	rawRequest := []byte(`{"messages":[{"content":"Hello, Claude!","role":"user"}],"model":"claude-sonnet-4-5","stream":false}`)
+	fmt.Println("Has Claude->OpenAI response translator:", translator.HasResponseTransformerByFormatName(
+		translator.FormatClaude,
 		translator.FormatOpenAI,
 	))
 
 	translatedRequest := translator.TranslateRequestByFormatName(
 		translator.FormatOpenAI,
-		translator.FormatGemini,
-		"gemini-2.5-pro",
+		translator.FormatClaude,
+		"claude-sonnet-4-5",
 		rawRequest,
 		false,
 	)
 
-	fmt.Printf("Translated request to Gemini format:\n%s\n\n", translatedRequest)
+	fmt.Printf("Translated request to Claude format:\n%s\n\n", translatedRequest)
 
-	claudeResponse := []byte(`{"candidates":[{"content":{"role":"model","parts":[{"thought":true,"text":"Okay, here's what's going through my mind. I need to schedule a meeting"},{"thoughtSignature":"","functionCall":{"name":"schedule_meeting","args":{"topic":"Q3 planning","attendees":["Bob","Alice"],"time":"10:00","date":"2025-03-27"}}}]},"finishReason":"STOP","avgLogprobs":-0.50018133435930523}],"usageMetadata":{"promptTokenCount":117,"candidatesTokenCount":28,"totalTokenCount":474,"trafficType":"PROVISIONED_THROUGHPUT","promptTokensDetails":[{"modality":"TEXT","tokenCount":117}],"candidatesTokensDetails":[{"modality":"TEXT","tokenCount":28}],"thoughtsTokenCount":329},"modelVersion":"gemini-2.5-pro","createTime":"2025-08-15T04:12:55.249090Z","responseId":"x7OeaIKaD6CU48APvNXDyA4"}`)
+	claudeResponse := []byte(`{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"text","text":"Hello!"}],"stop_reason":"end_turn","usage":{"input_tokens":8,"output_tokens":3}}`)
 
 	convertedResponse := translator.TranslateNonStreamByFormatName(
 		context.Background(),
-		translator.FormatGemini,
+		translator.FormatClaude,
 		translator.FormatOpenAI,
-		"gemini-2.5-pro",
+		"claude-sonnet-4-5",
 		rawRequest,
 		translatedRequest,
 		claudeResponse,

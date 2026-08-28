@@ -141,6 +141,7 @@ func (s *Service) applyConfigRuntime(ctx context.Context, commit configCommit, s
 	if !s.applyManagerConfig(ctx, commit) {
 		return false
 	}
+	s.pruneUnsupportedRuntimeAuths(ctx)
 	if errContext := ctx.Err(); errContext != nil {
 		return false
 	}
@@ -261,6 +262,9 @@ func (s *Service) registerConfigAPIKeyAuths(ctx context.Context, cfg *config.Con
 		if !coreauth.IsConfigAPIKeyAuth(auth) {
 			continue
 		}
+		if !s.supportsAuth(auth) {
+			continue
+		}
 		prepared := s.prepareCoreAuthForModelRegistration(registrationCtx, auth)
 		if prepared == nil {
 			continue
@@ -289,7 +293,6 @@ func forceHomeRuntimeConfig(cfg *config.Config) {
 	cfg.UsageStatisticsEnabled = true
 	cfg.DisableCooling = true
 	cfg.SaveCooldownStatus = false
-	cfg.WebsocketAuth = false
 	cfg.RemoteManagement.AllowRemote = false
 	cfg.RemoteManagement.DisableControlPanel = true
 	cfg.Plugins.StoreAuth = nil

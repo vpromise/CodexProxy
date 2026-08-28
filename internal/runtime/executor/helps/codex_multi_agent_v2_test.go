@@ -41,30 +41,30 @@ func (*pairRequestPluginHooks) NormalizeResponseAfter(context.Context, sdktransl
 	return nil
 }
 
-func geminiToolHistoryPayload(turns int) []byte {
-	contents := []string{`{"role":"user","parts":[{"text":"start"}]}`}
+func codexToolHistoryPayload(turns int) []byte {
+	items := []string{`{"role":"user","content":[{"type":"input_text","text":"start"}]}`}
 	for i := 0; i < turns; i++ {
-		contents = append(contents,
-			fmt.Sprintf(`{"role":"user","parts":[{"text":"ask %d"}]}`, i),
-			fmt.Sprintf(`{"role":"model","parts":[{"text":"think %d"},{"thoughtSignature":"sig-%d","functionCall":{"id":"c%d","name":"read_file","args":{"path":"a%d.go"}}}]}`, i, i, i, i),
-			fmt.Sprintf(`{"role":"user","parts":[{"functionResponse":{"id":"c%d","name":"read_file","response":{"content":"data %d"}}}]}`, i, i),
-			fmt.Sprintf(`{"role":"model","parts":[{"text":"answer %d"}]}`, i))
+		items = append(items,
+			fmt.Sprintf(`{"role":"user","content":[{"type":"input_text","text":"ask %d"}]}`, i),
+			fmt.Sprintf(`{"type":"function_call","call_id":"c%d","name":"read_file","arguments":"{\"path\":\"a%d.go\"}"}`, i, i),
+			fmt.Sprintf(`{"type":"function_call_output","call_id":"c%d","output":"data %d"}`, i, i),
+			fmt.Sprintf(`{"role":"assistant","content":[{"type":"output_text","text":"answer %d"}]}`, i))
 	}
 	return []byte(fmt.Sprintf(
-		`{"contents":[%s],"tools":[{"functionDeclarations":[{"name":"read_file","description":"read a file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}]}],"generationConfig":{"temperature":1}}`,
-		strings.Join(contents, ",")))
+		`{"model":"claude-sonnet-4-5","input":[%s],"tools":[{"type":"function","name":"read_file","description":"read a file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}]}`,
+		strings.Join(items, ",")))
 }
 
 // TestTranslateRequestPairMatchesSeparateTranslations pins the reuse fast path to
 // the behavior of translating both payloads independently.
 func TestTranslateRequestPairMatchesSeparateTranslations(t *testing.T) {
-	from := sdktranslator.FormatGemini
-	to := sdktranslator.FromString("antigravity")
+	from := sdktranslator.FormatOpenAIResponse
+	to := sdktranslator.FormatClaude
 	cfg := &config.Config{}
-	const model = "gemini-3.6-flash-high"
+	const model = "claude-sonnet-4-5"
 
 	for _, turns := range []int{0, 1, 5, 20} {
-		payload := geminiToolHistoryPayload(turns)
+		payload := codexToolHistoryPayload(turns)
 		// Same bytes in a different backing array forces the translate-twice branch.
 		detached := append([]byte(nil), payload...)
 
@@ -102,13 +102,13 @@ func TestTranslateRequestPairMatchesSeparateTranslations(t *testing.T) {
 // TestTranslateRequestPairTranslatesDistinctPayloads guards the case where the
 // executor really does hand over two different requests.
 func TestTranslateRequestPairTranslatesDistinctPayloads(t *testing.T) {
-	from := sdktranslator.FormatGemini
-	to := sdktranslator.FromString("antigravity")
+	from := sdktranslator.FormatOpenAIResponse
+	to := sdktranslator.FormatClaude
 	cfg := &config.Config{}
-	const model = "gemini-3.6-flash-high"
+	const model = "claude-sonnet-4-5"
 
-	original := geminiToolHistoryPayload(2)
-	request := geminiToolHistoryPayload(4)
+	original := codexToolHistoryPayload(2)
+	request := codexToolHistoryPayload(4)
 
 	base, work := TranslateRequestPairWithCodexMultiAgentV2(
 		context.Background(), http.Header{}, cfg, from, to, model, original, request, true)
@@ -132,14 +132,14 @@ func TestTranslateRequestPairPreservesPluginHookInvocations(t *testing.T) {
 	sdktranslator.SetPluginHooks(hooks)
 	t.Cleanup(func() { sdktranslator.SetPluginHooks(nil) })
 
-	payload := geminiToolHistoryPayload(1)
+	payload := codexToolHistoryPayload(1)
 	base, work := TranslateRequestPairWithCodexMultiAgentV2(
 		context.Background(),
 		http.Header{},
 		&config.Config{},
-		sdktranslator.FormatGemini,
-		sdktranslator.FromString("antigravity"),
-		"gemini-3.6-flash-high",
+		sdktranslator.FormatOpenAIResponse,
+		sdktranslator.FormatClaude,
+		"claude-sonnet-4-5",
 		payload,
 		payload,
 		true,

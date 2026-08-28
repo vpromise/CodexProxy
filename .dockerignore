@@ -21,6 +21,10 @@ logs
 conv
 config.yaml
 
+# Frontend build outputs and local dependencies
+management-webui/node_modules
+management-webui/dist
+
 # Development/editor
 bin
 .vscode

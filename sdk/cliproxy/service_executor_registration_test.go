@@ -67,7 +67,6 @@ func TestRegisterAvailableExecutors(t *testing.T) {
 	}
 	expectedPluginHost = service.pluginHost
 	expectedManager = service.coreManager
-	service.ensureWebsocketGateway()
 
 	service.registerAvailableExecutors(nil, executorRegistrationOptions{
 		includeBaseline: true,
@@ -81,13 +80,6 @@ func TestRegisterAvailableExecutors(t *testing.T) {
 	providers := []string{
 		"codex",
 		"claude",
-		"gemini",
-		"gemini-interactions",
-		"vertex",
-		"aistudio",
-		"antigravity",
-		"kimi",
-		"xai",
 		"openai-compatibility",
 		"plugin-provider",
 	}
@@ -130,7 +122,7 @@ func TestSyncPluginModelRuntimePreservesSDKExecutorUnlessForced(t *testing.T) {
 	}
 }
 
-func TestRegisterExecutorForAuth_OpenAICompatUsesNamespacedProviderKey(t *testing.T) {
+func TestRegisterExecutorForAuth_RemovedNativeProviderKeepsCompatibleGateway(t *testing.T) {
 	testCases := []struct {
 		name  string
 		auths []*coreauth.Auth
@@ -160,12 +152,8 @@ func TestRegisterExecutorForAuth_OpenAICompatUsesNamespacedProviderKey(t *testin
 
 			service.registerExecutorsForAuths(tt.auths, true)
 
-			nativeExecutor, okNative := service.coreManager.Executor("kimi")
-			if !okNative {
-				t.Fatal("expected native kimi executor")
-			}
-			if _, okKimi := nativeExecutor.(*runtimeexecutor.KimiExecutor); !okKimi {
-				t.Fatalf("native executor type = %T, want *executor.KimiExecutor", nativeExecutor)
+			if nativeExecutor, okNative := service.coreManager.Executor("kimi"); okNative {
+				t.Fatalf("unexpected native kimi executor %T", nativeExecutor)
 			}
 
 			compatExecutor, okCompat := service.coreManager.Executor("openai-compatible-kimi")

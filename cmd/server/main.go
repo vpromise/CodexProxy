@@ -1,5 +1,5 @@
 // Package main provides the entry point for the CLI Proxy API server.
-// This server acts as a proxy that provides OpenAI/Gemini/Claude compatible API interfaces
+// This server acts as a proxy that provides OpenAI/Claude/Codex compatible API interfaces
 // for CLI models, allowing CLI models to be used with tools and libraries designed for standard AI APIs.
 package main
 
@@ -25,14 +25,13 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/homeplugins"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/managementasset"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/safemode"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/store"
-	_ "github.com/router-for-me/CLIProxyAPI/v7/internal/translator"
+	_ "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/core"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/tui"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
@@ -78,11 +77,6 @@ func main() {
 	var claudeLogin bool
 	var noBrowser bool
 	var oauthCallbackPort int
-	var antigravityLogin bool
-	var kimiLogin bool
-	var xaiLogin bool
-	var vertexImport string
-	var vertexImportPrefix string
 	var configPath string
 	var password string
 	var homeJWT string
@@ -97,12 +91,7 @@ func main() {
 	flag.BoolVar(&claudeLogin, "claude-login", false, "Login to Claude using OAuth")
 	flag.BoolVar(&noBrowser, "no-browser", false, "Don't open browser automatically for OAuth")
 	flag.IntVar(&oauthCallbackPort, "oauth-callback-port", 0, "Override OAuth callback port (defaults to provider-specific port)")
-	flag.BoolVar(&antigravityLogin, "antigravity-login", false, "Login to Antigravity using OAuth")
-	flag.BoolVar(&kimiLogin, "kimi-login", false, "Login to Kimi using OAuth")
-	flag.BoolVar(&xaiLogin, "xai-login", false, "Login to xAI using OAuth")
 	flag.StringVar(&configPath, "config", DefaultConfigPath, "Configure File Path")
-	flag.StringVar(&vertexImport, "vertex-import", "", "Import Vertex service account key JSON file")
-	flag.StringVar(&vertexImportPrefix, "vertex-import-prefix", "", "Prefix for Vertex model namespacing (use with -vertex-import)")
 	flag.StringVar(&password, "password", "", "")
 	flag.StringVar(&homeJWT, "home-jwt", "", "Home control plane JWT for mTLS certificate bootstrap and connection")
 	flag.BoolVar(&homeDisableClusterDiscovery, "home-disable-cluster-discovery", false, "Disable Home CLUSTER NODES discovery and keep using the configured -home-jwt address")
@@ -582,15 +571,13 @@ func main() {
 	} else {
 		cfg.AuthDir = resolvedAuthDir
 	}
-	managementasset.SetCurrentConfig(cfg)
-
 	// Create login options to be used in authentication flows.
 	options := &cmd.LoginOptions{
 		NoBrowser:    noBrowser,
 		CallbackPort: oauthCallbackPort,
 	}
 
-	commandMode := vertexImport != "" || antigravityLogin || codexLogin || codexDeviceLogin || claudeLogin || kimiLogin || xaiLogin
+	commandMode := codexLogin || codexDeviceLogin || claudeLogin
 	cloudConfigMissing := isCloudDeploy && !configFileExists
 	homeMode := configLoadedFromHome || (cfg != nil && cfg.Home.Enabled)
 	exampleAPIKeySafeMode := shouldEnableExampleAPIKeySafeMode(cfg, commandMode, tuiMode, standalone, cloudConfigMissing, homeMode)
@@ -645,13 +632,7 @@ func main() {
 
 	// Handle different command modes based on the provided flags.
 
-	if vertexImport != "" {
-		// Handle Vertex service account import
-		cmd.DoVertexImport(cfg, vertexImport, vertexImportPrefix)
-	} else if antigravityLogin {
-		// Handle Antigravity login
-		cmd.DoAntigravityLogin(cfg, options)
-	} else if codexLogin {
+	if codexLogin {
 		// Handle Codex login
 		cmd.DoCodexLogin(cfg, options)
 	} else if codexDeviceLogin {
@@ -660,10 +641,6 @@ func main() {
 	} else if claudeLogin {
 		// Handle Claude login
 		cmd.DoClaudeLogin(cfg, options)
-	} else if kimiLogin {
-		cmd.DoKimiLogin(cfg, options)
-	} else if xaiLogin {
-		cmd.DoXAILogin(cfg, options)
 	} else {
 		// In cloud deploy mode without config file, just wait for shutdown signals
 		if isCloudDeploy && !configFileExists {
@@ -677,8 +654,6 @@ func main() {
 		if tuiMode {
 			if standalone {
 				// Standalone mode: start an embedded local server and connect TUI client to it.
-				managementasset.StartAutoUpdater(context.Background(), configFilePath)
-				misc.StartAntigravityVersionUpdater(context.Background())
 				startModelCatalogUpdaters(localModel, cfg.Home.Enabled)
 				hook := tui.NewLogHook(2000)
 				hook.SetFormatter(&logging.LogFormatter{})
@@ -751,8 +726,6 @@ func main() {
 			}
 		} else {
 			// Start the main proxy service
-			managementasset.StartAutoUpdater(context.Background(), configFilePath)
-			misc.StartAntigravityVersionUpdater(context.Background())
 			startModelCatalogUpdaters(localModel, cfg.Home.Enabled)
 			cmd.StartServiceWithPluginHost(cfg, configFilePath, password, pluginHost, serverOptions...)
 		}

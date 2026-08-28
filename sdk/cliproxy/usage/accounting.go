@@ -20,7 +20,6 @@ const (
 	tokenAccountingSemanticsUnknown tokenAccountingSemantics = iota
 	tokenAccountingSemanticsSubset
 	tokenAccountingSemanticsIndependent
-	tokenAccountingSemanticsSeparateReasoning
 )
 
 // TokenInputBreakdown contains mutually exclusive input token buckets.
@@ -250,7 +249,7 @@ func EnsureTokenBreakdownForProvider(detail Detail, provider, executorType strin
 		semantics := tokenAccountingSemanticsFor(provider, executorType)
 		if detail.CacheReadTokens == 0 && detail.CachedTokens > 0 && detail.InputTokens == 0 &&
 			detail.OutputTokens == 0 && detail.ReasoningTokens == 0 && detail.CacheCreationTokens == 0 && detail.TotalTokens == 0 &&
-			(semantics == tokenAccountingSemanticsSubset || semantics == tokenAccountingSemanticsSeparateReasoning) {
+			semantics == tokenAccountingSemanticsSubset {
 			detail.CacheReadTokens = detail.CachedTokens
 		}
 		detail.TokenBreakdown = tokenBreakdownForSemantics(detail, semantics)
@@ -265,10 +264,7 @@ func tokenBreakdownForSemantics(detail Detail, semantics tokenAccountingSemantic
 	if detail.TotalTokens == 0 && detail.InputTokens == 0 && detail.OutputTokens == 0 {
 		if total, okTotal := unclassifiedTokenLowerBound(detail); !okTotal {
 			return inconsistentTokenBreakdown(detail.TotalTokens, 0)
-		} else if total > 0 && (semantics == tokenAccountingSemanticsUnknown ||
-			semantics == tokenAccountingSemanticsSubset ||
-			(semantics == tokenAccountingSemanticsSeparateReasoning &&
-				(detail.CacheReadTokens > 0 || detail.CacheCreationTokens > 0 || detail.CachedTokens > 0))) {
+		} else if total > 0 && (semantics == tokenAccountingSemanticsUnknown || semantics == tokenAccountingSemanticsSubset) {
 			return NewUnclassifiedTokenBreakdown(total)
 		}
 	}
@@ -284,15 +280,6 @@ func tokenBreakdownForSemantics(detail Detail, semantics tokenAccountingSemantic
 		)
 	case tokenAccountingSemanticsIndependent:
 		return NewIndependentTokenBreakdown(
-			detail.InputTokens,
-			detail.CacheReadTokens,
-			detail.CacheCreationTokens,
-			detail.OutputTokens,
-			detail.ReasoningTokens,
-			detail.TotalTokens,
-		)
-	case tokenAccountingSemanticsSeparateReasoning:
-		return NewSeparateReasoningTokenBreakdown(
 			detail.InputTokens,
 			detail.CacheReadTokens,
 			detail.CacheCreationTokens,
@@ -345,12 +332,7 @@ func tokenAccountingSemanticsFor(provider, executorType string) tokenAccountingS
 	if strings.Contains(value, "claude") || strings.Contains(value, "anthropic") {
 		return tokenAccountingSemanticsIndependent
 	}
-	for _, marker := range []string{"gemini", "aistudio", "antigravity", "vertex", "interaction"} {
-		if strings.Contains(value, marker) {
-			return tokenAccountingSemanticsSeparateReasoning
-		}
-	}
-	for _, marker := range []string{"openai", "codex", "xai", "grok", "kimi", "qwen", "deepseek", "openrouter"} {
+	for _, marker := range []string{"openai", "codex"} {
 		if strings.Contains(value, marker) {
 			return tokenAccountingSemanticsSubset
 		}

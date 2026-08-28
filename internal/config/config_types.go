@@ -130,20 +130,6 @@ type CodexHeaderDefaults struct {
 	UserAgent    string `yaml:"user-agent" json:"user-agent"`
 	BetaFeatures string `yaml:"beta-features" json:"beta-features"`
 }
-
-// XAIConfig configures provider-wide xAI request behavior.
-type XAIConfig struct {
-	// InjectXSearch injects xAI's native x_search tool when the request does not declare it.
-	InjectXSearch bool `yaml:"inject-x-search" json:"inject-x-search"`
-}
-
-// AntigravityConfig configures provider-wide Antigravity request behavior.
-type AntigravityConfig struct {
-	// SensitiveWords is a list of words to obfuscate with zero-width characters in system instructions.
-	SensitiveWords []string `yaml:"sensitive-words,omitempty" json:"sensitive-words,omitempty"`
-}
-
-// CodexConfig configures provider-wide Codex request behavior.
 type CodexConfig struct {
 	IdentityConfuse bool `yaml:"identity-confuse" json:"identity-confuse"`
 	// DisableCodexCloaking disables forcing the official Codex identity headers on HTTP/SSE and WebSocket requests.
@@ -204,32 +190,10 @@ type RemoteManagement struct {
 	AllowRemote bool `yaml:"allow-remote"`
 	// SecretKey is the management key (plaintext or bcrypt hashed). YAML key intentionally 'secret-key'.
 	SecretKey string `yaml:"secret-key"`
-	// DisableControlPanel skips serving and syncing the bundled management UI when true.
+	// DisableControlPanel skips serving the bundled management UI when true.
 	DisableControlPanel bool `yaml:"disable-control-panel"`
-	// DisableAutoUpdatePanel disables automatic periodic background updates of the management panel asset from GitHub.
-	// When false (the default), the background updater remains enabled; when true, the panel is only downloaded on first access if missing.
-	DisableAutoUpdatePanel bool `yaml:"disable-auto-update-panel"`
-	// PanelGitHubRepository overrides the GitHub repository used to fetch the management panel asset.
-	// Accepts either a repository URL (https://github.com/org/repo) or an API releases endpoint.
-	PanelGitHubRepository string `yaml:"panel-github-repository"`
 }
 
-// QuotaExceeded defines the behavior when API quota limits are exceeded.
-// It provides configuration options for automatic failover mechanisms.
-type QuotaExceeded struct {
-	// SwitchProject indicates whether to automatically switch to another project when a quota is exceeded.
-	SwitchProject bool `yaml:"switch-project" json:"switch-project"`
-
-	// SwitchPreviewModel indicates whether to automatically switch to a preview model when a quota is exceeded.
-	SwitchPreviewModel bool `yaml:"switch-preview-model" json:"switch-preview-model"`
-
-	// AntigravityCredits enables credits-based last-resort fallback for Claude models.
-	// When all free-tier auths are exhausted (429/503), the conductor retries with
-	// an auth that has available Google One AI credits.
-	AntigravityCredits bool `yaml:"antigravity-credits" json:"antigravity-credits"`
-}
-
-// RoutingConfig configures how credentials are selected for requests.
 type RoutingConfig struct {
 	// Strategy selects the credential selection strategy.
 	// Supported values: "round-robin" (default), "weighted-round-robin", "fill-first".
@@ -295,13 +259,13 @@ type PayloadRule struct {
 
 // PayloadModelRule ties a model name pattern to a specific translator protocol.
 type PayloadModelRule struct {
-	// Name is the model name or wildcard pattern (e.g., "gpt-*", "*-5", "gemini-*-pro").
+	// Name is the model name or wildcard pattern (e.g., "gpt-*", "*-5", "claude-*-sonnet").
 	Name string `yaml:"name" json:"name"`
-	// Protocol restricts the rule to a specific translator format (e.g., "gemini", "responses").
+	// Protocol restricts the rule to a specific translator format (e.g., "claude", "responses").
 	Protocol string `yaml:"protocol" json:"protocol"`
 	// Headers restricts the rule to requests whose headers match all configured wildcard patterns.
 	Headers map[string]string `yaml:"headers" json:"headers"`
-	// FromProtocol restricts the rule to a specific source protocol (e.g., "gemini", "responses").
+	// FromProtocol restricts the rule to a specific source protocol (e.g., "claude", "responses").
 	FromProtocol string `yaml:"from-protocol" json:"from-protocol"`
 	// Match requires payload JSON paths to equal the configured values.
 	Match []map[string]any `yaml:"match" json:"match"`
@@ -391,14 +355,13 @@ type ClaudeKey struct {
 	// credential on Anthropic Messages. Empty/default keeps the caller request
 	// fingerprint and headers, including first-party api.anthropic.com API keys.
 	// "claude-code-cli" opts official Anthropic API keys, custom gateways, and
-	// delegated providers such as Kimi into the Claude Code OAuth CLI Messages
+	// compatible gateways into the Claude Code OAuth CLI Messages
 	// shape (OAuth betas, CCH signing, stable CLI identity) without treating the
 	// credential as a real OAuth token for refresh/profile/runtime semantics.
 	// CCH is a per-request hash and follows the native gate: it is emitted only on
-	// api.anthropic.com and Vertex, so an opt-in on any other gateway sends the
-	// billing block unsigned and cannot bust that gateway's prompt cache. Kimi
-	// strips the attribution entirely by default and keeps it, unsigned, after an
-	// explicit opt-in. count_tokens keeps the native model/messages/tools shape.
+	// api.anthropic.com, so an opt-in on any other gateway sends the billing block
+	// unsigned and cannot bust that gateway's prompt cache. count_tokens keeps the
+	// native model/messages/tools shape.
 	// Recognized values are defined by NormalizeClaudeFingerprintProfile.
 	FingerprintProfile string `yaml:"fingerprint-profile,omitempty" json:"fingerprint-profile,omitempty"`
 
@@ -550,102 +513,6 @@ func (m CodexModel) GetIsCompat() bool        { return m.IsCompat }
 
 func (m CodexModel) GetThinking() *registry.ThinkingSupport { return m.Thinking }
 
-// XAIKey uses the Codex API key structure for native xAI execution.
-type XAIKey = CodexKey
-
-// XAIModel uses the Codex model mapping structure for xAI models.
-type XAIModel = CodexModel
-
-// GeminiKey represents the configuration for a Gemini API key,
-// including optional overrides for upstream base URL, proxy routing, and headers.
-type GeminiKey struct {
-	// APIKey is the authentication key for accessing Gemini API services.
-	APIKey string `yaml:"api-key" json:"api-key"`
-
-	// Priority controls selection preference when multiple credentials match.
-	// Higher values are preferred; defaults to 0.
-	Priority int `yaml:"priority,omitempty" json:"priority,omitempty"`
-
-	// Weight controls proportional selection under weighted-round-robin.
-	// An omitted value defaults to 1; non-positive values exclude this credential; maximum 1,000,000.
-	Weight *int `yaml:"weight,omitempty" json:"weight,omitempty"`
-
-	// Prefix optionally namespaces models for this credential (e.g., "teamA/gemini-3-pro-preview").
-	Prefix string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
-
-	// BaseURL optionally overrides the Gemini API endpoint.
-	BaseURL string `yaml:"base-url,omitempty" json:"base-url,omitempty"`
-
-	// ProxyURL optionally overrides the global proxy for this API key.
-	ProxyURL string `yaml:"proxy-url,omitempty" json:"proxy-url,omitempty"`
-
-	// Models defines upstream model names and aliases for request routing.
-	Models []GeminiModel `yaml:"models,omitempty" json:"models,omitempty"`
-
-	// Headers optionally adds extra HTTP headers for requests sent with this key.
-	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-
-	// ExcludedModels lists model IDs that should be excluded for this provider.
-	ExcludedModels []string `yaml:"excluded-models,omitempty" json:"excluded-models,omitempty"`
-
-	// DisableCooling overrides the global cooling policy for this credential when set.
-	// True disables auth/model cooldowns; false explicitly enables them.
-	DisableCooling *bool `yaml:"disable-cooling,omitempty" json:"disable-cooling,omitempty"`
-
-	// RequestRetry optionally overrides the global request-retry for this credential.
-	// Nil or a negative value means "use the global request-retry". 0 disables additional retry rounds.
-	RequestRetry *int `yaml:"request-retry,omitempty" json:"request-retry,omitempty"`
-
-	// RequestScopedErrors configures custom classification rules for upstream errors.
-	RequestScopedErrors []RequestScopedErrorRule `yaml:"request-scoped-errors,omitempty" json:"request-scoped-errors,omitempty"`
-}
-
-func (k GeminiKey) GetAPIKey() string { return k.APIKey }
-
-func (k GeminiKey) GetBaseURL() string { return k.BaseURL }
-
-func (k GeminiKey) GetPrefix() string { return k.Prefix }
-
-func (k GeminiKey) GetProxyURL() string { return k.ProxyURL }
-
-// GeminiModel describes a mapping between an alias and the actual upstream model name.
-type GeminiModel struct {
-	// Name is the upstream model identifier used when issuing requests.
-	Name string `yaml:"name" json:"name"`
-
-	// Alias is the client-facing model name that maps to Name.
-	Alias string `yaml:"alias" json:"alias"`
-
-	// DisplayName is the optional human-readable name shown in model catalogs.
-	DisplayName string `yaml:"display-name,omitempty" json:"display-name,omitempty"`
-
-	// MaxContextLength overrides the context window advertised to Codex clients.
-	MaxContextLength int `yaml:"max-context-length,omitempty" json:"max-context-length,omitempty"`
-
-	// ForceMapping rewrites upstream response model fields back to Alias.
-	ForceMapping bool `yaml:"force-mapping,omitempty" json:"force-mapping,omitempty"`
-
-	// IsCompat preserves thinking blocks with empty signatures for compatible upstreams.
-	// Default false keeps the normal signature validation behavior.
-	IsCompat bool `yaml:"is-compat,omitempty" json:"is-compat,omitempty"`
-
-	// Thinking configures the thinking/reasoning capability for this model.
-	Thinking *registry.ThinkingSupport `yaml:"thinking,omitempty" json:"thinking,omitempty"`
-}
-
-func (m GeminiModel) GetName() string { return m.Name }
-
-func (m GeminiModel) GetAlias() string { return m.Alias }
-
-func (m GeminiModel) GetDisplayName() string   { return m.DisplayName }
-func (m GeminiModel) GetMaxContextLength() int { return m.MaxContextLength }
-func (m GeminiModel) GetForceMapping() bool    { return m.ForceMapping }
-func (m GeminiModel) GetIsCompat() bool        { return m.IsCompat }
-
-func (m GeminiModel) GetThinking() *registry.ThinkingSupport { return m.Thinking }
-
-// OpenAICompatibility represents the configuration for OpenAI API compatibility
-// with external providers, allowing model aliases to be routed through OpenAI API format.
 type OpenAICompatibility struct {
 	// Name is the identifier for this OpenAI compatibility configuration.
 	Name string `yaml:"name" json:"name"`
@@ -657,7 +524,7 @@ type OpenAICompatibility struct {
 	// Disabled prevents this provider from being used for routing.
 	Disabled bool `yaml:"disabled,omitempty" json:"disabled,omitempty"`
 
-	// Prefix optionally namespaces model aliases for this provider (e.g., "teamA/kimi-k2").
+	// Prefix optionally namespaces model aliases for this provider (e.g., "teamA/gpt-5.4").
 	Prefix string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
 
 	// BaseURL is the base URL for the external OpenAI-compatible API endpoint.

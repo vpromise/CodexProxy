@@ -15,6 +15,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
+	_ "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/core"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"

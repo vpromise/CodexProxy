@@ -393,28 +393,12 @@ func configuredModelAliasEntries(cfg *internalconfig.Config, auth *Auth) []model
 	provider := strings.ToLower(strings.TrimSpace(auth.Provider))
 	var models []modelAliasEntry
 	switch provider {
-	case "gemini":
-		if entry := resolveGeminiAPIKeyConfig(cfg, auth); entry != nil {
-			models = asModelAliasEntries(entry.Models)
-		}
-	case "gemini-interactions":
-		if entry := resolveInteractionsAPIKeyConfig(cfg, auth); entry != nil {
-			models = asModelAliasEntries(entry.Models)
-		}
 	case "claude":
 		if entry := resolveClaudeAPIKeyConfig(cfg, auth); entry != nil {
 			models = asModelAliasEntries(entry.Models)
 		}
 	case "codex":
 		if entry := resolveCodexAPIKeyConfig(cfg, auth); entry != nil {
-			models = asModelAliasEntries(entry.Models)
-		}
-	case "xai":
-		if entry := resolveXAIAPIKeyConfig(cfg, auth); entry != nil {
-			models = asModelAliasEntries(entry.Models)
-		}
-	case "vertex":
-		if entry := resolveVertexAPIKeyConfig(cfg, auth); entry != nil {
 			models = asModelAliasEntries(entry.Models)
 		}
 	default:
@@ -549,28 +533,12 @@ func (m *Manager) rebuildAPIKeyModelAliasLocked(cfg *internalconfig.Config) {
 		byAlias := make(map[string]string)
 		provider := strings.ToLower(strings.TrimSpace(auth.Provider))
 		switch provider {
-		case "gemini":
-			if entry := resolveGeminiAPIKeyConfig(cfg, auth); entry != nil {
-				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
-			}
-		case "gemini-interactions":
-			if entry := resolveInteractionsAPIKeyConfig(cfg, auth); entry != nil {
-				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
-			}
 		case "claude":
 			if entry := resolveClaudeAPIKeyConfig(cfg, auth); entry != nil {
 				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
 			}
 		case "codex":
 			if entry := resolveCodexAPIKeyConfig(cfg, auth); entry != nil {
-				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
-			}
-		case "xai":
-			if entry := resolveXAIAPIKeyConfig(cfg, auth); entry != nil {
-				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
-			}
-		case "vertex":
-			if entry := resolveVertexAPIKeyConfig(cfg, auth); entry != nil {
 				compileAPIKeyModelAliasForModels(byAlias, entry.Models)
 			}
 		default:
@@ -681,18 +649,10 @@ func (m *Manager) applyAPIKeyModelAliasWithRouting(routing *apiKeyModelRoutingSn
 	provider := strings.ToLower(strings.TrimSpace(auth.Provider))
 	upstreamModel := ""
 	switch provider {
-	case "gemini":
-		upstreamModel = resolveUpstreamModelForGeminiAPIKey(cfg, auth, requestedModel)
-	case "gemini-interactions":
-		upstreamModel = resolveUpstreamModelForInteractionsAPIKey(cfg, auth, requestedModel)
 	case "claude":
 		upstreamModel = resolveUpstreamModelForClaudeAPIKey(cfg, auth, requestedModel)
 	case "codex":
 		upstreamModel = resolveUpstreamModelForCodexAPIKey(cfg, auth, requestedModel)
-	case "xai":
-		upstreamModel = resolveUpstreamModelForXAIAPIKey(cfg, auth, requestedModel)
-	case "vertex":
-		upstreamModel = resolveUpstreamModelForVertexAPIKey(cfg, auth, requestedModel)
 	default:
 		upstreamModel = resolveUpstreamModelForOpenAICompatAPIKey(cfg, auth, requestedModel)
 	}
@@ -758,20 +718,6 @@ func resolveAPIKeyConfig[T APIKeyConfigEntry](entries []T, auth *Auth) *T {
 	return nil
 }
 
-func resolveGeminiAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalconfig.GeminiKey {
-	if cfg == nil {
-		return nil
-	}
-	return resolveAPIKeyConfig(cfg.GeminiKey, auth)
-}
-
-func resolveInteractionsAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalconfig.GeminiKey {
-	if cfg == nil {
-		return nil
-	}
-	return resolveAPIKeyConfig(cfg.InteractionsKey, auth)
-}
-
 func resolveClaudeAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalconfig.ClaudeKey {
 	if cfg == nil {
 		return nil
@@ -786,36 +732,6 @@ func resolveCodexAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalc
 	return resolveAPIKeyConfig(cfg.CodexKey, auth)
 }
 
-func resolveXAIAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalconfig.XAIKey {
-	if cfg == nil {
-		return nil
-	}
-	return resolveAPIKeyConfig(cfg.XAIKey, auth)
-}
-
-func resolveVertexAPIKeyConfig(cfg *internalconfig.Config, auth *Auth) *internalconfig.VertexCompatKey {
-	if cfg == nil {
-		return nil
-	}
-	return resolveAPIKeyConfig(cfg.VertexCompatAPIKey, auth)
-}
-
-func resolveUpstreamModelForGeminiAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
-	entry := resolveGeminiAPIKeyConfig(cfg, auth)
-	if entry == nil {
-		return ""
-	}
-	return resolveModelAliasFromConfigModels(requestedModel, asModelAliasEntries(entry.Models))
-}
-
-func resolveUpstreamModelForInteractionsAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
-	entry := resolveInteractionsAPIKeyConfig(cfg, auth)
-	if entry == nil {
-		return ""
-	}
-	return resolveModelAliasFromConfigModels(requestedModel, asModelAliasEntries(entry.Models))
-}
-
 func resolveUpstreamModelForClaudeAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
 	entry := resolveClaudeAPIKeyConfig(cfg, auth)
 	if entry == nil {
@@ -826,22 +742,6 @@ func resolveUpstreamModelForClaudeAPIKey(cfg *internalconfig.Config, auth *Auth,
 
 func resolveUpstreamModelForCodexAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
 	entry := resolveCodexAPIKeyConfig(cfg, auth)
-	if entry == nil {
-		return ""
-	}
-	return resolveModelAliasFromConfigModels(requestedModel, asModelAliasEntries(entry.Models))
-}
-
-func resolveUpstreamModelForXAIAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
-	entry := resolveXAIAPIKeyConfig(cfg, auth)
-	if entry == nil {
-		return ""
-	}
-	return resolveModelAliasFromConfigModels(requestedModel, asModelAliasEntries(entry.Models))
-}
-
-func resolveUpstreamModelForVertexAPIKey(cfg *internalconfig.Config, auth *Auth, requestedModel string) string {
-	entry := resolveVertexAPIKeyConfig(cfg, auth)
 	if entry == nil {
 		return ""
 	}

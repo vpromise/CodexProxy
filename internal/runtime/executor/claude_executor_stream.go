@@ -38,7 +38,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	}()
 	// Same split as Execute: OAuth signs everywhere, an opted-in API key only on
 	// upstreams the native gate accepts.
-	cchSigning := claudeCCHSigningEnabled(apiKey, claudeCCHUpstreamAnthropic, fp.ProfileClaudeCodeCLI, url)
+	cchSigning := claudeCCHSigningEnabled(apiKey, fp.ProfileClaudeCodeCLI, url)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, baseModel, auth)
 	defer reporter.TrackFailure(ctx, &err)
@@ -50,7 +50,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		req, replayScope = prepareClaudeThinkingReplayRequest(ctx, auth, req, opts)
 	}
 	defer func() {
-		if err != nil && replayScope.replayApplied && shouldClearKimiThinkingReplayAfterError(err) {
+		if err != nil && replayScope.replayApplied && shouldClearClaudeThinkingReplayAfterError(err) {
 			clearClaudeThinkingReplayContent(ctx, replayScope)
 		}
 	}()
@@ -119,7 +119,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	body = reconcileClaudeCodeContextManagement(body, contextManagementState)
 	body = normalizeClaudeSamplingForUpstream(body, confirmedClaudeCode)
 
-	// Default cache_control for translated entrypoints (Responses/Chat/Gemini) and other
+	// Default cache_control for translated entrypoints (Responses/Chat) and other
 	// non-native callers. Confirmed native Claude Code owns its marker placement and must
 	// not be rewritten. Cloaked requests always run section-independent ensure so cloaking's
 	// first-user marker cannot suppress system/latest-user breakpoints.
@@ -163,7 +163,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	}
 	bodyForUpstream = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, bodyForUpstream, baseModel, helps.APIKeyModelIsCompat(req))
 	if fp.ApplyCLIIdentity {
-		bodyForUpstream, err = applyClaudeCLIIdentity(bodyForUpstream, auth, apiKey, url, claudeSessionID, fp.SynthesizeIdentity)
+		bodyForUpstream, err = applyClaudeCLIIdentity(bodyForUpstream, auth, apiKey, claudeSessionID, fp.SynthesizeIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,6 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 			return nil, fmt.Errorf("finalize Claude CCH: %w", err)
 		}
 	}
-	bodyForUpstream = stripDefaultKimiClaudeCodeAttribution(auth, url, fp.ProfileClaudeCodeCLI, bodyForUpstream)
 	// Runs on the finished body: payload rules can rewrite model and messages
 	// long after translation, so an earlier check would not describe the request
 	// that is about to be sent.

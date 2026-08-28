@@ -9,6 +9,22 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+func testClaudeThinkingSignature() string {
+	channelBlock := protowire.AppendTag(nil, 1, protowire.VarintType)
+	channelBlock = protowire.AppendVarint(channelBlock, 12)
+	channelBlock = protowire.AppendTag(channelBlock, 2, protowire.VarintType)
+	channelBlock = protowire.AppendVarint(channelBlock, 2)
+	channelBlock = protowire.AppendTag(channelBlock, 6, protowire.BytesType)
+	channelBlock = protowire.AppendString(channelBlock, "claude-sonnet-4-6")
+	container := protowire.AppendTag(nil, 1, protowire.BytesType)
+	container = protowire.AppendBytes(container, channelBlock)
+	payload := protowire.AppendTag(nil, 2, protowire.BytesType)
+	payload = protowire.AppendBytes(payload, container)
+	payload = protowire.AppendTag(payload, 3, protowire.VarintType)
+	payload = protowire.AppendVarint(payload, 1)
+	return base64.StdEncoding.EncodeToString(payload)
+}
+
 func TestStripInvalidClaudeThinkingBlocks_RemovesGPTEncryptedContent(t *testing.T) {
 	input := []byte(`{
 		"messages": [
@@ -331,21 +347,6 @@ func TestClaudeCAISSignature_ObservedOpus5Layout(t *testing.T) {
 	}
 }
 
-func TestClaudeCAISSignature_NotCompatibleWithGemini(t *testing.T) {
-	if normalized, ok := CompatibleSignatureForProvider(SignatureProviderGemini, observedFable5Sample); ok || normalized != "" {
-		t.Fatalf("CompatibleSignatureForProvider(Gemini) = %q, %v; want empty and false", normalized, ok)
-	}
-	if IsSignatureCompatibleWithProvider(SignatureProviderGemini, observedFable5Sample) {
-		t.Fatal("IsSignatureCompatibleWithProvider(Gemini) = true, want false")
-	}
-	if isRecognizedGeminiProviderSignature(observedFable5Sample, SignatureBlockKindUnknown) {
-		t.Fatal("isRecognizedGeminiProviderSignature = true, want false")
-	}
-	if _, err := InspectGeminiThoughtSignature(observedFable5Sample); err == nil {
-		t.Fatal("InspectGeminiThoughtSignature should fail for Claude CAIS signature")
-	}
-}
-
 func TestClaudeCAISSignature_CompatibleWithAllClaudeTargets(t *testing.T) {
 	decision := DecideSignatureCompatibilityForModel(SignatureProviderClaude, "claude-fable-5", observedFable5Sample, SignatureBlockKindClaudeThinking)
 	if !decision.Compatible || decision.Action != SignatureActionPreserve || decision.NormalizedSignature != observedFable5Sample || decision.DetectedProvider != SignatureProviderClaude {
@@ -372,10 +373,6 @@ func TestClaudeCAISSignature_CompatibleWithAllClaudeTargets(t *testing.T) {
 		t.Fatalf("CompatibleSignatureForProvider(Claude, observedFable5Sample) = %q, %v; want %q, true", normalized, ok, observedFable5Sample)
 	}
 
-	decisionGemini := DecideSignatureCompatibilityForModel(SignatureProviderGemini, "claude-fable-5", observedFable5Sample, SignatureBlockKindClaudeThinking)
-	if decisionGemini.Compatible {
-		t.Fatalf("DecideSignatureCompatibilityForModel(Gemini, claude-fable-5) = %+v, want incompatible", decisionGemini)
-	}
 }
 
 func TestSanitizeClaudeMessagesForClaudeUpstream_ClaudeCAIS(t *testing.T) {
@@ -559,7 +556,7 @@ func TestClaudeCAISSignature_RejectsMalformedPayloads(t *testing.T) {
 			return p.encode()
 		}()},
 		{"foreign model text", func() string {
-			p := defaultClaudeCAISParts("gemini-3-pro")
+			p := defaultClaudeCAISParts("other-model")
 			return p.encode()
 		}()},
 		{"invalid utf-8 model text", func() string {
@@ -622,20 +619,5 @@ func TestClaudeCAISSignature_CachePrefixSurvivesClaudeUpstreamSanitize(t *testin
 				t.Fatalf("signature = %q, want unprefixed %q", got, observedFable5Sample)
 			}
 		})
-	}
-}
-
-func TestCompatibleAntigravityClaudeThinkingSignature_RejectsClaudeCAIS(t *testing.T) {
-	if normalized, ok := CompatibleAntigravityClaudeThinkingSignature(observedFable5Sample); ok || normalized != "" {
-		t.Fatalf("CompatibleAntigravityClaudeThinkingSignature(ClaudeCAIS) = %q, %v; want empty and false", normalized, ok)
-	}
-	if normalized, ok := CompatibleAntigravityClaudeThinkingSignature("ccmax#" + observedFable5Sample); ok || normalized != "" {
-		t.Fatalf("CompatibleAntigravityClaudeThinkingSignature(ccmax#ClaudeCAIS) = %q, %v; want empty and false", normalized, ok)
-	}
-	if normalized, ok := CompatibleAntigravityClaudeThinkingSignature("cais#" + observedFable5Sample); ok || normalized != "" {
-		t.Fatalf("CompatibleAntigravityClaudeThinkingSignature(cais#ClaudeCAIS) = %q, %v; want empty and false", normalized, ok)
-	}
-	if normalized, ok := CompatibleAntigravityClaudeThinkingSignature("claude-cais#" + observedFable5Sample); ok || normalized != "" {
-		t.Fatalf("CompatibleAntigravityClaudeThinkingSignature(claude-cais#ClaudeCAIS) = %q, %v; want empty and false", normalized, ok)
 	}
 }

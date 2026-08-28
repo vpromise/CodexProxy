@@ -962,7 +962,7 @@ func PayloadRequestPath(opts cliproxyexecutor.Options) string {
 //
 //	"*-5" matches "gpt-5"
 //	"gpt-*" matches "gpt-5" and "gpt-4"
-//	"gemini-*-pro" matches "gemini-2.5-pro" and "gemini-3-pro".
+//	"claude-*-sonnet" matches "claude-3-sonnet" and "claude-4-sonnet".
 func matchModelPattern(pattern, model string) bool {
 	pattern = strings.TrimSpace(pattern)
 	model = strings.TrimSpace(model)

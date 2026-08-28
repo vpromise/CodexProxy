@@ -602,22 +602,7 @@ func TestConvertClaudeRequestToCodex_PreservesContentOrderAcrossToolAndReasoning
 	}
 }
 
-func TestConvertClaudeRequestToCodex_AssistantGrokSignatureToReasoningItem(t *testing.T) {
-	signature := "HmlYdr2aCAqCYP/m9mr8PS6KOsdMs72FGDigmydR+Jsmuv8KX97yWPlbOwmXJgWn0CbHaCacdQD3+n5EvpgLfPNmafS3kdICBjRuDf4bzHy7uBiUhNVhqPtp/ee1y9q4imPE4LYgD1VZ4J+bp9mTeqA1+nC9Oue58CiNEMV9SVaGenCD+aBnVuSTzQhD32Y+68i6HLJW0Dx6ifaRfb8hxYtA/sPM+/FTvAMW11nRho5a2BBSkpnzfqqAz/e/vGJ77/bygpXM823QA9wL9i0X"
-	payload := []byte(`{"model":"grok-4.5","messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"summary","signature":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`)
-	payload, _ = sjson.SetBytes(payload, "messages.0.content.0.signature", signature)
-
-	out := ConvertClaudeRequestToCodex("grok-4.5", payload, false)
-	reasoning := gjson.GetBytes(out, "input.0")
-	if reasoning.Get("type").String() != "reasoning" {
-		t.Fatalf("input.0 type = %q, want reasoning; output=%s", reasoning.Get("type").String(), out)
-	}
-	if got := reasoning.Get("encrypted_content").String(); got != signature {
-		t.Fatalf("encrypted_content = %q, want Grok signature", got)
-	}
-}
-
-func TestConvertClaudeRequestToCodex_IgnoresGrokSignatureForNonGrokTargets(t *testing.T) {
+func TestConvertClaudeRequestToCodexIgnoresForeignOpaqueSignature(t *testing.T) {
 	signature := "HmlYdr2aCAqCYP/m9mr8PS6KOsdMs72FGDigmydR+Jsmuv8KX97yWPlbOwmXJgWn0CbHaCacdQD3+n5EvpgLfPNmafS3kdICBjRuDf4bzHy7uBiUhNVhqPtp/ee1y9q4imPE4LYgD1VZ4J+bp9mTeqA1+nC9Oue58CiNEMV9SVaGenCD+aBnVuSTzQhD32Y+68i6HLJW0Dx6ifaRfb8hxYtA/sPM+/FTvAMW11nRho5a2BBSkpnzfqqAz/e/vGJ77/bygpXM823QA9wL9i0X"
 	payload := []byte(`{"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"summary","signature":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`)
 	payload, _ = sjson.SetBytes(payload, "messages.0.content.0.signature", signature)
@@ -626,7 +611,7 @@ func TestConvertClaudeRequestToCodex_IgnoresGrokSignatureForNonGrokTargets(t *te
 		t.Run(modelName, func(t *testing.T) {
 			out := ConvertClaudeRequestToCodex(modelName, payload, false)
 			if got := countRequestInputItemsByType(out, "reasoning"); got != 0 {
-				t.Fatalf("got %d reasoning items for non-Grok target, want 0; output=%s", got, out)
+				t.Fatalf("got %d reasoning items for a foreign signature, want 0; output=%s", got, out)
 			}
 		})
 	}

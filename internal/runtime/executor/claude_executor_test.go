@@ -1590,9 +1590,9 @@ func TestShouldSanitizeClaudeMessagesForUpstream_OnlyClaudeFamily(t *testing.T) 
 	}{
 		{model: "claude-sonnet-4-5", want: true},
 		{model: "claude-3-5-sonnet-20241022", want: true},
-		{model: "kimi-k2.5", want: false},
+		{model: "compatible-model", want: false},
 		{model: "mimo-v2", want: false},
-		{model: "gemini-3.5-flash", want: false},
+		{model: "gpt-5.4", want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.model, func(t *testing.T) {
@@ -1607,7 +1607,7 @@ func TestShouldSanitizeClaudeMessagesForUpstream_OnlyClaudeFamily(t *testing.T) 
 func TestSanitizeClaudeMessagesForClaudeUpstream_BypassesUnknownModelSignatureMatrix(t *testing.T) {
 	rawSignature := "skip_thought_signature_validator"
 	body := []byte(`{
-		"model": "kimi-k2.5",
+		"model": "compatible-model",
 		"messages": [
 			{
 				"role": "assistant",
@@ -1620,7 +1620,7 @@ func TestSanitizeClaudeMessagesForClaudeUpstream_BypassesUnknownModelSignatureMa
 		]
 	}`)
 
-	output := sanitizeClaudeMessagesForClaudeUpstreamWithDebug(context.Background(), body, "kimi-k2.5")
+	output := sanitizeClaudeMessagesForClaudeUpstreamWithDebug(context.Background(), body, "compatible-model")
 	parts := gjson.GetBytes(output, "messages.0.content").Array()
 	if len(parts) != 3 {
 		t.Fatalf("content length = %d, want 3 when sanitizer is bypassed: %s", len(parts), output)
@@ -2593,23 +2593,6 @@ func TestClaudeExecutor_CountTokensCountsLocallyWithoutUpstreamRequest(t *testin
 		})
 	}
 
-	executor := NewClaudeExecutor(&config.Config{})
-	resp, err := executor.CountTokens(context.Background(), nil, cliproxyexecutor.Request{
-		Model:   "claude-sonnet-4-5",
-		Payload: payload,
-	}, cliproxyexecutor.Options{
-		SourceFormat:   sdktranslator.FormatClaude,
-		ResponseFormat: sdktranslator.FormatGemini,
-	})
-	if err != nil {
-		t.Fatalf("CountTokens() Gemini response error = %v", err)
-	}
-	if got := gjson.GetBytes(resp.Payload, "totalTokens").Int(); got != expectedCount {
-		t.Fatalf("Gemini totalTokens = %d, want %d; payload = %s", got, expectedCount, resp.Payload)
-	}
-	if got := gjson.GetBytes(resp.Payload, "promptTokensDetails.0.tokenCount").Int(); got != expectedCount {
-		t.Fatalf("Gemini prompt token detail = %d, want %d; payload = %s", got, expectedCount, resp.Payload)
-	}
 }
 
 func TestClaudeExecutor_CountTokensRejectsInvalidRequests(t *testing.T) {
@@ -5626,7 +5609,7 @@ func TestApplyClaudeHeaders_StreamTransportNegotiation(t *testing.T) {
 		t.Fatalf("streaming Accept-Encoding = %q, want %q to match the real client", got, want)
 	}
 
-	gatewayReq := httptest.NewRequest(http.MethodPost, "https://api.kimi.com/coding/v1/messages", nil)
+	gatewayReq := httptest.NewRequest(http.MethodPost, "https://compatible.example.com/v1/messages", nil)
 	gatewayReq = gatewayReq.WithContext(directReq.Context())
 	if errApply := applyClaudeHeaders(gatewayReq, auth, "key-stream-accept", true, nil, body, nil, http.Header{}, false); errApply != nil {
 		t.Fatalf("applyClaudeHeaders() error = %v", errApply)
@@ -5654,7 +5637,7 @@ func TestApplyClaudeHeaders_DefaultPreservesCallerBetas(t *testing.T) {
 	}
 
 	// Other Anthropic-compatible upstreams keep caller betas functional.
-	gatewayReq := httptest.NewRequest(http.MethodPost, "https://api.kimi.com/coding/v1/messages", nil)
+	gatewayReq := httptest.NewRequest(http.MethodPost, "https://compatible.example.com/v1/messages", nil)
 	gatewayReq = gatewayReq.WithContext(directReq.Context())
 	if errApply := applyClaudeHeaders(gatewayReq, auth, "key-caller-betas", false, nil, body, nil, incoming, false); errApply != nil {
 		t.Fatalf("applyClaudeHeaders() error = %v", errApply)

@@ -4,9 +4,7 @@ import (
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 )
 
-// newAuthManager creates a new authentication manager instance with all supported
-// authenticators and a file-based token store. It initializes authenticators for
-// Codex, Claude, Antigravity, Kimi, and xAI providers.
+// newAuthManager creates a new authentication manager for Codex and Claude.
 //
 // Returns:
 //   - *sdkAuth.Manager: A configured authentication manager instance
@@ -15,9 +13,6 @@ func newAuthManager() *sdkAuth.Manager {
 	manager := sdkAuth.NewManager(store,
 		sdkAuth.NewCodexAuthenticator(),
 		sdkAuth.NewClaudeAuthenticator(),
-		sdkAuth.NewAntigravityAuthenticator(),
-		sdkAuth.NewKimiAuthenticator(),
-		sdkAuth.NewXAIAuthenticator(),
 	)
 	return manager
 }

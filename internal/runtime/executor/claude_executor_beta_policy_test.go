@@ -126,8 +126,8 @@ func TestApplyClaudeHeaders_CustomHeadersCannotOverrideAnthropicIdentity(t *test
 	}
 }
 
-// Kimi rewrites base_url to api.kimi.com and custom gateways set their own host,
-// yet both delegate to ClaudeExecutor and are therefore cloaked. Keying the
+// Compatible gateways set their own host while delegating to ClaudeExecutor.
+// Keying the
 // context_management injection on the cloaked flag alone leaked a Claude Code
 // field into their traffic.
 func TestClaudeExecutor_ContextManagementNeverLeaksToOtherUpstreams(t *testing.T) {
@@ -166,7 +166,7 @@ func TestIsAnthropicUpstreamBase(t *testing.T) {
 		"https://api.anthropic.com:443":  true,
 		"https://api.anthropic.com:8443": false,
 		"https://user@api.anthropic.com": false,
-		"https://api.kimi.com":           false,
+		"https://compatible.example.com": false,
 		"http://api.anthropic.com":       false,
 		"https://api.anthropic.com.evil": false,
 		"https://gateway.example.com":    false,

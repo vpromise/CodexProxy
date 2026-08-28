@@ -20,13 +20,9 @@ var providerAppliersMu sync.RWMutex
 
 // nativeProviderAppliers maps built-in provider names to their implementations.
 var nativeProviderAppliers = map[string]ProviderApplier{
-	"gemini":      nil,
-	"claude":      nil,
-	"openai":      nil,
-	"codex":       nil,
-	"antigravity": nil,
-	"kimi":        nil,
-	"xai":         nil,
+	"claude": nil,
+	"openai": nil,
+	"codex":  nil,
 }
 
 // pluginProviderAppliers maps plugin-owned provider names to their implementations.
@@ -130,7 +126,7 @@ func IsUserDefinedModel(modelInfo *registry.ModelInfo) bool {
 // order defined in FR25: route check → model capability query → config extraction
 // → validation → application.
 //
-// Suffix Priority: When the model name includes a thinking suffix (e.g., "gemini-2.5-pro(8192)"),
+// Suffix Priority: When the model name includes a thinking suffix (e.g., "claude-sonnet-4-5(8192)"),
 // the suffix configuration takes priority over any thinking parameters in the request body.
 // This enables users to override thinking settings via the model name without modifying their
 // request payload.
@@ -138,8 +134,8 @@ func IsUserDefinedModel(modelInfo *registry.ModelInfo) bool {
 // Parameters:
 //   - body: Original request body JSON
 //   - model: Model name, optionally with thinking suffix (e.g., "claude-sonnet-4-5(16384)")
-//   - fromFormat: Source request format (e.g., openai, codex, gemini)
-//   - toFormat: Target provider format for the request body (gemini, antigravity, claude, openai, codex, kimi, xai)
+//   - fromFormat: Source request format (for example, openai, codex, or claude)
+//   - toFormat: Target provider format for the request body (claude, openai, or codex)
 //   - providerKey: Provider identifier used for registry model lookups (may differ from toFormat, e.g., openrouter -> openai)
 //
 // Returns:
@@ -157,10 +153,10 @@ func IsUserDefinedModel(modelInfo *registry.ModelInfo) bool {
 // Example:
 //
 //	// With suffix - suffix config takes priority
-//	result, err := thinking.ApplyThinking(body, "gemini-2.5-pro(8192)", "gemini", "gemini", "gemini")
+//	result, err := thinking.ApplyThinking(body, "claude-sonnet-4-5(8192)", "claude", "claude", "claude")
 //
 //	// Without suffix - uses body config
-//	result, err := thinking.ApplyThinking(body, "gemini-2.5-pro", "gemini", "gemini", "gemini")
+//	result, err := thinking.ApplyThinking(body, "gpt-5.4", "openai", "codex", "codex")
 func ApplyThinking(body []byte, model string, fromFormat string, toFormat string, providerKey string) ([]byte, error) {
 	summaryConfig := ExtractSummaryConfig(body, toFormat)
 	return applyThinking(body, nil, model, fromFormat, toFormat, providerKey, nil, false, summaryConfig)
@@ -537,16 +533,10 @@ func extractThinkingConfig(body []byte, provider string) ThinkingConfig {
 	switch provider {
 	case "claude":
 		return extractClaudeConfig(body)
-	case "gemini", "antigravity":
-		return extractGeminiConfig(body, provider)
-	case "interactions":
-		return extractInteractionsConfig(body)
 	case "openai":
 		return extractOpenAIConfig(body)
-	case "codex", "xai":
+	case "codex":
 		return extractCodexConfig(body)
-	case "kimi":
-		return extractKimiConfig(body)
 	default:
 		return ThinkingConfig{}
 	}
@@ -679,111 +669,6 @@ func extractClaudeConfig(body []byte) ThinkingConfig {
 	return ThinkingConfig{}
 }
 
-// extractGeminiConfig extracts thinking configuration from Gemini format request body.
-//
-// Gemini API format:
-//   - generationConfig.thinkingConfig.thinkingLevel: "none", "auto", or level name (Gemini 3)
-//   - generationConfig.thinkingConfig.thinkingBudget: integer (Gemini 2.5)
-//
-// For antigravity providers, the path is prefixed with "request.".
-//
-// Priority: thinkingLevel is checked first (Gemini 3 format), then thinkingBudget (Gemini 2.5 format).
-// This allows newer Gemini 3 level-based configs to take precedence.
-func extractGeminiConfig(body []byte, provider string) ThinkingConfig {
-	prefix := "generationConfig.thinkingConfig"
-	if provider == "antigravity" {
-		prefix = "request.generationConfig.thinkingConfig"
-	}
-
-	// Check thinkingLevel first (Gemini 3 format takes precedence)
-	level := gjson.GetBytes(body, prefix+".thinkingLevel")
-	if !level.Exists() {
-		// Google official Gemini Python SDK sends snake_case field names
-		level = gjson.GetBytes(body, prefix+".thinking_level")
-	}
-	if level.Exists() {
-		value := level.String()
-		switch value {
-		case "none":
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case "auto":
-			return ThinkingConfig{Mode: ModeAuto, Budget: -1}
-		default:
-			return ThinkingConfig{Mode: ModeLevel, Level: ThinkingLevel(value)}
-		}
-	}
-
-	// Check thinkingBudget (Gemini 2.5 format)
-	budget := gjson.GetBytes(body, prefix+".thinkingBudget")
-	if !budget.Exists() {
-		// Google official Gemini Python SDK sends snake_case field names
-		budget = gjson.GetBytes(body, prefix+".thinking_budget")
-	}
-	if budget.Exists() {
-		value := int(budget.Int())
-		switch value {
-		case 0:
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case -1:
-			return ThinkingConfig{Mode: ModeAuto, Budget: -1}
-		default:
-			return ThinkingConfig{Mode: ModeBudget, Budget: value}
-		}
-	}
-
-	return ThinkingConfig{}
-}
-
-func extractInteractionsConfig(body []byte) ThinkingConfig {
-	for _, path := range []string{
-		"generation_config.thinking_level",
-		"generation_config.thinkingLevel",
-		"generation_config.thinking_config.thinking_level",
-		"generation_config.thinking_config.thinkingLevel",
-		"generation_config.thinkingConfig.thinking_level",
-		"generation_config.thinkingConfig.thinkingLevel",
-	} {
-		level := gjson.GetBytes(body, path)
-		if !level.Exists() {
-			continue
-		}
-		value := strings.ToLower(strings.TrimSpace(level.String()))
-		switch value {
-		case "none":
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case "auto":
-			return ThinkingConfig{Mode: ModeAuto, Budget: -1}
-		default:
-			return ThinkingConfig{Mode: ModeLevel, Level: ThinkingLevel(value)}
-		}
-	}
-
-	for _, path := range []string{
-		"generation_config.thinking_budget",
-		"generation_config.thinkingBudget",
-		"generation_config.thinking_config.thinking_budget",
-		"generation_config.thinking_config.thinkingBudget",
-		"generation_config.thinkingConfig.thinking_budget",
-		"generation_config.thinkingConfig.thinkingBudget",
-	} {
-		budget := gjson.GetBytes(body, path)
-		if !budget.Exists() {
-			continue
-		}
-		value := int(budget.Int())
-		switch value {
-		case 0:
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case -1:
-			return ThinkingConfig{Mode: ModeAuto, Budget: -1}
-		default:
-			return ThinkingConfig{Mode: ModeBudget, Budget: value}
-		}
-	}
-
-	return ThinkingConfig{}
-}
-
 // extractOpenAIConfig extracts thinking configuration from OpenAI format request body.
 //
 // OpenAI API format:
@@ -802,50 +687,6 @@ func extractOpenAIConfig(body []byte) ThinkingConfig {
 	}
 
 	return ThinkingConfig{}
-}
-
-// extractKimiConfig extracts Kimi's native thinking object while retaining
-// reasoning_effort as a legacy input fallback.
-//
-// Native fields take precedence over reasoning_effort. In particular,
-// thinking.type="enabled" without an explicit effort means "use the upstream
-// default" and therefore returns an empty config so ApplyThinking preserves the
-// request unchanged instead of interpreting it as CPA's ModeAuto.
-func extractKimiConfig(body []byte) ThinkingConfig {
-	thinkingType := gjson.GetBytes(body, "thinking.type")
-	if thinkingType.Exists() {
-		switch strings.ToLower(strings.TrimSpace(thinkingType.String())) {
-		case "disabled":
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case "enabled":
-			if !gjson.GetBytes(body, "thinking.effort").Exists() {
-				return ThinkingConfig{}
-			}
-		}
-	}
-
-	if effort := gjson.GetBytes(body, "thinking.effort"); effort.Exists() {
-		value := strings.ToLower(strings.TrimSpace(effort.String()))
-		switch value {
-		case "":
-			return ThinkingConfig{}
-		case "none":
-			return ThinkingConfig{Mode: ModeNone, Budget: 0}
-		case "auto":
-			return ThinkingConfig{Mode: ModeAuto, Budget: -1}
-		default:
-			return ThinkingConfig{Mode: ModeLevel, Level: ThinkingLevel(value)}
-		}
-	}
-
-	// An explicit native thinking object without an effort should be left for
-	// the Kimi upstream to interpret and must not be overridden by the legacy
-	// field.
-	if thinkingType.Exists() {
-		return ThinkingConfig{}
-	}
-
-	return extractOpenAIConfig(body)
 }
 
 // extractCodexConfig extracts thinking configuration from Codex format request body.

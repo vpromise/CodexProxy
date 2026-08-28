@@ -106,7 +106,7 @@ func (h *OpenAIResponsesAPIHandler) responsesWebsocketUsesUpstreamWebsocketPasst
 			return false
 		}
 		authProvider := strings.ToLower(strings.TrimSpace(auth.Provider))
-		if authProvider != "codex" && authProvider != "xai" {
+		if authProvider != "codex" {
 			return false
 		}
 		if provider == "" {

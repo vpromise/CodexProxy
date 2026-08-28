@@ -13,8 +13,8 @@
 //   - R prefix: double-layer, inner[0] == E (0x45), first 6 bits = 010001,
 //     base64 index 17 = R.
 //
-// Valid signatures can be normalized to R-form (double-layer base64) before
-// sending to the Antigravity backend.
+// Valid signatures can be normalized to R-form (double-layer base64) when a
+// compatible upstream requires that transport shape.
 //
 // # Protobuf structure (Spec sections 4.1 and 4.2) in strict mode only
 //
@@ -40,12 +40,12 @@
 //	routing_class:        routing_class_11 | routing_class_12 | unknown
 //	infrastructure_class: infra_default (absent) | infra_aws (1) | infra_google (2) | infra_unknown
 //	schema_features:      compact_schema (len 70-72, no f6/f7) | extended_model_tagged_schema (f6 exists) | unknown
-//	legacy_route_hint:    only for ch=11, legacy_default_group | legacy_aws_group | legacy_vertex_direct/proxy
+//	legacy_route_hint:    only for ch=11 legacy routing groups
 //
 // # Compatibility
 //
-// Verified against all confirmed spec samples (Anthropic Max 20x, Azure,
-// Vertex, Bedrock) and legacy ch=11 signatures. Both single-layer (E) and
+// Verified against confirmed Claude API and compatible-endpoint samples plus
+// legacy ch=11 signatures. Both single-layer (E) and
 // double-layer (R) encodings are supported. Historical cache-mode modelGroup#
 // prefixes are stripped.
 //
@@ -86,23 +86,11 @@
 // and checked only for wire type, so an upstream field bump cannot silently
 // erase conversation history.
 //
-// # Which provider emits which envelope
+// # Envelope generations
 //
-// Three providers serve Claude models, and the envelope depends on the model
-// generation rather than on the provider:
-//
-//   - Claude Code OAuth subscription (Claude Code Max): opus-4-5, sonnet-4-6 and
-//     every later model up to opus-5 and fable-5. Emits the CAIS envelope for
-//     the newest models (opus-5, fable-5) and the single-layer E envelope for the
-//     opus-4-6/4-7/4-8 and sonnet-5 generation — but both carry the same
-//     channel_id 16 channel schema, so only the envelope differs.
-//   - Claude Messages API: the full Claude model range, same envelopes as the
-//     Claude Code OAuth subscription.
-//   - Antigravity: only opus-4-6-think and sonnet-4-6, and always the
-//     double-layer R form on Google infrastructure (infra_google). Antigravity
-//     never issues a CAIS envelope or a single-layer E signature, and its replay
-//     path requires R form, so CompatibleAntigravityClaudeThinkingSignature
-//     rejects CAIS signatures.
+// Claude Code OAuth and the Claude Messages API emit CAIS envelopes for newer
+// models and single-layer E envelopes for earlier generations. Both carry the
+// same channel schema, so the envelope must be inspected independently.
 //
 // A single conversation therefore mixes envelopes whenever a user switches model
 // generations or providers, and every form must stay replayable toward the
@@ -256,8 +244,7 @@ func ValidateClaudeThinkingSignatures(inputRawJSON []byte, opts ...ClaudeSignatu
 }
 
 // NormalizeClaudeThinkingSignature strips any cache prefix, validates the
-// signature, and returns the double-layer R-form expected by Antigravity bypass
-// mode.
+// signature, and returns its double-layer R-form.
 func NormalizeClaudeThinkingSignature(rawSignature string, opts ...ClaudeSignatureValidationOptions) (string, error) {
 	opt := claudeSignatureValidationOptions(opts)
 	sig := stripClaudeSignaturePrefix(rawSignature)
@@ -506,9 +493,9 @@ func inspectClaudeChannelBlock(channelBlock []byte, encodingLayers int) (*Claude
 		case *tree.Field2 == 1:
 			tree.LegacyRouteHint = "legacy_aws_group"
 		case *tree.Field2 == 2 && tree.EncodingLayers == 2:
-			tree.LegacyRouteHint = "legacy_vertex_direct"
+			tree.LegacyRouteHint = "legacy_cloud_direct"
 		case *tree.Field2 == 2 && tree.EncodingLayers == 1:
-			tree.LegacyRouteHint = "legacy_vertex_proxy"
+			tree.LegacyRouteHint = "legacy_cloud_proxy"
 		}
 	}
 
@@ -618,7 +605,7 @@ func InspectClaudeCAISSignature(rawSignature string) (*ClaudeCAISSignatureInfo, 
 	// A payload whose first byte is 0x08 always base64-encodes to a string
 	// starting with 'C' (0x08>>2 == 2). Checking that first keeps this validator
 	// cheap on the hot paths that probe every signature, since classic Claude
-	// (E/R) and Gemini envelopes are rejected without a base64 decode.
+	// (E/R) and unrelated envelopes are rejected without a base64 decode.
 	if sig[0] != 'C' {
 		return nil, fmt.Errorf("invalid Claude CAIS signature: expected 'C' prefix, got %q", string(sig[0]))
 	}

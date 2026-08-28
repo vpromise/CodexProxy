@@ -9,17 +9,17 @@ import (
 
 func TestModelQuotaObservationPayloadOmitsUnsupportedProviders(t *testing.T) {
 	states := map[string]*coreauth.ModelState{
-		"grok-4": {
+		"unsupported-model": {
 			Quota: coreauth.QuotaState{
 				ObservedAt: time.Unix(10, 0),
 				Signals:    map[string]string{"X-Ratelimit-Remaining-Requests": "1"},
 			},
 		},
 	}
-	if got := modelQuotaObservationPayload("grok", states); len(got) != 0 {
+	if got := modelQuotaObservationPayload("unsupported", states); len(got) != 0 {
 		t.Fatalf("unsupported provider returned model observations: %#v", got)
 	}
-	for _, provider := range []string{"gemini", "gemini-interactions", "openai", "openai-compatibility", "plugin-provider"} {
+	for _, provider := range []string{"openai", "openai-compatibility", "plugin-provider"} {
 		if got := modelQuotaObservationPayload(provider, states); len(got) != 0 {
 			t.Fatalf("provider %q returned model observations: %#v", provider, got)
 		}

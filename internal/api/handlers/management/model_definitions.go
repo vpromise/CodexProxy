@@ -19,6 +19,11 @@ func (h *Handler) GetStaticModelDefinitions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "channel is required"})
 		return
 	}
+	channel = strings.ToLower(channel)
+	if channel != "codex" && channel != "claude" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown channel", "channel": channel})
+		return
+	}
 
 	models := registry.GetStaticModelDefinitionsByChannel(channel)
 	if models == nil {

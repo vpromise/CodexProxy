@@ -16,12 +16,6 @@ func parsePluginExecutorResponseUsage(protocol string, payload []byte) usage.Det
 	switch strings.ToLower(strings.TrimSpace(protocol)) {
 	case "claude":
 		return parseClaudePayloadUsage(payload)
-	case "gemini":
-		return helps.ParseGeminiUsage(payload)
-	case "interactions", "interactions-response":
-		return helps.ParseInteractionsUsage(payload)
-	case "antigravity":
-		return helps.ParseAntigravityUsage(payload)
 	case "codex", "openai-response":
 		if detail, ok := helps.ParseCodexUsage(payload); ok {
 			return detail
@@ -41,24 +35,6 @@ func observePluginExecutorStreamUsage(protocol string, payload []byte, buffer *h
 		iterateStreamLines(payload, func(line []byte) {
 			if detail, ok := parseClaudeStreamLine(line); ok {
 				observeMergedStreamUsage(buffer, detail)
-			}
-		})
-	case "gemini":
-		iterateStreamLines(payload, func(line []byte) {
-			if detail, ok := helps.ParseGeminiStreamUsage(line); ok {
-				buffer.Observe(detail, ok)
-			}
-		})
-	case "interactions", "interactions-response":
-		iterateStreamLines(payload, func(line []byte) {
-			if detail, ok := helps.ParseInteractionsStreamUsage(line); ok {
-				observeMergedStreamUsage(buffer, detail)
-			}
-		})
-	case "antigravity":
-		iterateStreamLines(payload, func(line []byte) {
-			if detail, ok := helps.ParseAntigravityStreamUsage(line); ok {
-				buffer.Observe(detail, ok)
 			}
 		})
 	case "codex", "openai-response":

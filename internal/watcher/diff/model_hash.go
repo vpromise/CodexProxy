@@ -18,11 +18,6 @@ func ComputeOpenAICompatModelsHash(models []config.OpenAICompatibilityModel) str
 	return modelconfig.ComputeOpenAICompatModelsHash(models)
 }
 
-// ComputeVertexCompatModelsHash returns a stable hash for Vertex-compatible models.
-func ComputeVertexCompatModelsHash(models []config.VertexCompatModel) string {
-	return modelconfig.ComputeVertexCompatModelsHash(models)
-}
-
 // ComputeClaudeModelsHash returns a stable hash for Claude model aliases.
 func ComputeClaudeModelsHash(models []config.ClaudeModel) string {
 	return modelconfig.ComputeClaudeModelsHash(models)
@@ -31,11 +26,6 @@ func ComputeClaudeModelsHash(models []config.ClaudeModel) string {
 // ComputeCodexModelsHash returns a stable hash for Codex model aliases.
 func ComputeCodexModelsHash(models []config.CodexModel) string {
 	return modelconfig.ComputeCodexModelsHash(models)
-}
-
-// ComputeGeminiModelsHash returns a stable hash for Gemini model aliases.
-func ComputeGeminiModelsHash(models []config.GeminiModel) string {
-	return modelconfig.ComputeGeminiModelsHash(models)
 }
 
 // ComputeExcludedModelsHash returns a normalized hash for excluded model lists.

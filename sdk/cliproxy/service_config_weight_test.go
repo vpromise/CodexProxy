@@ -26,9 +26,10 @@ func TestServiceRejectsInvalidCredentialWeightConfigCommit(t *testing.T) {
 	service := &Service{cfg: originalCfg}
 	invalidWeight := internalconfig.MaxCredentialWeight + 1
 	newCfg := &internalconfig.Config{
-		VertexCompatAPIKey: []internalconfig.VertexCompatKey{{
-			APIKey: "vertex-key",
-			Weight: &invalidWeight,
+		CodexKey: []internalconfig.CodexKey{{
+			APIKey:  "codex-key",
+			BaseURL: "https://codex.example.com",
+			Weight:  &invalidWeight,
 		}},
 	}
 

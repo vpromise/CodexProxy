@@ -57,8 +57,8 @@ func BenchmarkBuildCodexWebsocketRequestBodyLargePayload(b *testing.B) {
 
 func TestBuildCodexWebsocketRequestBodySanitizesOverlongInputItemIDs(t *testing.T) {
 	longReasoningItemID := "rs_" + strings.Repeat("a", 64)
-	longCallItemID := strings.Repeat("grok-call-item-", 6)
-	longOutputItemID := strings.Repeat("grok-output-item-", 6)
+	longCallItemID := strings.Repeat("codex-call-item-", 6)
+	longOutputItemID := strings.Repeat("codex-output-item-", 6)
 	body := []byte(`{"model":"gpt-5-codex","input":[{"type":"reasoning","id":"` + longReasoningItemID + `","encrypted_content":"gAAAA-encrypted","summary":[]},{"type":"function_call","id":"` + longCallItemID + `","call_id":"call-1","name":"lookup"},{"type":"function_call_output","id":"` + longOutputItemID + `","call_id":"call-1","output":"ok"},{"type":"message","id":"item_74ec40c883248ebb4885ec84"}]}`)
 
 	first := buildCodexWebsocketRequestBody(body)
@@ -1289,7 +1289,7 @@ func TestApplyCodexPromptCacheHeadersUsesDerivedSessionUUID(t *testing.T) {
 		Payload:  []byte(`{"input":"hello"}`),
 		Metadata: map[string]any{cliproxyexecutor.DerivedSessionIDMetadataKey: "ctx:v1:derived-root"},
 	}
-	body, headers := applyCodexPromptCacheHeaders(sdktranslator.FormatInteractions, req, []byte(`{"model":"gpt-5-codex"}`))
+	body, headers := applyCodexPromptCacheHeaders(sdktranslator.FormatOpenAIResponse, req, []byte(`{"model":"gpt-5-codex"}`))
 	cacheKey := gjson.GetBytes(body, "prompt_cache_key").String()
 	if _, errParse := uuid.Parse(cacheKey); errParse != nil {
 		t.Fatalf("prompt_cache_key %q is not a UUID: %v", cacheKey, errParse)

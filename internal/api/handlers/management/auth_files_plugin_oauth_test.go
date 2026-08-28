@@ -24,16 +24,16 @@ func TestPluginLoginPollAuthsExpandsMultipleAuths(t *testing.T) {
 		Status: pluginapi.AuthLoginStatusSuccess,
 		Auths: []pluginapi.AuthData{
 			{
-				Provider:    "gemini-cli",
-				ID:          "geminicli.json",
-				FileName:    "geminicli.json",
-				StorageJSON: []byte(`{"type":"gemini-cli"}`),
+				Provider:    "custom-oauth",
+				ID:          "customoauth.json",
+				FileName:    "customoauth.json",
+				StorageJSON: []byte(`{"type":"custom-oauth"}`),
 			},
 			{
-				Provider:    "gemini-cli",
-				ID:          "geminicli-project-a.json",
-				FileName:    "geminicli-project-a.json",
-				StorageJSON: []byte(`{"type":"gemini-cli","project_id":"project-a"}`),
+				Provider:    "custom-oauth",
+				ID:          "customoauth-project-a.json",
+				FileName:    "customoauth-project-a.json",
+				StorageJSON: []byte(`{"type":"custom-oauth","project_id":"project-a"}`),
 				Metadata:    map[string]any{"project_id": "project-a"},
 			},
 		},
@@ -43,7 +43,7 @@ func TestPluginLoginPollAuthsExpandsMultipleAuths(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("pluginLoginPollAuths() len = %d, want two records", len(records))
 	}
-	if records[0].ID != "geminicli.json" || records[1].ID != "geminicli-project-a.json" {
+	if records[0].ID != "customoauth.json" || records[1].ID != "customoauth-project-a.json" {
 		t.Fatalf("records = %#v, want both plugin auths", records)
 	}
 	if gotProject := records[1].Metadata["project_id"]; gotProject != "project-a" {
@@ -58,16 +58,16 @@ func TestSavePluginLoginRecordsRollsBackSavedAuthsOnFailure(t *testing.T) {
 
 	records := []*coreauth.Auth{
 		{
-			ID:       "geminicli.json",
-			FileName: "geminicli.json",
-			Provider: "gemini-cli",
-			Metadata: map[string]any{"type": "gemini-cli"},
+			ID:       "customoauth.json",
+			FileName: "customoauth.json",
+			Provider: "custom-oauth",
+			Metadata: map[string]any{"type": "custom-oauth"},
 		},
 		{
-			ID:       "geminicli-project-a.json",
-			FileName: "geminicli-project-a.json",
-			Provider: "gemini-cli",
-			Metadata: map[string]any{"type": "gemini-cli", "project_id": "project-a"},
+			ID:       "customoauth-project-a.json",
+			FileName: "customoauth-project-a.json",
+			Provider: "custom-oauth",
+			Metadata: map[string]any{"type": "custom-oauth", "project_id": "project-a"},
 		},
 	}
 
@@ -78,7 +78,7 @@ func TestSavePluginLoginRecordsRollsBackSavedAuthsOnFailure(t *testing.T) {
 	if len(store.saved) != 2 {
 		t.Fatalf("saved len = %d, want two attempted saves", len(store.saved))
 	}
-	if !store.deleted["geminicli.json"] || !store.deleted["geminicli-project-a.json"] {
+	if !store.deleted["customoauth.json"] || !store.deleted["customoauth-project-a.json"] {
 		t.Fatalf("deleted = %#v, want both saved auths rolled back", store.deleted)
 	}
 }
@@ -108,7 +108,7 @@ func TestPatchPluginVirtualSourceStatusDisablesAllExpandedAuths(t *testing.T) {
 	authDir := t.TempDir()
 	fileName := "source.json"
 	filePath := filepath.Join(authDir, fileName)
-	if errWrite := os.WriteFile(filePath, []byte(`{"type":"gemini-cli","disabled":false}`), 0o600); errWrite != nil {
+	if errWrite := os.WriteFile(filePath, []byte(`{"type":"custom-oauth","disabled":false}`), 0o600); errWrite != nil {
 		t.Fatalf("write source auth file: %v", errWrite)
 	}
 
@@ -175,7 +175,7 @@ func TestDeletePluginVirtualSourceRemovesExpandedRuntimeAuths(t *testing.T) {
 	authDir := t.TempDir()
 	fileName := "source.json"
 	filePath := filepath.Join(authDir, fileName)
-	if errWrite := os.WriteFile(filePath, []byte(`{"type":"gemini-cli"}`), 0o600); errWrite != nil {
+	if errWrite := os.WriteFile(filePath, []byte(`{"type":"custom-oauth"}`), 0o600); errWrite != nil {
 		t.Fatalf("write source auth file: %v", errWrite)
 	}
 
@@ -214,12 +214,12 @@ func pluginVirtualAuthForTest(authDir, fileName, id string) *coreauth.Auth {
 	auth := &coreauth.Auth{
 		ID:       id,
 		FileName: fileName,
-		Provider: "gemini-cli",
+		Provider: "custom-oauth",
 		Attributes: map[string]string{
 			"path": filePath,
 		},
 		Metadata: map[string]any{
-			"type": "gemini-cli",
+			"type": "custom-oauth",
 		},
 	}
 	coreauth.MarkPluginVirtualAuth(auth, filePath, 0)

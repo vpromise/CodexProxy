@@ -159,12 +159,12 @@ func performOAuthStatusRequest(t *testing.T, router http.Handler, state string) 
 
 func TestOAuthSessionStoreCancelRemovesPendingSession(t *testing.T) {
 	store := newOAuthSessionStore(time.Minute)
-	store.Register("pending-state", "xai")
+	store.Register("pending-state", "codex")
 
 	if !store.Cancel("pending-state") {
 		t.Fatal("Cancel() = false, want true for pending session")
 	}
-	if store.IsPending("pending-state", "xai") {
+	if store.IsPending("pending-state", "codex") {
 		t.Fatal("cancelled session remained pending")
 	}
 	if _, ok := store.Get("pending-state"); ok {
@@ -193,10 +193,10 @@ func TestOAuthSessionStoreCancelIgnoresCompletedAndUnknown(t *testing.T) {
 
 func TestOAuthSessionStoreCancelIgnoresErrorSession(t *testing.T) {
 	store := newOAuthSessionStore(time.Minute)
-	store.Register("error-state", "kimi")
+	store.Register("error-state", "anthropic")
 	store.SetError("error-state", "Authentication failed")
 
-	if store.IsPending("error-state", "kimi") {
+	if store.IsPending("error-state", "anthropic") {
 		t.Fatal("error session should not be pending")
 	}
 	if store.Cancel("error-state") {
@@ -229,7 +229,7 @@ func TestGuardOAuthSessionPendingForSave(t *testing.T) {
 	store := newOAuthSessionStore(time.Minute)
 	replaceOAuthSessionStoreForTest(t, store)
 
-	providers := []string{"anthropic", "codex", "antigravity", "xai", "kimi"}
+	providers := []string{"anthropic", "codex"}
 	for _, provider := range providers {
 		state := provider + "-save-guard"
 		store.Register(state, provider)
@@ -263,7 +263,7 @@ func TestGuardOAuthSessionPendingForSave(t *testing.T) {
 func TestCancelAuthSessionHandler(t *testing.T) {
 	store := newOAuthSessionStore(time.Minute)
 	replaceOAuthSessionStoreForTest(t, store)
-	store.Register("device-state", "xai")
+	store.Register("device-state", "codex")
 
 	handler := &Handler{}
 	router := gin.New()
@@ -283,7 +283,7 @@ func TestCancelAuthSessionHandler(t *testing.T) {
 	if cancelled.status != http.StatusOK || !cancelled.cancelled || cancelled.bodyStatus != "ok" {
 		t.Fatalf("cancel pending response = %#v, want ok/cancelled", cancelled)
 	}
-	if IsOAuthSessionPending("device-state", "xai") {
+	if IsOAuthSessionPending("device-state", "codex") {
 		t.Fatal("device session still pending after cancel API")
 	}
 

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// oauthSessionTTL must cover device-code flows (xAI ~30m, Kimi ~15m).
+	// oauthSessionTTL also covers long-running plugin device-code flows.
 	oauthSessionTTL          = 30 * time.Minute
 	oauthCompletedSessionTTL = time.Minute
 	maxOAuthStateLength      = 128
@@ -364,10 +364,6 @@ func NormalizeOAuthProvider(provider string) (string, error) {
 		return "anthropic", nil
 	case "codex", "openai":
 		return "codex", nil
-	case "antigravity", "anti-gravity":
-		return "antigravity", nil
-	case "xai", "x-ai", "x.ai", "grok":
-		return "xai", nil
 	default:
 		return "", errUnsupportedOAuthFlow
 	}

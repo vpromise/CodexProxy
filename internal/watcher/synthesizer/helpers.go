@@ -134,7 +134,7 @@ func fingerprintProfileFromMetadata(metadata map[string]any) string {
 }
 
 // applyFingerprintProfileAttribute copies fingerprint-profile from an OAuth JSON
-// file (Kimi, Claude, etc.) onto auth attributes so Claude Messages opt-in works
+// file onto auth attributes so Claude Messages opt-in works
 // the same way as claude-api-key config.
 func applyFingerprintProfileAttribute(auth *coreauth.Auth, metadata map[string]any) {
 	if auth == nil {

@@ -252,7 +252,7 @@ func TestSanitizeCodexInputItemIDsShortensOverlongReasoningWithoutEncryptedConte
 }
 
 func TestSanitizeCodexInputItemIDsAvoidsExistingIDCollision(t *testing.T) {
-	longID := strings.Repeat("grok-item-", 10)
+	longID := strings.Repeat("codex-item-", 10)
 	collidingValidID := shortenCodexInputItemID(longID)
 	body := []byte(`{"input":[{"id":"` + longID + `"},{"id":"` + collidingValidID + `"}]}`)
 

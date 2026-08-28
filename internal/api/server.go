@@ -1,6 +1,6 @@
 // Package api provides the HTTP API server implementation for the CLI Proxy API.
 // It includes the main server struct, routing setup, middleware for CORS and authentication,
-// and integration with various AI API handlers (OpenAI, Claude, Gemini).
+// and integration with the scoped OpenAI, Claude, and Codex API handlers.
 // The server supports hot-reloading of clients and configuration.
 package api
 
@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	codexlive "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/live"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/managementasset"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
@@ -73,16 +71,10 @@ type Server struct {
 	// currentPath is the absolute path to the current working directory.
 	currentPath string
 
-	// wsRoutes tracks registered websocket upgrade paths.
-	wsRouteMu     sync.Mutex
-	wsRoutes      map[string]struct{}
-	wsAuthChanged func(bool, bool)
-	wsAuthEnabled atomic.Bool
-
 	// management handler
 	mgmt *managementHandlers.Handler
 
-	// pluginHost owns dynamic plugin Management API route dispatch.
+	// pluginHost owns optional runtime plugin execution.
 	pluginHost *pluginhost.Host
 
 	// managementRoutesRegistered tracks whether the management routes have been attached to the engine.
@@ -178,12 +170,10 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 		configFilePath:      configFilePath,
 		currentPath:         wd,
 		envManagementSecret: envManagementSecret,
-		wsRoutes:            make(map[string]struct{}),
 		pluginHost:          optionState.pluginHost,
 
 		exampleAPIKeySafeModeEnabled: optionState.exampleAPIKeySafeMode,
 	}
-	s.wsAuthEnabled.Store(cfg.WebsocketAuth)
 	s.exampleAPIKeySafeModeActive.Store(s.exampleAPIKeySafeModeRequired(cfg))
 	s.handlers.SetPluginHost(optionState.pluginHost)
 	if optionState.pluginHost != nil {
@@ -196,10 +186,8 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	if authManager != nil {
 		authManager.SetRetryConfig(cfg.RequestRetry, time.Duration(cfg.MaxRetryInterval)*time.Second, cfg.MaxRetryCredentials)
 	}
-	managementasset.SetCurrentConfig(cfg)
 	auth.SetQuotaCooldownDisabled(cfg.DisableCooling)
 	auth.SetTransientErrorCooldownSeconds(cfg.TransientErrorCooldownSeconds)
-	applySignatureCacheConfig(nil, cfg)
 	// Initialize management handler
 	s.mgmt = managementHandlers.NewHandler(cfg, configFilePath, authManager)
 	s.mgmt.SetPluginHost(optionState.pluginHost)
@@ -238,9 +226,6 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	if hasManagementSecret {
 		s.registerManagementRoutes()
 	}
-	s.refreshPluginManagementRoutes()
-	engine.NoRoute(s.pluginManagementNoRoute)
-
 	if optionState.keepAliveEnabled {
 		s.enableKeepAlive(optionState.keepAliveTimeout, optionState.keepAliveOnTimeout)
 	}

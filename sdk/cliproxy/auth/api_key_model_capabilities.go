@@ -156,14 +156,6 @@ func compileAPIKeyModelCapabilitiesForAuth(cfg *internalconfig.Config, auth *Aut
 	}
 	out := make(map[string][]apiKeyModelCapabilityRoute)
 	switch strings.ToLower(strings.TrimSpace(auth.Provider)) {
-	case "gemini":
-		if entry := resolveGeminiAPIKeyConfig(cfg, auth); entry != nil {
-			compileConfiguredModelCapabilities(out, entry.Models, "gemini")
-		}
-	case "gemini-interactions":
-		if entry := resolveInteractionsAPIKeyConfig(cfg, auth); entry != nil {
-			compileConfiguredModelCapabilities(out, entry.Models, "interactions")
-		}
 	case "claude":
 		if entry := resolveClaudeAPIKeyConfig(cfg, auth); entry != nil {
 			compileConfiguredModelCapabilities(out, entry.Models, "claude")
@@ -171,14 +163,6 @@ func compileAPIKeyModelCapabilitiesForAuth(cfg *internalconfig.Config, auth *Aut
 	case "codex":
 		if entry := resolveCodexAPIKeyConfig(cfg, auth); entry != nil {
 			compileConfiguredModelCapabilities(out, entry.Models, "codex")
-		}
-	case "xai":
-		if entry := resolveXAIAPIKeyConfig(cfg, auth); entry != nil {
-			compileConfiguredModelCapabilities(out, entry.Models, "xai")
-		}
-	case "vertex":
-		if entry := resolveVertexAPIKeyConfig(cfg, auth); entry != nil {
-			compileConfiguredModelCapabilities(out, entry.Models, "gemini")
 		}
 	default:
 		providerKey, compatName := "", ""

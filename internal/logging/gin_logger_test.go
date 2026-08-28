@@ -64,7 +64,6 @@ func TestIsAIAPIPathIncludesPublicAPIGroups(t *testing.T) {
 		"/v1",
 		"/v1/models",
 		"/v1/alpha/search",
-		"/v1beta/interactions",
 		"/openai/v1/videos",
 		"/backend-api/codex/responses",
 	} {

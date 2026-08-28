@@ -78,6 +78,7 @@ func (s *Service) Run(ctx context.Context) error {
 		if errLoad := s.coreManager.Load(ctx); errLoad != nil {
 			log.Warnf("failed to load auth store: %v", errLoad)
 		}
+		s.pruneUnsupportedRuntimeAuths(ctx)
 		s.registerConfigAPIKeyAuths(coreauth.WithSkipPersist(ctx), s.cfg)
 		if s.cfg.SaveCooldownStatus {
 			if errRestoreCooldown := s.coreManager.RestoreCooldownStates(ctx); errRestoreCooldown != nil {
@@ -106,7 +107,6 @@ func (s *Service) Run(ctx context.Context) error {
 
 	// legacy clients removed; no caches to refresh
 
-	s.ensureWebsocketGateway()
 	if homeEnabled {
 		s.registerAvailableExecutors(ctx, executorRegistrationOptions{
 			includeBaseline: true,
@@ -128,26 +128,6 @@ func (s *Service) Run(ctx context.Context) error {
 
 	if homeEnabled {
 		s.startHomeSubscriber(ctx)
-	}
-
-	if s.server != nil && s.wsGateway != nil {
-		s.server.AttachWebsocketRoute(s.wsGateway.Path(), s.wsGateway.Handler())
-		s.server.SetWebsocketAuthChangeHandler(func(oldEnabled, newEnabled bool) {
-			if oldEnabled == newEnabled {
-				return
-			}
-			if !oldEnabled && newEnabled {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if errStop := s.wsGateway.Stop(ctx); errStop != nil {
-					log.Warnf("failed to reset websocket connections after ws-auth change %t -> %t: %v", oldEnabled, newEnabled, errStop)
-					return
-				}
-				log.Debugf("ws-auth enabled; existing websocket sessions terminated to enforce authentication")
-				return
-			}
-			log.Debugf("ws-auth disabled; existing websocket sessions remain connected")
-		})
 	}
 
 	if s.hooks.OnBeforeStart != nil {
@@ -292,14 +272,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 			if err := s.watcher.Stop(); err != nil {
 				log.Errorf("failed to stop file watcher: %v", err)
 				shutdownErr = err
-			}
-		}
-		if s.wsGateway != nil {
-			if err := s.wsGateway.Stop(ctx); err != nil {
-				log.Errorf("failed to stop websocket gateway: %v", err)
-				if shutdownErr == nil {
-					shutdownErr = err
-				}
 			}
 		}
 		if s.authQueueStop != nil {

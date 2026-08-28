@@ -18,9 +18,9 @@ func TestResponseFormatOrSourceUsesExplicitResponseFormat(t *testing.T) {
 }
 
 func TestResponseFormatOrSourceFallsBackToSourceFormat(t *testing.T) {
-	opts := Options{SourceFormat: sdktranslator.FormatGemini}
+	opts := Options{SourceFormat: sdktranslator.FormatClaude}
 
-	if got := ResponseFormatOrSource(opts); got != sdktranslator.FormatGemini {
-		t.Fatalf("ResponseFormatOrSource() = %q, want %q", got, sdktranslator.FormatGemini)
+	if got := ResponseFormatOrSource(opts); got != sdktranslator.FormatClaude {
+		t.Fatalf("ResponseFormatOrSource() = %q, want %q", got, sdktranslator.FormatClaude)
 	}
 }

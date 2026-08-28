@@ -17,8 +17,8 @@ import (
 
 func TestCodexExecutorExecuteStreamSanitizesOverlongInputItemIDs(t *testing.T) {
 	longReasoningItemID := "rs_" + strings.Repeat("a", 64)
-	longCallItemID := strings.Repeat("grok-call-item-", 6)
-	longOutputItemID := strings.Repeat("grok-output-item-", 6)
+	longCallItemID := strings.Repeat("codex-call-item-", 6)
+	longOutputItemID := strings.Repeat("codex-output-item-", 6)
 	encryptedContent := validOpenAIResponsesReasoningEncryptedContentForTest()
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

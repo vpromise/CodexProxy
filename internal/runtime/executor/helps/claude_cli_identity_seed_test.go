@@ -64,9 +64,9 @@ func TestClaudeCLIAuthIdentitySeedPrefersStableAuthIdentity(t *testing.T) {
 		auth *cliproxyauth.Auth
 		want string
 	}{
-		{name: "auth ID", auth: &cliproxyauth.Auth{ID: "kimi-auth"}, want: "auth-id|kimi-auth"},
-		{name: "auth index", auth: &cliproxyauth.Auth{Index: "kimi-index"}, want: "auth-index|kimi-index"},
-		{name: "auth file", auth: &cliproxyauth.Auth{FileName: "kimi.json"}, want: "auth-file|kimi.json"},
+		{name: "auth ID", auth: &cliproxyauth.Auth{ID: "claude-auth"}, want: "auth-id|claude-auth"},
+		{name: "auth index", auth: &cliproxyauth.Auth{Index: "claude-index"}, want: "auth-index|claude-index"},
+		{name: "auth file", auth: &cliproxyauth.Auth{FileName: "claude.json"}, want: "auth-file|claude.json"},
 		{name: "missing identity", auth: &cliproxyauth.Auth{}, want: ""},
 	}
 	for _, tt := range tests {
@@ -83,7 +83,7 @@ func TestPrepareClaudeCLIFingerprintAuthDoesNotMutateSharedMetadata(t *testing.T
 	t.Parallel()
 
 	shared := &cliproxyauth.Auth{
-		ID: "kimi-shared",
+		ID: "claude-shared",
 		Metadata: map[string]any{
 			"access_token": "token-1",
 		},
@@ -108,7 +108,7 @@ func TestPrepareClaudeCLIFingerprintAuthDoesNotMutateSharedMetadata(t *testing.T
 
 func TestPrepareClaudeCLIFingerprintAuthIsolatesUnlockedMetadataReaders(t *testing.T) {
 	shared := &cliproxyauth.Auth{
-		ID: "kimi-race",
+		ID: "claude-race",
 		Metadata: map[string]any{
 			"access_token":  "token-1",
 			"refresh_token": "refresh-1",
@@ -133,7 +133,7 @@ func TestPrepareClaudeCLIFingerprintAuthIsolatesUnlockedMetadataReaders(t *testi
 	go func() {
 		defer wg.Done()
 		for range 200 {
-			// Same unlocked read Kimi OpenAI-compat requests perform via kimiCreds.
+			// Simulate an unlocked metadata reader on a shared compatible credential.
 			_ = shared.Metadata["access_token"].(string)
 		}
 	}()

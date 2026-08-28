@@ -1074,7 +1074,7 @@ var claudeCodeCacheControl = claudeCacheControl{
 const claudeCacheControlTTL1h = "1h"
 
 // ensureCacheControl injects default cache_control breakpoints for translated
-// entrypoints (Responses/Chat/Gemini) after cloaking. Placement follows the
+// entrypoints (Responses/Chat) after cloaking. Placement follows the
 // native request builder recovered from the installed binaries:
 //  1. LAST system block when no system marker exists
 //  2. LAST cacheable message when that message has no marker

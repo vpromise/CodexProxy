@@ -33,14 +33,14 @@ func TestExtractClaudeCodeSessionIDFromHeader(t *testing.T) {
 func TestClaudeCodePromptCacheStableAcrossRequests(t *testing.T) {
 	ctx := context.Background()
 	payload := []byte(`{"metadata":{"user_id":"{\"session_id\":\"cache-session-2\"}"}}`)
-	first, ok, err := ClaudeCodePromptCache(ctx, "grok-composer-2.5-fast", payload, nil)
+	first, ok, err := ClaudeCodePromptCache(ctx, "claude-sonnet-4-5", payload, nil)
 	if err != nil {
 		t.Fatalf("ClaudeCodePromptCache first error: %v", err)
 	}
 	if !ok || first.ID == "" {
 		t.Fatalf("ClaudeCodePromptCache first = %#v, ok=%v, want cached id", first, ok)
 	}
-	second, ok, err := ClaudeCodePromptCache(ctx, "grok-composer-2.5-fast", payload, nil)
+	second, ok, err := ClaudeCodePromptCache(ctx, "claude-sonnet-4-5", payload, nil)
 	if err != nil {
 		t.Fatalf("ClaudeCodePromptCache second error: %v", err)
 	}

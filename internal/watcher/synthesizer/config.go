@@ -6,14 +6,13 @@ import (
 	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher/diff"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
 // ConfigSynthesizer generates Auth entries from configuration API keys.
-// It handles Gemini, Interactions, Claude, Codex, xAI, OpenAI-compat, and Vertex-compat providers.
+// It handles Claude, Codex, and OpenAI-compatible providers.
 type ConfigSynthesizer struct{}
 
 // NewConfigSynthesizer creates a new ConfigSynthesizer instance.
@@ -42,93 +41,14 @@ func (s *ConfigSynthesizer) Synthesize(ctx *SynthesisContext) ([]*coreauth.Auth,
 		return nil, fmt.Errorf("synthesize config API key auths: %w", errValidate)
 	}
 
-	// Gemini API Keys
-	out = append(out, s.synthesizeGeminiKeys(ctx)...)
-	// Native Interactions API Keys
-	out = append(out, s.synthesizeInteractionsKeys(ctx)...)
 	// Claude API Keys
 	out = append(out, s.synthesizeClaudeKeys(ctx)...)
 	// Codex API Keys
 	out = append(out, s.synthesizeCodexKeys(ctx)...)
-	// xAI API Keys
-	out = append(out, s.synthesizeXAIKeys(ctx)...)
 	// OpenAI-compat
 	out = append(out, s.synthesizeOpenAICompat(ctx)...)
-	// Vertex-compat
-	out = append(out, s.synthesizeVertexCompat(ctx)...)
 
 	return out, nil
-}
-
-// synthesizeGeminiKeys creates Auth entries for Gemini API keys.
-func (s *ConfigSynthesizer) synthesizeGeminiKeys(ctx *SynthesisContext) []*coreauth.Auth {
-	return s.synthesizeGeminiKeyEntries(ctx, ctx.Config.GeminiKey, "gemini:apikey", "gemini", "gemini-apikey", constant.Gemini)
-}
-
-// synthesizeInteractionsKeys creates Auth entries for native Interactions API keys.
-func (s *ConfigSynthesizer) synthesizeInteractionsKeys(ctx *SynthesisContext) []*coreauth.Auth {
-	return s.synthesizeGeminiKeyEntries(ctx, ctx.Config.InteractionsKey, "gemini-interactions:apikey", "interactions", "interactions-apikey", constant.GeminiInteractions)
-}
-
-func (s *ConfigSynthesizer) synthesizeGeminiKeyEntries(ctx *SynthesisContext, entries []config.GeminiKey, idKind, sourceName, label, provider string) []*coreauth.Auth {
-	cfg := ctx.Config
-	now := ctx.Now
-	idGen := ctx.IDGenerator
-
-	out := make([]*coreauth.Auth, 0, len(entries))
-	for i := range entries {
-		entry := entries[i]
-		key := strings.TrimSpace(entry.APIKey)
-		base := strings.TrimSpace(entry.BaseURL)
-		if key == "" && base == "" {
-			continue
-		}
-		prefix := strings.TrimSpace(entry.Prefix)
-		proxyURL := strings.TrimSpace(entry.ProxyURL)
-		id, token := idGen.Next(idKind, key, base, proxyURL, prefix, config.FormatSortedHeaders(entry.Headers))
-		attrs := map[string]string{
-			"source":       fmt.Sprintf("config:%s[%s]", sourceName, token),
-			"config_index": strconv.Itoa(i),
-		}
-		if key != "" {
-			attrs["api_key"] = key
-		}
-		metadata := map[string]any{}
-		if entry.DisableCooling != nil {
-			metadata["disable_cooling"] = *entry.DisableCooling
-		}
-		addRequestRetryToMetadata(entry.RequestRetry, metadata)
-		addRequestScopedErrorsToMetadata(entry.RequestScopedErrors, metadata)
-		if entry.Priority != 0 {
-			attrs["priority"] = strconv.Itoa(entry.Priority)
-		}
-		addWeightToAttrs(entry.Weight, attrs)
-		if base != "" {
-			attrs["base_url"] = base
-		}
-		if hash := diff.ComputeGeminiModelsHash(entry.Models); hash != "" {
-			attrs["models_hash"] = hash
-		}
-		addConfigHeadersToAttrs(entry.Headers, attrs)
-		a := &coreauth.Auth{
-			ID:         id,
-			Provider:   provider,
-			Label:      label,
-			Prefix:     prefix,
-			Status:     coreauth.StatusActive,
-			ProxyURL:   proxyURL,
-			Attributes: attrs,
-			Metadata:   metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-		ApplyAuthExcludedModelsMeta(a, cfg, entry.ExcludedModels, "apikey")
-		if len(a.Metadata) == 0 {
-			a.Metadata = nil
-		}
-		out = append(out, a)
-	}
-	return out
 }
 
 // synthesizeClaudeKeys creates Auth entries for Claude API keys.
@@ -204,11 +124,7 @@ func (s *ConfigSynthesizer) synthesizeCodexKeys(ctx *SynthesisContext) []*coreau
 	return s.synthesizeCodexStyleKeys(ctx, ctx.Config.CodexKey, "codex")
 }
 
-// synthesizeXAIKeys creates Auth entries for xAI API keys.
-func (s *ConfigSynthesizer) synthesizeXAIKeys(ctx *SynthesisContext) []*coreauth.Auth {
-	return s.synthesizeCodexStyleKeys(ctx, ctx.Config.XAIKey, "xai")
-}
-
+// synthesizeCodexStyleKeys creates Auth entries for Codex-style API keys.
 func (s *ConfigSynthesizer) synthesizeCodexStyleKeys(ctx *SynthesisContext, entries []config.CodexKey, provider string) []*coreauth.Auth {
 	cfg := ctx.Config
 	now := ctx.Now
@@ -387,66 +303,6 @@ func (s *ConfigSynthesizer) synthesizeOpenAICompat(ctx *SynthesisContext) []*cor
 			}
 			out = append(out, a)
 		}
-	}
-	return out
-}
-
-// synthesizeVertexCompat creates Auth entries for Vertex-compatible providers.
-func (s *ConfigSynthesizer) synthesizeVertexCompat(ctx *SynthesisContext) []*coreauth.Auth {
-	cfg := ctx.Config
-	now := ctx.Now
-	idGen := ctx.IDGenerator
-
-	out := make([]*coreauth.Auth, 0, len(cfg.VertexCompatAPIKey))
-	for i := range cfg.VertexCompatAPIKey {
-		compat := &cfg.VertexCompatAPIKey[i]
-		providerName := "vertex"
-		base := strings.TrimSpace(compat.BaseURL)
-
-		key := strings.TrimSpace(compat.APIKey)
-		prefix := strings.TrimSpace(compat.Prefix)
-		proxyURL := strings.TrimSpace(compat.ProxyURL)
-		idKind := "vertex:apikey"
-		id, token := idGen.Next(idKind, key, base, proxyURL)
-		attrs := map[string]string{
-			"source":       fmt.Sprintf("config:vertex-apikey[%s]", token),
-			"base_url":     base,
-			"provider_key": providerName,
-			"config_index": strconv.Itoa(i),
-		}
-		if compat.Priority != 0 {
-			attrs["priority"] = strconv.Itoa(compat.Priority)
-		}
-		addWeightToAttrs(compat.Weight, attrs)
-		if key != "" {
-			attrs["api_key"] = key
-		}
-		if hash := diff.ComputeVertexCompatModelsHash(compat.Models); hash != "" {
-			attrs["models_hash"] = hash
-		}
-		addConfigHeadersToAttrs(compat.Headers, attrs)
-		metadata := map[string]any{}
-		if compat.DisableCooling != nil {
-			metadata["disable_cooling"] = *compat.DisableCooling
-		}
-		addRequestRetryToMetadata(compat.RequestRetry, metadata)
-		a := &coreauth.Auth{
-			ID:         id,
-			Provider:   providerName,
-			Label:      "vertex-apikey",
-			Prefix:     prefix,
-			Status:     coreauth.StatusActive,
-			ProxyURL:   proxyURL,
-			Attributes: attrs,
-			Metadata:   metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-		ApplyAuthExcludedModelsMeta(a, cfg, compat.ExcludedModels, "apikey")
-		if len(a.Metadata) == 0 {
-			a.Metadata = nil
-		}
-		out = append(out, a)
 	}
 	return out
 }

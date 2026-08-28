@@ -177,10 +177,8 @@ func isQuotaSignalHeaderForProvider(provider, name string) bool {
 		return provider == "claude"
 	}
 	if strings.HasPrefix(name, "x-ratelimit-") {
-		// Observed Codex responses do not carry x-ratelimit-* headers; the only
-		// upstream seen emitting them is Grok, which is excluded from quota
-		// observation. The rule is kept so a future Codex rollout is captured
-		// without another change, but it is expected to be inert today.
+		// The rule is kept so a future Codex rollout is captured without another
+		// change, but it is expected to be inert today.
 		return provider == "codex"
 	}
 	if !strings.HasPrefix(name, "x-codex-") {

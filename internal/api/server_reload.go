@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/access"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/cache"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/managementasset"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
@@ -109,8 +107,6 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 		log.Infof("disable-image-generation updated: %v -> %v", oldCfg.DisableImageGeneration, cfg.DisableImageGeneration)
 	}
 
-	applySignatureCacheConfig(oldCfg, cfg)
-
 	if s.handlers != nil && s.handlers.AuthManager != nil {
 		s.handlers.AuthManager.SetRetryConfig(cfg.RequestRetry, time.Duration(cfg.MaxRetryInterval)*time.Second, cfg.MaxRetryCredentials)
 	}
@@ -167,11 +163,6 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 			log.WithError(errUpdate).Error("failed to update Codex Live media relay configuration")
 		}
 	}
-	s.wsAuthEnabled.Store(cfg.WebsocketAuth)
-	if oldCfg != nil && s.wsAuthChanged != nil && oldCfg.WebsocketAuth != cfg.WebsocketAuth {
-		s.wsAuthChanged(oldCfg.WebsocketAuth, cfg.WebsocketAuth)
-	}
-	managementasset.SetCurrentConfig(cfg)
 	if errContext := ctx.Err(); errContext != nil {
 		return false
 	}
@@ -190,8 +181,6 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 		s.mgmt.SetAuthManager(s.handlers.AuthManager)
 		s.mgmt.SetPluginHost(s.pluginHost)
 	}
-	s.refreshPluginManagementRoutes()
-
 	// Count client sources from configuration and auth store.
 	authEntries := 0
 	if cfg != nil && !cfg.Home.Enabled {
@@ -204,12 +193,8 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 			return false
 		}
 	}
-	geminiAPIKeyCount := len(cfg.GeminiKey)
-	interactionsAPIKeyCount := len(cfg.InteractionsKey)
 	claudeAPIKeyCount := len(cfg.ClaudeKey)
 	codexAPIKeyCount := len(cfg.CodexKey)
-	xaiAPIKeyCount := len(cfg.XAIKey)
-	vertexAICompatCount := len(cfg.VertexCompatAPIKey)
 	openAICompatCount := 0
 	for i := range cfg.OpenAICompatibility {
 		entry := cfg.OpenAICompatibility[i]
@@ -219,58 +204,13 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 		openAICompatCount += len(entry.APIKeyEntries)
 	}
 
-	total := authEntries + geminiAPIKeyCount + interactionsAPIKeyCount + claudeAPIKeyCount + codexAPIKeyCount + xaiAPIKeyCount + vertexAICompatCount + openAICompatCount
-	fmt.Printf("server clients and configuration updated: %d clients (%d auth entries + %d Gemini API keys + %d Interactions API keys + %d Claude API keys + %d Codex keys + %d xAI keys + %d Vertex-compat + %d OpenAI-compat)\n",
+	total := authEntries + claudeAPIKeyCount + codexAPIKeyCount + openAICompatCount
+	fmt.Printf("server clients and configuration updated: %d clients (%d auth entries + %d Claude API keys + %d Codex keys + %d OpenAI-compat)\n",
 		total,
 		authEntries,
-		geminiAPIKeyCount,
-		interactionsAPIKeyCount,
 		claudeAPIKeyCount,
 		codexAPIKeyCount,
-		xaiAPIKeyCount,
-		vertexAICompatCount,
 		openAICompatCount,
 	)
 	return ctx.Err() == nil
-}
-
-func (s *Server) SetWebsocketAuthChangeHandler(fn func(bool, bool)) {
-	if s == nil {
-		return
-	}
-	s.wsAuthChanged = fn
-}
-
-func configuredSignatureCacheEnabled(cfg *config.Config) bool {
-	if cfg != nil && cfg.AntigravitySignatureCacheEnabled != nil {
-		return *cfg.AntigravitySignatureCacheEnabled
-	}
-	return true
-}
-
-func applySignatureCacheConfig(oldCfg, cfg *config.Config) {
-	newVal := configuredSignatureCacheEnabled(cfg)
-	newStrict := configuredSignatureBypassStrict(cfg)
-	if oldCfg == nil {
-		cache.SetSignatureCacheEnabled(newVal)
-		cache.SetSignatureBypassStrictMode(newStrict)
-		return
-	}
-
-	oldVal := configuredSignatureCacheEnabled(oldCfg)
-	if oldVal != newVal {
-		cache.SetSignatureCacheEnabled(newVal)
-	}
-
-	oldStrict := configuredSignatureBypassStrict(oldCfg)
-	if oldStrict != newStrict {
-		cache.SetSignatureBypassStrictMode(newStrict)
-	}
-}
-
-func configuredSignatureBypassStrict(cfg *config.Config) bool {
-	if cfg != nil && cfg.AntigravitySignatureBypassStrict != nil {
-		return *cfg.AntigravitySignatureBypassStrict
-	}
-	return false
 }

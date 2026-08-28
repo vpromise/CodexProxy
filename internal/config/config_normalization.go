@@ -182,18 +182,7 @@ func (cfg *Config) SanitizeCodexKeys() {
 	cfg.CodexKey = sanitizeCodexKeyEntries(cfg.CodexKey)
 }
 
-// SanitizeXAIKeys removes xAI API key entries missing a BaseURL.
-// It applies the same normalization rules as codex-api-key.
-func (cfg *Config) SanitizeXAIKeys() {
-	if cfg == nil {
-		return
-	}
-	cfg.XAIKey = sanitizeCodexKeyEntries(cfg.XAIKey)
-	for i := range cfg.XAIKey {
-		cfg.XAIKey[i].AlphaSearch = false
-	}
-}
-
+// sanitizeCodexKeyEntries normalizes Codex API key entries.
 func sanitizeCodexKeyEntries(entries []CodexKey) []CodexKey {
 	if len(entries) == 0 {
 		return entries
@@ -234,45 +223,6 @@ func (cfg *Config) SanitizeClaudeKeys() {
 	}
 }
 
-func sanitizeGeminiKeyEntries(entries []GeminiKey) []GeminiKey {
-	seen := make(map[string]struct{}, len(entries))
-	out := entries[:0]
-	for i := range entries {
-		entry := entries[i]
-		entry.APIKey = strings.TrimSpace(entry.APIKey)
-		entry.BaseURL = strings.TrimSpace(entry.BaseURL)
-		if entry.APIKey == "" && entry.BaseURL == "" {
-			continue
-		}
-		entry.Prefix = normalizeModelPrefix(entry.Prefix)
-		entry.ProxyURL = strings.TrimSpace(entry.ProxyURL)
-		entry.Headers = NormalizeHeaders(entry.Headers)
-		entry.ExcludedModels = NormalizeExcludedModels(entry.ExcludedModels)
-		uniqueKey := formatGeminiKeyDedupID(entry)
-		if _, exists := seen[uniqueKey]; exists {
-			continue
-		}
-		seen[uniqueKey] = struct{}{}
-		out = append(out, entry)
-	}
-	return out
-}
-
-func formatGeminiKeyDedupID(entry GeminiKey) string {
-	var b strings.Builder
-	b.WriteString(entry.APIKey)
-	b.WriteByte(0)
-	b.WriteString(entry.BaseURL)
-	b.WriteByte(0)
-	b.WriteString(entry.ProxyURL)
-	b.WriteByte(0)
-	b.WriteString(entry.Prefix)
-	b.WriteByte(0)
-	b.WriteString(FormatSortedHeaders(entry.Headers))
-	return b.String()
-}
-
-// FormatSortedHeaders serializes headers deterministically with null byte separators.
 func FormatSortedHeaders(headers map[string]string) string {
 	if len(headers) == 0 {
 		return ""
@@ -290,24 +240,6 @@ func FormatSortedHeaders(headers map[string]string) string {
 		b.WriteByte(0)
 	}
 	return b.String()
-}
-
-// SanitizeGeminiKeys deduplicates and normalizes Gemini credentials.
-// It uses API key, base URL, proxy URL, prefix, and custom headers as the uniqueness key.
-func (cfg *Config) SanitizeGeminiKeys() {
-	if cfg == nil {
-		return
-	}
-	cfg.GeminiKey = sanitizeGeminiKeyEntries(cfg.GeminiKey)
-}
-
-// SanitizeInteractionsKeys deduplicates and normalizes native Interactions credentials.
-// It uses API key, base URL, proxy URL, prefix, and custom headers as the uniqueness key.
-func (cfg *Config) SanitizeInteractionsKeys() {
-	if cfg == nil {
-		return
-	}
-	cfg.InteractionsKey = sanitizeGeminiKeyEntries(cfg.InteractionsKey)
 }
 
 func normalizeModelPrefix(prefix string) string {

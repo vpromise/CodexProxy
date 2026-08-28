@@ -1,6 +1,6 @@
 // Package handlers provides core API handler functionality for the CLI Proxy API server.
 // It includes common types, client management, load balancing, and error handling
-// shared across all API endpoint handlers (OpenAI, Claude, Gemini).
+// shared across the scoped OpenAI, Claude, and Codex API endpoint handlers.
 package handlers
 
 import (

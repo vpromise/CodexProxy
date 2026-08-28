@@ -90,7 +90,7 @@ func TestClaudeThinkingReplayEnabledRequiresCompatClaudeAPIKey(t *testing.T) {
 			name: "other provider",
 			auth: func() *cliproxyauth.Auth {
 				auth := baseAuth.Clone()
-				auth.Provider = "kimi"
+				auth.Provider = "codex"
 				return auth
 			}(),
 			request:    baseRequest,

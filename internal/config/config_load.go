@@ -73,10 +73,8 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	cfg.SaveCooldownStatus = false
 	cfg.TransientErrorCooldownSeconds = 0
 	cfg.DisableImageGeneration = DisableImageGenerationOff
-	cfg.WebsocketAuth = true
 	cfg.Pprof.Enable = false
 	cfg.Pprof.Addr = DefaultPprofAddr
-	cfg.RemoteManagement.PanelGitHubRepository = DefaultPanelGitHubRepository
 	cfg.CredentialInFlight = DefaultCredentialInFlightConfig()
 	if err = yaml.Unmarshal(data, &cfg); err != nil {
 		if optional {
@@ -113,11 +111,6 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 		_ = SaveConfigPreserveCommentsUpdateNestedScalar(configFile, []string{"remote-management", "secret-key"}, hashed)
 	}
 
-	cfg.RemoteManagement.PanelGitHubRepository = strings.TrimSpace(cfg.RemoteManagement.PanelGitHubRepository)
-	if cfg.RemoteManagement.PanelGitHubRepository == "" {
-		cfg.RemoteManagement.PanelGitHubRepository = DefaultPanelGitHubRepository
-	}
-
 	cfg.Pprof.Addr = strings.TrimSpace(cfg.Pprof.Addr)
 	if cfg.Pprof.Addr == "" {
 		cfg.Pprof.Addr = DefaultPprofAddr
@@ -147,20 +140,8 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 		return nil, errResolvePluginsDir
 	}
 
-	// Sanitize Gemini API key configuration and migrate legacy entries.
-	cfg.SanitizeGeminiKeys()
-
-	// Sanitize native Interactions API key configuration.
-	cfg.SanitizeInteractionsKeys()
-
-	// Sanitize Vertex-compatible API keys.
-	cfg.SanitizeVertexCompatKeys()
-
 	// Sanitize Codex keys: drop entries without base-url
 	cfg.SanitizeCodexKeys()
-
-	// Sanitize xAI keys: drop entries without base-url
-	cfg.SanitizeXAIKeys()
 
 	// Sanitize Codex header defaults.
 	cfg.SanitizeCodexHeaderDefaults()

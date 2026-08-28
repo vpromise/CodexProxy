@@ -273,12 +273,9 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 		type upstreamDisconnectSubscriber interface {
 			UpstreamDisconnectChan(sessionID string) <-chan error
 		}
-		for _, provider := range []string{"codex", "xai"} {
-			exec, ok := h.AuthManager.Executor(provider)
-			if !ok || exec == nil {
-				continue
-			}
-			if subscriber, ok := exec.(upstreamDisconnectSubscriber); ok && subscriber != nil {
+		exec, ok := h.AuthManager.Executor("codex")
+		if ok && exec != nil {
+			if subscriber, okSubscriber := exec.(upstreamDisconnectSubscriber); okSubscriber && subscriber != nil {
 				disconnectCh := subscriber.UpstreamDisconnectChan(passthroughSessionID)
 				if disconnectCh != nil {
 					go func() {
@@ -344,7 +341,7 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 	upstreamModeForAuth := func(auth *coreauth.Auth) string {
 		if auth != nil && websocketUpstreamSupportsIncrementalInput(auth.Attributes, auth.Metadata) {
 			provider := strings.ToLower(strings.TrimSpace(auth.Provider))
-			if provider == "codex" || provider == "xai" {
+			if provider == "codex" {
 				return responsesWebsocketUpstreamModeWS
 			}
 		}
@@ -440,7 +437,7 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 		if pinnedAuthID != "" {
 			if pinnedAuth, ok := sessionAuthByID(pinnedAuthID); ok && responsesWebsocketAuthSupportsIncrementalInput(pinnedAuth) {
 				provider := strings.ToLower(strings.TrimSpace(pinnedAuth.Provider))
-				useUpstreamWebsocketPassthrough = provider == "codex" || provider == "xai"
+				useUpstreamWebsocketPassthrough = provider == "codex"
 			}
 		}
 		nativeWebsocketPassthrough := !routeOverridesModelResolution && responsesWebsocketNativePassthroughAllowed(

@@ -16,8 +16,17 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// claudeThinkingReplayScope reuses the bounded replay state shape shared with Kimi.
-type claudeThinkingReplayScope = kimiThinkingReplayScope
+type claudeThinkingReplayScope struct {
+	modelFamily   string
+	sessionKey    string
+	snapshot      internalcache.ClaudeThinkingReplaySnapshot
+	cacheReady    bool
+	replayApplied bool
+}
+
+func (s claudeThinkingReplayScope) valid() bool {
+	return strings.TrimSpace(s.modelFamily) != "" && strings.TrimSpace(s.sessionKey) != ""
+}
 
 func claudeThinkingReplayEnabled(auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) bool {
 	if auth == nil || !sourceFormatEqual(opts.SourceFormat, sdktranslator.FormatClaude) {
@@ -36,7 +45,7 @@ func claudeThinkingReplayEnabled(auth *cliproxyauth.Auth, req cliproxyexecutor.R
 // A missing session identity intentionally disables replay instead of sharing hidden reasoning across callers.
 func claudeThinkingReplayScopeFromRequest(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) claudeThinkingReplayScope {
 	sessionKey := codexReasoningReplaySessionKey(ctx, sdktranslator.FormatClaude, req, opts, req.Payload)
-	sessionKey = xaiReasoningReplayIsolateSessionKey(ctx, sessionKey)
+	sessionKey = claudeThinkingReplayIsolateSessionKey(ctx, sessionKey)
 	return claudeThinkingReplayScope{
 		modelFamily: claudeThinkingReplayModelFamily(auth, req.Model),
 		sessionKey:  sessionKey,
@@ -94,7 +103,7 @@ func restoreClaudeThinkingReplayContents(body []byte, cachedContents [][]byte) (
 	restored := false
 	for _, cachedContent := range cachedContents {
 		var restoredTurn bool
-		updated, restoredTurn = restoreKimiThinkingReplayContent(updated, cachedContent)
+		updated, restoredTurn = restoreClaudeThinkingReplayContent(updated, cachedContent)
 		restored = restored || restoredTurn
 	}
 	return updated, restored
@@ -106,7 +115,7 @@ func cacheClaudeThinkingReplayResponse(ctx context.Context, scope claudeThinking
 		cacheClaudeThinkingReplayContent(ctx, scope, []byte(content.Raw))
 		return
 	}
-	accumulator := newKimiThinkingReplayStreamAccumulator()
+	accumulator := newClaudeThinkingReplayStreamAccumulator()
 	accumulator.observe(response)
 	if content, completed := accumulator.content(); completed {
 		cacheClaudeThinkingReplayContent(ctx, scope, content)
@@ -117,7 +126,7 @@ func cacheClaudeThinkingReplayContent(ctx context.Context, scope claudeThinkingR
 	if !scope.valid() || !scope.cacheReady {
 		return
 	}
-	if kimiThinkingReplayContentIsReplayable(content) {
+	if claudeThinkingReplayContentIsReplayable(content) {
 		if _, errReplace := internalcache.ReplaceClaudeThinkingReplayIfUnchanged(ctx, scope.modelFamily, scope.sessionKey, scope.snapshot, content); errReplace != nil {
 			log.Warnf("claude compatible thinking replay cache replace failed: %v", errReplace)
 		}
@@ -136,5 +145,5 @@ func clearClaudeThinkingReplayContent(ctx context.Context, scope claudeThinkingR
 }
 
 func wrapClaudeThinkingReplayStream(ctx context.Context, result *cliproxyexecutor.StreamResult, scope claudeThinkingReplayScope) *cliproxyexecutor.StreamResult {
-	return wrapThinkingReplayStream(ctx, result, scope, cacheClaudeThinkingReplayContent, clearClaudeThinkingReplayContent)
+	return wrapClaudeThinkingReplayStreamResult(ctx, result, scope, cacheClaudeThinkingReplayContent, clearClaudeThinkingReplayContent)
 }

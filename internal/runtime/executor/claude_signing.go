@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 
 	xxHash64 "github.com/pierrec/xxHash/xxHash64"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -40,14 +38,6 @@ type claudeCCHJSONScanner struct {
 	pos   int
 	edits []claudeCCHNormalizationEdit
 }
-
-type claudeCCHUpstreamKind uint8
-
-const (
-	claudeCCHUpstreamOther claudeCCHUpstreamKind = iota
-	claudeCCHUpstreamAnthropic
-	claudeCCHUpstreamVertex
-)
 
 func finalizeAnthropicMessagesBodyCCH(body []byte, fallbackBilling string) ([]byte, error) {
 	bodyWithPlaceholder, err := ensureClaudeBillingHeaderCCHPlaceholder(body, fallbackBilling)
@@ -146,44 +136,10 @@ func prependClaudeBillingSystemBlock(body []byte, billingText string) ([]byte, e
 	return updated, nil
 }
 
-func isKimiAPIEndpoint(endpoint string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(endpoint))
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(parsed.Hostname(), "api.kimi.com")
-}
-
-func isKimiMessagesUpstream(auth *cliproxyauth.Auth, endpoint string) bool {
-	if auth != nil && strings.EqualFold(strings.TrimSpace(auth.Provider), "kimi") {
-		return true
-	}
-	return isKimiAPIEndpoint(endpoint)
-}
-
-// stripDefaultKimiClaudeCodeAttribution removes the Claude Code billing/CCH
-// attribution block from a Kimi Messages body when the caller did not opt into
-// the full CLI profile. Kimi treats the block as prompt text, so forwarding it
-// unchanged would leak CPA's attribution into the model's context. Other system
-// content is preserved.
-func stripDefaultKimiClaudeCodeAttribution(auth *cliproxyauth.Auth, endpoint string, cliFingerprint bool, body []byte) []byte {
-	if cliFingerprint || !isKimiMessagesUpstream(auth, endpoint) {
-		return body
-	}
-	return util.StripClaudeCodeAttributionSystem(body)
-}
-
 // claudeCCHSigningEnabled applies CPA's CCH policy.
 //
-// Native gate, identical in Claude Code 2.1.220 through 2.1.234:
-//
-//	s = (provider === "firstParty" && isFirstPartyBaseURL()) || provider === "vertex"
-//	      ? " cch=00000;" : ""
-//
-// where isFirstPartyBaseURL() is true when ANTHROPIC_BASE_URL is unset or its
-// host is api.anthropic.com. Every other backend (bedrock, foundry, mantle,
-// anthropicAws, anthropicGoogleCloud, gateway, any custom base URL) sends the
-// billing header without cch.
+// Native Claude signs on the first-party api.anthropic.com endpoint. Custom
+// gateways send the billing header without cch.
 //
 // CPA maps that onto two authorities:
 //
@@ -191,24 +147,19 @@ func stripDefaultKimiClaudeCodeAttribution(auth *cliproxyauth.Auth, endpoint str
 //     hop that restores the first-party shape: a downstream Claude Code pointed at
 //     CPA sees a non-first-party base URL and therefore omits cch itself, so the
 //     value has to be regenerated here rather than inherited.
-//   - An API key or delegated provider signs only when it explicitly opted into
-//     the claude-code-cli profile AND the upstream is one the native gate accepts.
-//     On any other gateway the billing header still goes out, but without cch, so
-//     a per-request hash cannot bust that gateway's prompt cache.
+//   - An API key signs only when it explicitly opted into the claude-code-cli
+//     profile and the upstream is the first-party endpoint.
 //
 // origin is the concrete upstream URL of the request being built. CPA additionally
 // requires https and the default port, which native does not check.
-func claudeCCHSigningEnabled(apiKey string, kind claudeCCHUpstreamKind, cliFingerprint bool, origin string) bool {
+func claudeCCHSigningEnabled(apiKey string, cliFingerprint bool, origin string) bool {
 	if isClaudeOAuthToken(apiKey) {
-		return true
-	}
-	if kind == claudeCCHUpstreamVertex {
 		return true
 	}
 	if !cliFingerprint {
 		return false
 	}
-	return kind == claudeCCHUpstreamAnthropic && isAnthropicUpstreamBase(origin)
+	return isAnthropicUpstreamBase(origin)
 }
 
 // signAnthropicMessagesBody reproduces Claude Code 2.1.220's final-body CCH.

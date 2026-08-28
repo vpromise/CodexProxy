@@ -78,7 +78,7 @@ func decodeGPTReasoningSignature(sig string) ([]byte, error) {
 var gptReasoningSignatureCharSet = base64AlphabetSet("-_=")
 
 // firstInvalidGPTReasoningSignatureChar scans bytes against a lookup table for the
-// same reason as its Grok counterpart: every legal character is ASCII, and a
+// same reason as other opaque signature scanners: every legal character is ASCII, and a
 // comparison chain mispredicts on nearly every byte of a multi-kilobyte reasoning
 // blob. The offending rune is decoded only for the error message.
 func firstInvalidGPTReasoningSignatureChar(sig string) (int, rune, bool) {

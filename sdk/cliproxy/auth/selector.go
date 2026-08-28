@@ -699,7 +699,7 @@ func NewSessionAffinitySelectorWithConfig(cfg SessionAffinityConfig) *SessionAff
 // failover, so the fallback selector only ever receives the highest available priority tier.
 //
 // Note: The cache key includes provider, session ID, and model to handle cases where
-// a session uses multiple models (e.g., gemini-2.5-pro and gemini-3-flash-preview)
+// a session uses multiple models (for example, gpt-5.4 and gpt-5.4-mini)
 // that may be supported by different auth credentials, and to avoid cross-provider conflicts.
 func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
 	entry := selectorLogEntry(ctx)
@@ -1027,48 +1027,6 @@ func extractMessageHashIDs(payload []byte) (primaryID, fallbackID string) {
 			} else if topSystem.Type == gjson.String {
 				systemPrompt = truncateString(topSystem.String(), 100)
 			}
-		}
-	}
-
-	// Gemini format
-	if systemPrompt == "" && firstUserMsg == "" {
-		sysInstr := gjson.GetBytes(payload, "systemInstruction.parts")
-		if sysInstr.Exists() && sysInstr.IsArray() {
-			sysInstr.ForEach(func(_, part gjson.Result) bool {
-				if text := part.Get("text").String(); text != "" && systemPrompt == "" {
-					systemPrompt = truncateString(text, 100)
-					return false
-				}
-				return true
-			})
-		}
-
-		contents := gjson.GetBytes(payload, "contents")
-		if contents.Exists() && contents.IsArray() {
-			contents.ForEach(func(_, msg gjson.Result) bool {
-				role := msg.Get("role").String()
-				msg.Get("parts").ForEach(func(_, part gjson.Result) bool {
-					text := part.Get("text").String()
-					if text == "" {
-						return true
-					}
-					switch role {
-					case "user":
-						if firstUserMsg == "" {
-							firstUserMsg = truncateString(text, 100)
-						}
-					case "model":
-						if firstAssistantMsg == "" {
-							firstAssistantMsg = truncateString(text, 100)
-						}
-					}
-					return false
-				})
-				if firstUserMsg != "" && firstAssistantMsg != "" {
-					return false
-				}
-				return true
-			})
 		}
 	}
 

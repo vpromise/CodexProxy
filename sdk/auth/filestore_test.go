@@ -19,12 +19,12 @@ func TestExtractAccessToken(t *testing.T) {
 		expected string
 	}{
 		{
-			"antigravity top-level access_token",
+			"Claude top-level access_token",
 			map[string]any{"access_token": "tok-abc"},
 			"tok-abc",
 		},
 		{
-			"gemini nested token.access_token",
+			"Codex nested token.access_token",
 			map[string]any{
 				"token": map[string]any{"access_token": "tok-nested"},
 			},
@@ -100,9 +100,9 @@ func TestFileTokenStoreSaveExistingMetadataSetsFileAttributes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			fileName := "antigravity-user.json"
+			fileName := "claude-user.json"
 			path := filepath.Join(baseDir, fileName)
-			existing := []byte(`{"type":"antigravity","access_token":"` + tt.existingToken + `","disabled":false}`)
+			existing := []byte(`{"type":"claude","access_token":"` + tt.existingToken + `","disabled":false}`)
 			if errWrite := os.WriteFile(path, existing, 0o600); errWrite != nil {
 				t.Fatalf("write existing auth file: %v", errWrite)
 			}
@@ -113,7 +113,7 @@ func TestFileTokenStoreSaveExistingMetadataSetsFileAttributes(t *testing.T) {
 				ID:       fileName,
 				FileName: fileName,
 				Metadata: map[string]any{
-					"type":         "antigravity",
+					"type":         "claude",
 					"access_token": tt.savedToken,
 				},
 			}
@@ -138,7 +138,7 @@ func TestFileTokenStoreSaveExistingMetadataSetsFileAttributes(t *testing.T) {
 			if errRead != nil {
 				t.Fatalf("read saved auth file: %v", errRead)
 			}
-			expected := []byte(`{"type":"antigravity","access_token":"` + tt.savedToken + `","disabled":false}`)
+			expected := []byte(`{"type":"claude","access_token":"` + tt.savedToken + `","disabled":false}`)
 			if !jsonEqual(persisted, expected) {
 				t.Errorf("saved auth file = %s, want JSON equal to %s", persisted, expected)
 			}
@@ -259,21 +259,21 @@ func TestFileTokenStoreListSkipsInvalidPluginSourceWeight(t *testing.T) {
 
 func TestFileTokenStoreListExpandsPluginMultiAuths(t *testing.T) {
 	baseDir := t.TempDir()
-	path := filepath.Join(baseDir, "geminicli.json")
-	if errWrite := os.WriteFile(path, []byte(`{"type":"gemini-cli","weight":3,"headers":{"X-Test":"value"}}`), 0o600); errWrite != nil {
+	path := filepath.Join(baseDir, "customcompat.json")
+	if errWrite := os.WriteFile(path, []byte(`{"type":"custom-compat","weight":3,"headers":{"X-Test":"value"}}`), 0o600); errWrite != nil {
 		t.Fatalf("write auth file: %v", errWrite)
 	}
 
 	RegisterPluginAuthParser(fileStoreMultiAuthParserFunc(func(ctx context.Context, req pluginapi.AuthParseRequest) ([]*cliproxyauth.Auth, bool, error) {
-		if req.Provider != "gemini-cli" || req.Path != path || req.FileName != "geminicli.json" {
+		if req.Provider != "custom-compat" || req.Path != path || req.FileName != "customcompat.json" {
 			t.Fatalf("ParseAuths request = %#v, want file context", req)
 		}
 		return []*cliproxyauth.Auth{
 			{
-				ID:       "geminicli.json",
-				Provider: "gemini-cli",
+				ID:       "customcompat.json",
+				Provider: "custom-compat",
 				Metadata: map[string]any{
-					"type": "gemini-cli",
+					"type": "custom-compat",
 					"headers": map[string]any{
 						"X-Test": "value",
 					},
@@ -281,10 +281,10 @@ func TestFileTokenStoreListExpandsPluginMultiAuths(t *testing.T) {
 			},
 			nil,
 			{
-				ID:       "geminicli-project-a.json",
-				Provider: "gemini-cli",
+				ID:       "customcompat-project-a.json",
+				Provider: "custom-compat",
 				Metadata: map[string]any{
-					"type":       "gemini-cli",
+					"type":       "custom-compat",
 					"project_id": "project-a",
 					"headers": map[string]any{
 						"X-Test": "value",
@@ -333,15 +333,15 @@ func TestFileTokenStoreListExpandsPluginMultiAuths(t *testing.T) {
 
 func TestFileTokenStoreListAppliesSourceDisabledToPluginMultiAuths(t *testing.T) {
 	baseDir := t.TempDir()
-	path := filepath.Join(baseDir, "geminicli.json")
-	if errWrite := os.WriteFile(path, []byte(`{"type":"gemini-cli","disabled":true}`), 0o600); errWrite != nil {
+	path := filepath.Join(baseDir, "customcompat.json")
+	if errWrite := os.WriteFile(path, []byte(`{"type":"custom-compat","disabled":true}`), 0o600); errWrite != nil {
 		t.Fatalf("write auth file: %v", errWrite)
 	}
 
 	RegisterPluginAuthParser(fileStoreMultiAuthParserFunc(func(context.Context, pluginapi.AuthParseRequest) ([]*cliproxyauth.Auth, bool, error) {
 		return []*cliproxyauth.Auth{
-			{ID: "geminicli.json", Provider: "gemini-cli", Metadata: map[string]any{"type": "gemini-cli"}},
-			{ID: "geminicli-project-a.json", Provider: "gemini-cli", Metadata: map[string]any{"type": "gemini-cli", "project_id": "project-a"}},
+			{ID: "customcompat.json", Provider: "custom-compat", Metadata: map[string]any{"type": "custom-compat"}},
+			{ID: "customcompat-project-a.json", Provider: "custom-compat", Metadata: map[string]any{"type": "custom-compat", "project_id": "project-a"}},
 		}, true, nil
 	}))
 	t.Cleanup(func() {

@@ -31,8 +31,8 @@ var claudeFingerprintProfileWarned sync.Map
 //   - CCH: claudeCCHSigningEnabled / finalizeAnthropicMessagesBodyCCH
 //   - identity: EnsureClaudeCLIFingerprintIdentity + ApplyClaudeCredentialMetadata
 //
-// Goal: Anthropic Messages API keys, custom gateways, and delegated providers
-// (such as Kimi) can opt into the Claude Code OAuth CLI request fingerprint via
+// Goal: Anthropic Messages API keys and compatible gateways can opt into the
+// Claude Code OAuth CLI request fingerprint via
 // fingerprint-profile=claude-code-cli, without OAuth control-plane semantics.
 // Real Claude OAuth tokens always keep the strict CLI fingerprint. First-party
 // api.anthropic.com API keys stay caller-owned by default and only take the CLI
@@ -121,15 +121,9 @@ func resolveClaudeFingerprintPolicy(cfg *config.Config, auth *cliproxyauth.Auth,
 // which always returns a UUID. Do not add a second session source here: a
 // per-apiKey cached ID would silently break agent-conversation continuity.
 //
-// API keys seed the synthesized identity from the key itself; delegated
-// providers such as Kimi seed from the stable auth identity, so an access-token
-// rotation does not rotate the device fingerprint.
-func applyClaudeCLIIdentity(body []byte, auth *cliproxyauth.Auth, apiKey, upstreamURL, sessionID string, synthesize bool) ([]byte, error) {
-	identitySeed := apiKey
-	if isKimiMessagesUpstream(auth, upstreamURL) {
-		identitySeed = helps.ClaudeCLIAuthIdentitySeed(auth)
-	}
-	identityAuth, errIdentity := helps.PrepareClaudeCLIFingerprintAuth(auth, identitySeed, synthesize)
+// API keys seed the synthesized identity from the key itself.
+func applyClaudeCLIIdentity(body []byte, auth *cliproxyauth.Auth, apiKey, sessionID string, synthesize bool) ([]byte, error) {
+	identityAuth, errIdentity := helps.PrepareClaudeCLIFingerprintAuth(auth, apiKey, synthesize)
 	if errIdentity != nil {
 		return nil, fmt.Errorf("ensure Claude CLI fingerprint identity: %w", errIdentity)
 	}

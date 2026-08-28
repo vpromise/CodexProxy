@@ -76,13 +76,6 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 	}
 	if lastErr != nil {
 		lastErr = unwrapRequestStopError(lastErr)
-		if hasAntigravityProvider(normalized) && shouldAttemptAntigravityCreditsFallback(m, lastErr, normalized) {
-			if resp, ok, errCredits := m.tryAntigravityCreditsExecute(ctx, req, opts); errCredits != nil {
-				return cliproxyexecutor.Response{}, errCredits
-			} else if ok {
-				return resp, nil
-			}
-		}
 		return cliproxyexecutor.Response{}, lastErr
 	}
 	return cliproxyexecutor.Response{}, &Error{Code: "auth_not_found", Message: "no auth available"}
@@ -185,13 +178,6 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 	}
 	if lastErr != nil {
 		lastErr = unwrapRequestStopError(lastErr)
-		if hasAntigravityProvider(normalized) && shouldAttemptAntigravityCreditsFallback(m, lastErr, normalized) {
-			if result, ok, errCredits := m.tryAntigravityCreditsExecuteStream(ctx, req, opts); errCredits != nil {
-				return nil, errCredits
-			} else if ok {
-				return result, nil
-			}
-		}
 		var bootstrapErr *streamBootstrapError
 		if errors.As(lastErr, &bootstrapErr) && bootstrapErr != nil {
 			return streamErrorResult(bootstrapErr.Headers(), lastErr), nil
@@ -258,16 +244,8 @@ func requestToFormat(provider string, executor ProviderExecutor, req cliproxyexe
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "codex":
 		return sdktranslator.FormatCodex
-	case "xai":
-		return sdktranslator.FormatCodex
 	case "claude":
 		return sdktranslator.FormatClaude
-	case "gemini", "vertex", "aistudio":
-		return sdktranslator.FormatGemini
-	case "kimi":
-		return sdktranslator.FormatOpenAI
-	case "antigravity":
-		return sdktranslator.FormatAntigravity
 	default:
 		return sdktranslator.FormatOpenAI
 	}

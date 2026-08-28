@@ -31,8 +31,7 @@ func OpenAICompatibleProviderKey(name string) string {
 // When the model has not been registered yet, it falls back to legacy string heuristics to infer
 // potential providers.
 //
-// Supported providers include (but are not limited to):
-//   - "gemini" for Google's Gemini family
+// Supported providers include:
 //   - "codex" for OpenAI GPT-compatible providers
 //   - "claude" for Anthropic models
 //   - "openai-compatibility" for external OpenAI-compatible providers

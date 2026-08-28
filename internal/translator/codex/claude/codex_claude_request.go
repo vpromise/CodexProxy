@@ -157,13 +157,7 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 					if preserveEmptyThinkingBlocks && strings.TrimSpace(rawSignature) == "" {
 						signature = rawSignature
 					} else {
-						if !codexClaudeTargetAcceptsGrokSignature(modelName) {
-							return
-						}
-						if _, err := sigcompat.InspectGrokEncryptedContent(rawSignature); err != nil {
-							return
-						}
-						signature = rawSignature
+						return
 					}
 				}
 
@@ -415,11 +409,6 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 	template = translatorcommon.SetRawArrayItems(template, "input", inputItems)
 
 	return template
-}
-
-func codexClaudeTargetAcceptsGrokSignature(modelName string) bool {
-	baseModel := strings.ToLower(strings.TrimSpace(thinking.ParseSuffix(modelName).ModelName))
-	return strings.Contains(baseModel, "grok")
 }
 
 func normalizeCodexServiceTier(result gjson.Result) string {

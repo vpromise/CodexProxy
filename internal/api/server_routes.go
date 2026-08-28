@@ -17,7 +17,6 @@ import (
 	claudemodels "github.com/router-for-me/CLIProxyAPI/v7/internal/client/claude/models"
 	codexlive "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/live"
 	codexmodels "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/models"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/client/grokbuild"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/clienterror"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
@@ -25,7 +24,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/claude"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/gemini"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/openai"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
@@ -53,7 +51,6 @@ func (s *Server) setupRoutes() {
 
 	s.engine.GET("/management.html", s.serveManagementControlPanel)
 	openaiHandlers := openai.NewOpenAIAPIHandler(s.handlers)
-	geminiHandlers := gemini.NewGeminiAPIHandler(s.handlers)
 	claudeCodeHandlers := claude.NewClaudeCodeAPIHandler(s.handlers)
 	openaiResponsesHandlers := openai.NewOpenAIResponsesAPIHandler(s.handlers)
 	s.codexLiveHandler = codexlive.NewHandler(s.handlers.AuthManager, s.cfg)
@@ -67,11 +64,6 @@ func (s *Server) setupRoutes() {
 		v1.POST("/completions", openaiHandlers.Completions)
 		v1.POST("/images/generations", openaiHandlers.ImagesGenerations)
 		v1.POST("/images/edits", openaiHandlers.ImagesEdits)
-		v1.POST("/videos", openaiHandlers.XAIVideosGenerations)
-		v1.POST("/videos/generations", openaiHandlers.XAIVideosGenerations)
-		v1.POST("/videos/edits", openaiHandlers.XAIVideosEdits)
-		v1.POST("/videos/extensions", openaiHandlers.XAIVideosExtensions)
-		v1.GET("/videos/:request_id", openaiHandlers.XAIVideosRetrieve)
 		v1.POST("/messages", claudeCodeHandlers.ClaudeMessages)
 		v1.POST("/messages/count_tokens", claudeCodeHandlers.ClaudeCountTokens)
 		v1.GET("/responses", openaiResponsesHandlers.ResponsesWebsocket)
@@ -99,14 +91,6 @@ func (s *Server) setupRoutes() {
 	s.engine.POST("/v1/realtime/calls/:call_id/reject", standardAuth, s.codexLiveHandler.HandleSIPControl)
 	s.engine.POST("/v1/realtime/calls/:call_id/refer", standardAuth, s.codexLiveHandler.HandleSIPControl)
 
-	openaiV1 := s.engine.Group("/openai/v1")
-	openaiV1.Use(AuthMiddleware(s.accessManager))
-	{
-		openaiV1.POST("/videos", openaiHandlers.VideosCreate)
-		openaiV1.GET("/videos/:video_id/content", openaiHandlers.VideosContent)
-		openaiV1.GET("/videos/:video_id", openaiHandlers.VideosRetrieve)
-	}
-
 	// Codex CLI direct route aliases (chatgpt_base_url compatible)
 	codexDirect := s.engine.Group("/backend-api/codex")
 	codexDirect.Use(AuthMiddleware(s.accessManager))
@@ -115,16 +99,6 @@ func (s *Server) setupRoutes() {
 		codexDirect.POST("/responses", openaiResponsesHandlers.Responses)
 		codexDirect.POST("/responses/compact", openaiResponsesHandlers.Compact)
 		codexDirect.POST("/alpha/search", s.codexAlphaSearch)
-	}
-
-	// Gemini compatible API routes
-	v1beta := s.engine.Group("/v1beta")
-	v1beta.Use(AuthMiddleware(s.accessManager))
-	{
-		v1beta.GET("/models", s.geminiModelsHandler(geminiHandlers))
-		v1beta.POST("/interactions", geminiHandlers.Interactions)
-		v1beta.POST("/models/*action", geminiHandlers.GeminiHandler)
-		v1beta.GET("/models/*action", s.geminiGetHandler(geminiHandlers))
 	}
 
 	// Root endpoint
@@ -165,20 +139,6 @@ func (s *Server) setupRoutes() {
 		}
 		if state != "" {
 			_, _ = managementHandlers.WriteOAuthCallbackFileForPendingSession(s.cfg.AuthDir, "codex", state, code, errStr)
-		}
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(http.StatusOK, oauthCallbackSuccessHTML)
-	})
-
-	s.engine.GET("/antigravity/callback", func(c *gin.Context) {
-		code := c.Query("code")
-		state := c.Query("state")
-		errStr := c.Query("error")
-		if errStr == "" {
-			errStr = c.Query("error_description")
-		}
-		if state != "" {
-			_, _ = managementHandlers.WriteOAuthCallbackFileForPendingSession(s.cfg.AuthDir, "antigravity", state, code, errStr)
 		}
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, oauthCallbackSuccessHTML)
@@ -525,43 +485,6 @@ func (s *Server) codexAlphaSearch(c *gin.Context) {
 	_, _ = c.Writer.Write(upstreamBody)
 }
 
-// AttachWebsocketRoute registers a websocket upgrade handler on the primary Gin engine.
-// The handler is served as-is without additional middleware beyond the standard stack already configured.
-func (s *Server) AttachWebsocketRoute(path string, handler http.Handler) {
-	if s == nil || s.engine == nil || handler == nil {
-		return
-	}
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		trimmed = "/v1/ws"
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		trimmed = "/" + trimmed
-	}
-	s.wsRouteMu.Lock()
-	if _, exists := s.wsRoutes[trimmed]; exists {
-		s.wsRouteMu.Unlock()
-		return
-	}
-	s.wsRoutes[trimmed] = struct{}{}
-	s.wsRouteMu.Unlock()
-
-	authMiddleware := AuthMiddleware(s.accessManager)
-	conditionalAuth := func(c *gin.Context) {
-		if !s.wsAuthEnabled.Load() {
-			c.Next()
-			return
-		}
-		authMiddleware(c)
-	}
-	finalHandler := func(c *gin.Context) {
-		handler.ServeHTTP(c.Writer, c.Request)
-		c.Abort()
-	}
-
-	s.engine.GET(trimmed, conditionalAuth, finalHandler)
-}
-
 // isAnthropicModelsRequest reports whether a /v1/models request should be served in
 // Anthropic format. Anthropic API clients send the Anthropic-Version header; Claude
 // Code additionally uses a claude-cli User-Agent.
@@ -578,11 +501,6 @@ func isAnthropicModelsRequest(c *gin.Context) bool {
 // route to the Claude handler, otherwise they route to the OpenAI handler.
 func (s *Server) unifiedModelsHandler(openaiHandler *openai.OpenAIAPIHandler, claudeHandler *claude.ClaudeCodeAPIHandler) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if grokbuild.IsGrokShellUserAgent(c.GetHeader("User-Agent")) {
-			s.handleGrokModels(c)
-			return
-		}
-
 		if _, ok := c.Request.URL.Query()["client_version"]; ok {
 			clientVersion := c.Query("client_version")
 			if s != nil && s.cfg != nil && s.cfg.Home.Enabled {
@@ -605,51 +523,6 @@ func (s *Server) unifiedModelsHandler(openaiHandler *openai.OpenAIAPIHandler, cl
 			openaiHandler.OpenAIModels(c)
 		}
 	}
-}
-
-func grokModelsFromHomeEntries(entries []homeModelEntry) []grokbuild.ModelInfo {
-	models := make([]grokbuild.ModelInfo, 0, len(entries))
-	for _, entry := range entries {
-		models = append(models, grokbuild.ModelInfo{
-			ID:            entry.id,
-			DisplayName:   entry.displayName,
-			ContextLength: entry.contextLength,
-		})
-	}
-	return models
-}
-
-func grokModelsFromRegistryInfos(infos []*registry.ModelInfo) []grokbuild.ModelInfo {
-	models := make([]grokbuild.ModelInfo, 0, len(infos))
-	for _, info := range infos {
-		if info == nil {
-			continue
-		}
-		model := grokbuild.ModelInfo{
-			ID:            info.ID,
-			DisplayName:   info.DisplayName,
-			ContextLength: info.ContextLength,
-		}
-		if info.Thinking != nil {
-			model.ReasoningLevels = append([]string(nil), info.Thinking.Levels...)
-		}
-		models = append(models, model)
-	}
-	return models
-}
-
-func (s *Server) handleGrokModels(c *gin.Context) {
-	var models []grokbuild.ModelInfo
-	if s != nil && s.cfg != nil && s.cfg.Home.Enabled {
-		entries, ok := s.loadHomeModelEntries(c)
-		if !ok {
-			return
-		}
-		models = grokModelsFromHomeEntries(entries)
-	} else {
-		models = grokModelsFromRegistryInfos(registry.GetGlobalRegistry().GetAvailableModelInfos())
-	}
-	c.JSON(http.StatusOK, grokbuild.BuildResponse(models))
 }
 
 // handleHomeCodexClientModels builds the Codex client catalog from Home model IDs.
@@ -683,28 +556,6 @@ func (s *Server) handleHomeCodexClientModels(c *gin.Context, clientVersion strin
 	}
 
 	c.JSON(http.StatusOK, codexmodels.BuildResponseForClient(models, nil, s.cfg.Codex.OptimizeMultiAgentV2, clientVersion))
-}
-
-func (s *Server) geminiModelsHandler(geminiHandler *gemini.GeminiAPIHandler) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if s != nil && s.cfg != nil && s.cfg.Home.Enabled {
-			s.handleHomeGeminiModels(c)
-			return
-		}
-
-		geminiHandler.GeminiModels(c)
-	}
-}
-
-func (s *Server) geminiGetHandler(geminiHandler *gemini.GeminiAPIHandler) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if s != nil && s.cfg != nil && s.cfg.Home.Enabled {
-			s.handleHomeGeminiModel(c)
-			return
-		}
-
-		geminiHandler.GeminiGetHandler(c)
-	}
 }
 
 type homeModelEntry struct {
@@ -786,40 +637,6 @@ func formatHomeClaudeModel(entry homeModelEntry) map[string]any {
 	return model
 }
 
-func (s *Server) handleHomeGeminiModels(c *gin.Context) {
-	entries, ok := s.loadHomeModelEntries(c)
-	if !ok {
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"models": formatHomeGeminiModels(entries),
-	})
-}
-
-func (s *Server) handleHomeGeminiModel(c *gin.Context) {
-	entries, ok := s.loadHomeModelEntries(c)
-	if !ok {
-		return
-	}
-
-	action := strings.TrimPrefix(c.Param("action"), "/")
-	action = strings.TrimSpace(action)
-	for _, entry := range entries {
-		if homeGeminiModelMatches(entry, action) {
-			c.JSON(http.StatusOK, formatHomeGeminiModel(entry))
-			return
-		}
-	}
-
-	c.JSON(http.StatusNotFound, handlers.ErrorResponse{
-		Error: handlers.ErrorDetail{
-			Message: "Not Found",
-			Type:    "not_found",
-		},
-	})
-}
-
 func (s *Server) loadHomeModelEntries(c *gin.Context) ([]homeModelEntry, bool) {
 	if s == nil || c == nil || c.Request == nil {
 		return nil, false
@@ -868,41 +685,6 @@ func (s *Server) loadHomeModelEntries(c *gin.Context) ([]homeModelEntry, bool) {
 	}
 
 	return entries, true
-}
-
-func formatHomeGeminiModels(entries []homeModelEntry) []map[string]any {
-	out := make([]map[string]any, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, formatHomeGeminiModel(entry))
-	}
-	return out
-}
-
-func formatHomeGeminiModel(entry homeModelEntry) map[string]any {
-	name := entry.id
-	if !strings.HasPrefix(name, "models/") {
-		name = "models/" + name
-	}
-	displayName := entry.displayName
-	if displayName == "" {
-		displayName = entry.id
-	}
-	return map[string]any{
-		"name":                       name,
-		"displayName":                displayName,
-		"description":                displayName,
-		"supportedGenerationMethods": []string{"generateContent"},
-	}
-}
-
-func homeGeminiModelMatches(entry homeModelEntry, action string) bool {
-	id := strings.TrimSpace(entry.id)
-	if id == "" || action == "" {
-		return false
-	}
-	normalizedAction := strings.TrimPrefix(action, "models/")
-	normalizedID := strings.TrimPrefix(id, "models/")
-	return action == id || action == "models/"+id || normalizedAction == normalizedID
 }
 
 // homeModelsAuthStatus inspects a home models response for an authentication/error envelope.
@@ -984,7 +766,10 @@ func decodeHomeModels(raw []byte) ([]homeModelEntry, error) {
 
 	seen := make(map[string]struct{})
 	out := make([]homeModelEntry, 0, 256)
-	for _, models := range bySection {
+	for section, models := range bySection {
+		if !supportedHomeModelSection(section) {
+			continue
+		}
 		for _, model := range models {
 			id, _ := model["id"].(string)
 			id = strings.TrimSpace(id)
@@ -1026,6 +811,16 @@ func decodeHomeModels(raw []byte) ([]homeModelEntry, error) {
 		return nil, fmt.Errorf("home models payload contains no models")
 	}
 	return out, nil
+}
+
+func supportedHomeModelSection(section string) bool {
+	section = strings.ToLower(strings.TrimSpace(section))
+	switch section {
+	case "codex", "claude", "openai", "openai-response", "openai-compatibility":
+		return true
+	default:
+		return strings.HasPrefix(section, "openai-compatible-")
+	}
 }
 
 func homeModelInt64Value(model map[string]any, keys ...string) int64 {

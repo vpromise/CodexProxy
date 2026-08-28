@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/modelconfig"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
@@ -62,47 +61,6 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 	}
 	var models []*ModelInfo
 	switch provider {
-	case constant.Gemini:
-		models = registry.GetGeminiModels()
-		if entry := s.resolveConfigGeminiKey(a); entry != nil {
-			if len(entry.Models) > 0 {
-				models = buildGeminiConfigModels(entry)
-			}
-			if authKind == "apikey" {
-				excluded = entry.ExcludedModels
-			}
-		}
-		models = applyExcludedModels(models, excluded)
-	case constant.GeminiInteractions:
-		models = registry.GetGeminiModels()
-		if entry := s.resolveConfigInteractionsKey(a); entry != nil {
-			if len(entry.Models) > 0 {
-				models = buildGeminiConfigModels(entry)
-			}
-			if authKind == "apikey" {
-				excluded = entry.ExcludedModels
-			}
-		}
-		models = applyExcludedModels(models, excluded)
-	case "vertex":
-		// Vertex AI Gemini supports the same model identifiers as Gemini.
-		models = registry.GetGeminiVertexModels()
-		if entry := s.resolveConfigVertexCompatKey(a); entry != nil {
-			if len(entry.Models) > 0 {
-				models = buildVertexCompatConfigModels(entry)
-			}
-			if authKind == "apikey" {
-				excluded = entry.ExcludedModels
-			}
-		}
-		models = applyExcludedModels(models, excluded)
-	case "aistudio":
-		models = registry.GetAIStudioModels()
-		models = applyExcludedModels(models, excluded)
-	case "antigravity":
-		models = registry.GetAntigravityModels()
-		models = applyAntigravityFetchedModelCapabilities(models, s.fetchAntigravityModelCapabilityHintsForAuth(ctx, a))
-		models = applyExcludedModels(models, excluded)
 	case "claude":
 		models = registry.GetClaudeModels()
 		if entry := s.resolveConfigClaudeKey(a); entry != nil {
@@ -139,20 +97,6 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 			models = registry.GetCodexFreeModels()
 		default:
 			models = registry.GetCodexProModels()
-		}
-		models = applyExcludedModels(models, excluded)
-	case "kimi":
-		models = registry.GetKimiModels()
-		models = applyExcludedModels(models, excluded)
-	case "xai":
-		models = registry.GetXAIModels()
-		if entry := s.resolveConfigXAIKey(a); entry != nil {
-			if len(entry.Models) > 0 {
-				models = buildXAIConfigModels(entry)
-			}
-			if authKind == "apikey" {
-				excluded = entry.ExcludedModels
-			}
 		}
 		models = applyExcludedModels(models, excluded)
 	default:
@@ -298,6 +242,11 @@ func (s *Service) refreshModelRegistrationForAuthWithContext(ctx context.Context
 	if s == nil || s.coreManager == nil || current == nil || current.ID == "" {
 		return false
 	}
+	if !s.supportsAuth(current) {
+		GlobalModelRegistry().UnregisterClient(current.ID)
+		s.coreManager.Remove(ctx, current.ID)
+		return false
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -314,7 +263,7 @@ func (s *Service) refreshModelRegistrationForAuthWithContext(ctx context.Context
 	}
 
 	latest, ok := s.latestAuthForModelRegistration(current.ID)
-	if !ok || latest.Disabled {
+	if !ok || latest.Disabled || !s.supportsAuth(latest) {
 		GlobalModelRegistry().UnregisterClient(current.ID)
 		s.coreManager.RefreshSchedulerEntry(current.ID)
 		return false
@@ -400,98 +349,11 @@ func (s *Service) resolveConfigClaudeKey(auth *coreauth.Auth) *config.ClaudeKey 
 	return nil
 }
 
-func (s *Service) resolveConfigGeminiKey(auth *coreauth.Auth) *config.GeminiKey {
-	if s == nil || s.cfg == nil {
-		return nil
-	}
-	return s.resolveConfigGeminiKeyEntry(auth, s.cfg.GeminiKey)
-}
-
-func (s *Service) resolveConfigInteractionsKey(auth *coreauth.Auth) *config.GeminiKey {
-	if s == nil || s.cfg == nil {
-		return nil
-	}
-	return s.resolveConfigGeminiKeyEntry(auth, s.cfg.InteractionsKey)
-}
-
-func (s *Service) resolveConfigGeminiKeyEntry(auth *coreauth.Auth, entries []config.GeminiKey) *config.GeminiKey {
-	if auth == nil || s.cfg == nil {
-		return nil
-	}
-	if entry := configEntryForAuthIndex(auth, entries); entry != nil {
-		return entry
-	}
-	var attrKey, attrBase string
-	if auth.Attributes != nil {
-		attrKey = strings.TrimSpace(auth.Attributes["api_key"])
-		attrBase = strings.TrimSpace(auth.Attributes["base_url"])
-	}
-	for i := range entries {
-		entry := &entries[i]
-		cfgKey := strings.TrimSpace(entry.APIKey)
-		cfgBase := strings.TrimSpace(entry.BaseURL)
-		if attrKey != "" && strings.EqualFold(cfgKey, attrKey) {
-			if cfgBase == "" || strings.EqualFold(cfgBase, attrBase) {
-				return entry
-			}
-			continue
-		}
-		if attrKey == "" && attrBase != "" && strings.EqualFold(cfgBase, attrBase) {
-			return entry
-		}
-	}
-	return nil
-}
-
-func (s *Service) resolveConfigVertexCompatKey(auth *coreauth.Auth) *config.VertexCompatKey {
-	if auth == nil || s.cfg == nil {
-		return nil
-	}
-	if entry := configEntryForAuthIndex(auth, s.cfg.VertexCompatAPIKey); entry != nil {
-		return entry
-	}
-	var attrKey, attrBase string
-	if auth.Attributes != nil {
-		attrKey = strings.TrimSpace(auth.Attributes["api_key"])
-		attrBase = strings.TrimSpace(auth.Attributes["base_url"])
-	}
-	for i := range s.cfg.VertexCompatAPIKey {
-		entry := &s.cfg.VertexCompatAPIKey[i]
-		cfgKey := strings.TrimSpace(entry.APIKey)
-		cfgBase := strings.TrimSpace(entry.BaseURL)
-		if attrKey != "" && strings.EqualFold(cfgKey, attrKey) {
-			if cfgBase == "" || strings.EqualFold(cfgBase, attrBase) {
-				return entry
-			}
-			continue
-		}
-		if attrKey == "" && attrBase != "" && strings.EqualFold(cfgBase, attrBase) {
-			return entry
-		}
-	}
-	if attrKey != "" {
-		for i := range s.cfg.VertexCompatAPIKey {
-			entry := &s.cfg.VertexCompatAPIKey[i]
-			if strings.EqualFold(strings.TrimSpace(entry.APIKey), attrKey) {
-				return entry
-			}
-		}
-	}
-	return nil
-}
-
 func (s *Service) resolveConfigCodexKey(auth *coreauth.Auth) *config.CodexKey {
 	if s == nil || s.cfg == nil {
 		return nil
 	}
 	return resolveConfigCodexStyleKey(auth, s.cfg.CodexKey, true)
-}
-
-func (s *Service) resolveConfigXAIKey(auth *coreauth.Auth) *config.XAIKey {
-	if s == nil || s.cfg == nil {
-		return nil
-	}
-	return resolveConfigCodexStyleKey(auth, s.cfg.XAIKey, false)
 }
 
 func resolveConfigCodexStyleKey(auth *coreauth.Auth, entries []config.CodexKey, validateIndexCredentials bool) *config.CodexKey {
@@ -790,32 +652,11 @@ func buildConfigModels[T modelEntry](models []T, ownedBy, modelType string) []*M
 	return out
 }
 
-func buildVertexCompatConfigModels(entry *config.VertexCompatKey) []*ModelInfo {
-	if entry == nil {
-		return nil
-	}
-	return buildConfigModels(entry.Models, "google", "vertex")
-}
-
-func buildGeminiConfigModels(entry *config.GeminiKey) []*ModelInfo {
-	if entry == nil {
-		return nil
-	}
-	return buildConfigModels(entry.Models, "google", "gemini")
-}
-
 func buildClaudeConfigModels(entry *config.ClaudeKey) []*ModelInfo {
 	if entry == nil {
 		return nil
 	}
 	return buildConfigModels(entry.Models, "anthropic", "claude")
-}
-
-func buildXAIConfigModels(entry *config.XAIKey) []*ModelInfo {
-	if entry == nil {
-		return nil
-	}
-	return buildConfigModels(entry.Models, "xai", "xai")
 }
 
 func buildCodexConfigModels(entry *config.CodexKey) []*ModelInfo {

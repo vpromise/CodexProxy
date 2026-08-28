@@ -1,6 +1,12 @@
 # AGENTS.md
 
-Go 1.26+ proxy server providing OpenAI/Gemini/Claude/Codex compatible APIs with OAuth and round-robin load balancing.
+Go 1.26+ proxy server focused on Codex, Claude, and OpenAI-compatible APIs with OAuth and round-robin load balancing.
+
+## Product scope
+- Native upstream providers: Codex and Claude only.
+- Generic third-party upstreams must use `openai-compatibility` or an explicitly enabled plugin/SDK executor.
+- Gemini, Interactions, Vertex, AI Studio, Antigravity, Kimi, xAI, and Grok are outside the supported runtime surface.
+- Legacy implementations for removed providers may remain during staged cleanup, but must not be re-exposed through CLI flags, HTTP routes, management routes, baseline executors, or model registration.
 
 ## Repository
 - GitHub: https://github.com/router-for-me/CLIProxyAPI
@@ -55,4 +61,4 @@ go build -o test-output ./cmd/server && rm test-output # Verify compile (REQUIRE
 - Wrap defer errors: `defer func() { if err := f.Close(); err != nil { log.Errorf(...) } }()`
 - Use logrus structured logging; avoid leaking secrets/tokens in logs
 - Avoid panics in HTTP handlers; prefer logged errors and meaningful HTTP status codes
-- Timeouts are allowed only during credential acquisition; after an upstream connection is established, do not set timeouts for any subsequent network behavior. Intentional exceptions that must remain allowed are the Codex websocket liveness deadlines in `internal/runtime/executor/codex_websockets_executor.go`, the wsrelay session deadlines in `internal/wsrelay/session.go`, the management APICall timeout in `internal/api/handlers/management/api_tools.go`, and the `cmd/fetch_antigravity_models` utility timeouts
+- Timeouts are allowed only during credential acquisition; after an upstream connection is established, do not set timeouts for any subsequent network behavior. Intentional exceptions that must remain allowed are the Codex websocket liveness deadlines in `internal/runtime/executor/codex_websockets_executor.go`, the wsrelay session deadlines in `internal/wsrelay/session.go`, and the management APICall timeout in `internal/api/handlers/management/api_tools.go`

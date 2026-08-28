@@ -159,7 +159,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// full Messages cloaking must not run here for any origin. Apply the parts
 	// that still have to hold: relocate the caller's system prompt into messages
 	// so its tokens stay counted, and obfuscate sensitive words exactly like the
-	// Messages path. Kimi opt-in uses the same contract.
+	// Messages path.
 	policy, settings := resolveClaudeWirePolicy(e.cfg, auth, apiKey, confirmedClaudeCode)
 	cloaked := policy.Cloak
 	if cloaked {
@@ -196,7 +196,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// that lands there, opted in or not. That is upstream compatibility, not
 	// fingerprinting.
 	//
-	// Elsewhere (Kimi, delegated Anthropic Messages providers) the caller owns its
+	// On compatible Anthropic Messages gateways the caller owns its
 	// body by default: a caller that deliberately sends context_management expects
 	// the token count to reflect it, so CPA must not silently rewrite the request.
 	// Only an explicit claude-code-cli profile aligns the shape, and then it aligns

@@ -157,10 +157,6 @@ func TestAPICallTransportAPIKeyAuthFallsBackToConfigProxyURL(t *testing.T) {
 	h := &Handler{
 		cfg: &config.Config{
 			SDKConfig: sdkconfig.SDKConfig{ProxyURL: "http://global-proxy.example.com:8080"},
-			GeminiKey: []config.GeminiKey{{
-				APIKey:   "gemini-key",
-				ProxyURL: "http://gemini-proxy.example.com:8080",
-			}},
 			ClaudeKey: []config.ClaudeKey{{
 				APIKey:   "claude-key",
 				ProxyURL: "http://claude-proxy.example.com:8080",
@@ -168,10 +164,6 @@ func TestAPICallTransportAPIKeyAuthFallsBackToConfigProxyURL(t *testing.T) {
 			CodexKey: []config.CodexKey{{
 				APIKey:   "codex-key",
 				ProxyURL: "http://codex-proxy.example.com:8080",
-			}},
-			XAIKey: []config.XAIKey{{
-				APIKey:   "xai-key",
-				ProxyURL: "http://xai-proxy.example.com:8080",
 			}},
 			OpenAICompatibility: []config.OpenAICompatibility{{
 				Name:    "bohe",
@@ -190,14 +182,6 @@ func TestAPICallTransportAPIKeyAuthFallsBackToConfigProxyURL(t *testing.T) {
 		wantProxy string
 	}{
 		{
-			name: "gemini",
-			auth: &coreauth.Auth{
-				Provider:   "gemini",
-				Attributes: map[string]string{"api_key": "gemini-key"},
-			},
-			wantProxy: "http://gemini-proxy.example.com:8080",
-		},
-		{
 			name: "claude",
 			auth: &coreauth.Auth{
 				Provider:   "claude",
@@ -212,14 +196,6 @@ func TestAPICallTransportAPIKeyAuthFallsBackToConfigProxyURL(t *testing.T) {
 				Attributes: map[string]string{"api_key": "codex-key"},
 			},
 			wantProxy: "http://codex-proxy.example.com:8080",
-		},
-		{
-			name: "xai",
-			auth: &coreauth.Auth{
-				Provider:   "xai",
-				Attributes: map[string]string{"api_key": "xai-key"},
-			},
-			wantProxy: "http://xai-proxy.example.com:8080",
 		},
 		{
 			name: "openai-compatibility",
@@ -266,9 +242,9 @@ func TestAuthByIndexDistinguishesSharedAPIKeysAcrossProviders(t *testing.T) {
 	t.Parallel()
 
 	manager := coreauth.NewManager(nil, nil, nil)
-	geminiAuth := &coreauth.Auth{
-		ID:       "gemini:apikey:123",
-		Provider: "gemini",
+	claudeAuth := &coreauth.Auth{
+		ID:       "claude:apikey:123",
+		Provider: "claude",
 		Attributes: map[string]string{
 			"api_key": "shared-key",
 		},
@@ -284,27 +260,27 @@ func TestAuthByIndexDistinguishesSharedAPIKeysAcrossProviders(t *testing.T) {
 		},
 	}
 
-	if _, errRegister := manager.Register(context.Background(), geminiAuth); errRegister != nil {
-		t.Fatalf("register gemini auth: %v", errRegister)
+	if _, errRegister := manager.Register(context.Background(), claudeAuth); errRegister != nil {
+		t.Fatalf("register Claude auth: %v", errRegister)
 	}
 	if _, errRegister := manager.Register(context.Background(), compatAuth); errRegister != nil {
 		t.Fatalf("register compat auth: %v", errRegister)
 	}
 
-	geminiIndex := geminiAuth.EnsureIndex()
+	claudeIndex := claudeAuth.EnsureIndex()
 	compatIndex := compatAuth.EnsureIndex()
-	if geminiIndex == compatIndex {
-		t.Fatalf("shared api key produced duplicate auth_index %q", geminiIndex)
+	if claudeIndex == compatIndex {
+		t.Fatalf("shared api key produced duplicate auth_index %q", claudeIndex)
 	}
 
 	h := &Handler{authManager: manager}
 
-	gotGemini := h.authByIndex(geminiIndex)
-	if gotGemini == nil {
-		t.Fatal("expected gemini auth by index")
+	gotClaude := h.authByIndex(claudeIndex)
+	if gotClaude == nil {
+		t.Fatal("expected Claude auth by index")
 	}
-	if gotGemini.ID != geminiAuth.ID {
-		t.Fatalf("authByIndex(gemini) returned %q, want %q", gotGemini.ID, geminiAuth.ID)
+	if gotClaude.ID != claudeAuth.ID {
+		t.Fatalf("authByIndex(Claude) returned %q, want %q", gotClaude.ID, claudeAuth.ID)
 	}
 
 	gotCompat := h.authByIndex(compatIndex)

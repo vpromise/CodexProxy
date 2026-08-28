@@ -1090,7 +1090,7 @@ func (c *Client) KVCompareAndSwap(ctx context.Context, key string, expected []by
 	if errCAS != nil {
 		if isHomeCommandUnsupported(errCAS) {
 			if c.casUnsupported.CompareAndSwap(false, true) {
-				log.Warnf("home kv: this Home does not implement the CAS command; Antigravity and Codex reasoning replay are disabled until Home is upgraded")
+				log.Warnf("home kv: this Home does not implement the CAS command; Claude and Codex reasoning replay are disabled until Home is upgraded")
 			}
 			return false, ErrCompareAndSwapUnsupported
 		}
