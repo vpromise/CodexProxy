@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	log "github.com/sirupsen/logrus"
 )
@@ -75,7 +75,7 @@ func (ts *ClaudeTokenStorage) SaveTokenToFile(authFilePath string) error {
 	ts.Type = "claude"
 
 	// Create directory structure if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(authFilePath), 0700); err != nil {
+	if err := fileperm.EnsurePrivateParent(authFilePath); err != nil {
 		return fmt.Errorf("failed to create directory: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func (ts *ClaudeTokenStorage) SaveTokenToFile(authFilePath string) error {
 	}
 
 	// Create the token file
-	f, err := os.Create(authFilePath)
+	f, err := fileperm.OpenPrivateFile(authFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
 		return fmt.Errorf("failed to create token file: %w", err)
 	}

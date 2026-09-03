@@ -49,6 +49,13 @@ func (s *Server) setupRoutes() {
 	s.engine.GET("/healthz", healthzHandler)
 	s.engine.HEAD("/healthz", healthzHandler)
 
+	// Claude Code sends a HEAD /api/hello connection warmup probe (raw Bun
+	// user-agent, no auth) on every CLI start. Swallow it without touching the
+	// auth manager or an executor, which would otherwise answer gin's 404 and
+	// cost an upstream round trip.
+	s.engine.HEAD("/api/hello", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	s.engine.GET("/api/hello", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
 	s.engine.GET("/management.html", s.serveManagementControlPanel)
 	openaiHandlers := openai.NewOpenAIAPIHandler(s.handlers)
 	claudeCodeHandlers := claude.NewClaudeCodeAPIHandler(s.handlers)

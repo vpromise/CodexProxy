@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -146,11 +147,11 @@ func isDirWritable(dir string) bool {
 		return false
 	}
 
-	testFile := filepath.Join(dir, ".perm_test")
-	f, err := os.Create(testFile)
+	f, err := os.CreateTemp(dir, ".perm-test-*")
 	if err != nil {
 		return false
 	}
+	testFile := f.Name()
 
 	defer func() {
 		_ = f.Close()
@@ -193,13 +194,20 @@ func ConfigureLogOutput(cfg *config.Config) error {
 
 	protectedPath := ""
 	if cfg.LoggingToFile {
-		if err := os.MkdirAll(logDir, 0o755); err != nil {
+		if err := fileperm.EnsurePrivateDir(logDir); err != nil {
 			return fmt.Errorf("logging: failed to create log directory: %w", err)
 		}
 		if logWriter != nil {
 			_ = logWriter.Close()
 		}
 		protectedPath = filepath.Join(logDir, "main.log")
+		if _, errStat := os.Stat(protectedPath); errStat == nil {
+			if errChmod := fileperm.RestrictPrivateFile(protectedPath); errChmod != nil {
+				return fmt.Errorf("logging: failed to secure main log: %w", errChmod)
+			}
+		} else if !os.IsNotExist(errStat) {
+			return fmt.Errorf("logging: failed to inspect main log: %w", errStat)
+		}
 		logWriter = &lumberjack.Logger{
 			Filename:   protectedPath,
 			MaxSize:    10,

@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,15 +17,16 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/buildinfo"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -39,6 +41,7 @@ const (
 	claudeCodeBeta               = "claude-code-20250219"
 	claudeContext1MBeta          = "context-1m-2025-08-07"
 	claudeMidConvSystemBeta      = "mid-conversation-system-2026-04-07"
+	claudeAdvisorToolBeta        = "advisor-tool-2026-03-01"
 	claudeAdvancedToolUseBeta    = "advanced-tool-use-2025-11-20"
 	claudeEffortBeta             = "effort-2025-11-24"
 	claudeServerSideFallbackBeta = "server-side-fallback-2026-06-01"
@@ -49,7 +52,168 @@ const (
 	claudeRedactThinkingBeta     = "redact-thinking-2026-02-12"
 )
 
-// claudeCodeCLIConstantBetas are the betas Claude Code 2.1.220 sends on every
+// applyClaudeRequestThinking always runs the canonical validation pipeline.
+func applyClaudeRequestThinking(body []byte, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, fromFormat, toFormat, provider string) ([]byte, error) {
+	requestedSuffix := thinking.ParseSuffix(helps.PayloadRequestedModel(opts, req.Model))
+	if requestedSuffix.HasSuffix {
+		baseModel := thinking.ParseSuffix(req.Model).ModelName
+		req.Model = fmt.Sprintf("%s(%s)", baseModel, requestedSuffix.RawSuffix)
+	}
+	return helps.ApplyRequestThinking(body, req, opts, fromFormat, toFormat, provider)
+}
+
+// restoreClaudeHelperOutputConfigIfEligible handles the one measured exception
+// to canonical rendering: the native title helper pairs disabled thinking with
+// output_config.effort. Recognition alone is insufficient; operator cloaking,
+// cross-protocol translation, and explicit suffixes all disable restoration.
+func restoreClaudeHelperOutputConfigIfEligible(original, normalized []byte, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, fromFormat, toFormat string, detection helps.ClaudeCodeRequestDetection, nativePassthrough bool) []byte {
+	requestedSuffix := thinking.ParseSuffix(helps.PayloadRequestedModel(opts, req.Model))
+	if !nativePassthrough || !detection.HelperProfile || requestedSuffix.HasSuffix || thinking.ParseSuffix(req.Model).HasSuffix ||
+		!strings.EqualFold(strings.TrimSpace(fromFormat), "claude") || !strings.EqualFold(strings.TrimSpace(toFormat), "claude") {
+		return normalized
+	}
+	return restoreValidatedClaudeHelperOutputConfig(original, normalized)
+}
+
+func restoreValidatedClaudeHelperOutputConfig(original, normalized []byte) []byte {
+	originalThinking := gjson.GetBytes(original, "thinking")
+	normalizedThinking := gjson.GetBytes(normalized, "thinking")
+	if originalThinking.Raw != normalizedThinking.Raw || originalThinking.Get("type").String() != "disabled" {
+		return normalized
+	}
+
+	originalWithoutEffort, errOriginal := sjson.DeleteBytes(original, "output_config.effort")
+	normalizedWithoutEffort, errNormalized := sjson.DeleteBytes(normalized, "output_config.effort")
+	if errOriginal != nil || errNormalized != nil ||
+		claudeOutputConfigWithoutEffort(originalWithoutEffort) != claudeOutputConfigWithoutEffort(normalizedWithoutEffort) {
+		return normalized
+	}
+	originalEffort := gjson.GetBytes(original, "output_config.effort")
+	if originalEffort.Type != gjson.String || gjson.GetBytes(normalized, "output_config.effort").Exists() {
+		return normalized
+	}
+	originalOutputConfig := gjson.GetBytes(original, "output_config")
+	restored, errSet := sjson.SetRawBytes(normalized, "output_config", []byte(originalOutputConfig.Raw))
+	if errSet != nil {
+		return normalized
+	}
+	return restored
+}
+
+func claudeOutputConfigWithoutEffort(body []byte) string {
+	outputConfig := gjson.GetBytes(body, "output_config")
+	if !outputConfig.Exists() || (outputConfig.IsObject() && len(outputConfig.Map()) == 0) {
+		return ""
+	}
+	return outputConfig.Raw
+}
+
+const (
+	claudeMaxNonStreamResponseBytes  = 32 << 20
+	claudeMaxErrorResponseBytes      = 1 << 20
+	claudeMaxTokenCountResponseBytes = 1 << 20
+	claudeMaxDecoderMemory           = 32 << 20
+	claudeMaxResponseEncodingLayers  = 2
+)
+
+type claudeResponseTooLargeError struct {
+	statusErr
+}
+
+type claudeUpstreamResponseMetadataError struct {
+	cause                error
+	requestID            string
+	downstreamRetryAfter *time.Duration
+}
+
+func (e *claudeUpstreamResponseMetadataError) Error() string {
+	if e == nil || e.cause == nil {
+		return ""
+	}
+	return e.cause.Error()
+}
+
+func (e *claudeUpstreamResponseMetadataError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func (e *claudeUpstreamResponseMetadataError) UpstreamRequestID() string {
+	if e == nil {
+		return ""
+	}
+	return e.requestID
+}
+
+func (e *claudeUpstreamResponseMetadataError) DownstreamRetryAfter() *time.Duration {
+	if e == nil || e.downstreamRetryAfter == nil {
+		return nil
+	}
+	value := *e.downstreamRetryAfter
+	return &value
+}
+
+func withClaudeUpstreamResponseMetadata(err error, headers http.Header) error {
+	return withClaudeUpstreamThrottleMetadata(err, headers, nil)
+}
+
+func withClaudeUpstreamThrottleMetadata(err error, headers http.Header, downstreamRetryAfter *time.Duration) error {
+	if err == nil {
+		return nil
+	}
+	requestID := strings.TrimSpace(headers.Get("Request-Id"))
+	if requestID == "" && downstreamRetryAfter == nil {
+		return err
+	}
+	return &claudeUpstreamResponseMetadataError{
+		cause:                err,
+		requestID:            requestID,
+		downstreamRetryAfter: downstreamRetryAfter,
+	}
+}
+
+func newClaudeResponseTooLargeError(kind string, limit int64) error {
+	return claudeResponseTooLargeError{statusErr: statusErr{
+		code: http.StatusBadGateway,
+		msg:  fmt.Sprintf("claude executor: upstream %s response exceeds %d bytes", kind, limit),
+	}}
+}
+
+func newClaudeResponseEncodingLayersError(layers int) error {
+	return claudeResponseTooLargeError{statusErr: statusErr{
+		code: http.StatusBadGateway,
+		msg:  fmt.Sprintf("claude executor: upstream response exceeds %d content-encoding layers", layers),
+	}}
+}
+
+func (claudeResponseTooLargeError) IsRequestScoped() bool    { return true }
+func (claudeResponseTooLargeError) IsCredentialScoped() bool { return false }
+
+func readClaudeResponseBodyLimited(reader io.Reader, limit int64, kind string) ([]byte, error) {
+	limited := io.LimitReader(reader, limit+1)
+	data, errRead := io.ReadAll(limited)
+	if errRead != nil {
+		if errors.Is(errRead, zstd.ErrWindowSizeExceeded) || errors.Is(errRead, zstd.ErrDecoderSizeExceeded) {
+			return nil, newClaudeResponseTooLargeError(kind, limit)
+		}
+		return nil, errRead
+	}
+	if int64(len(data)) > limit {
+		return nil, newClaudeResponseTooLargeError(kind, limit)
+	}
+	return data, nil
+}
+
+func validateClaudeResponseContentLength(resp *http.Response, limit int64, kind string) error {
+	if resp == nil || resp.ContentLength <= limit {
+		return nil
+	}
+	return newClaudeResponseTooLargeError(kind, limit)
+}
+
+// claudeCodeCLIConstantBetas are the betas Claude Code 2.1.252 sends on every
 // /v1/messages request from the "cli" entrypoint, in wire order, excluding the
 // leading claude-code-20250219.
 //
@@ -64,50 +228,43 @@ var claudeCodeCLIConstantBetas = []string{
 	"prompt-caching-scope-2026-01-05",
 }
 
-// claudeCodeTrailingBetas are caller-supplied betas that real Claude Code emits
-// after effort-2025-11-24, in that relative order. They are forwarded when the
-// caller asks for them and dropped otherwise.
-var claudeCodeTrailingBetas = []string{
-	claudeServerSideFallbackBeta,
-	claudeFallbackCreditBeta,
-	claudeStructuredOutputsBeta,
-}
-
 // claudeCodeCLIBetas assembles the Anthropic-Beta baseline the way Claude Code
-// 2.1.220 does: the list is per-request, not a fixed string. requested holds the
+// 2.1.252 does: the list is per-request, not a fixed string. requested holds the
 // betas the caller asked for, which decide the capability flags below.
 //
-// Verified against api.anthropic.com with isolated 2.1.220 profiles on both
-// API-key and OAuth paths. A 2026-08-03 A/B capture with two distinct OAuth
-// accounts confirmed the current tool beta and OAuth trailer below.
-// The full observed order is:
+// Verified against an isolated 2.1.252 CLI with a Bearer credential on both
+// interactive (cli, 10 betas) and -p (sdk-cli, 9 betas, no
+// redact-thinking) entrypoints. Advisor is conditional and was measured on a
+// 2.1.251 request that declared advisor_20260301; Anthropic still requires the
+// matching beta. The resulting order is:
 //
 //	 1 claude-code-20250219
 //	 2 oauth-2025-04-20                  OAuth credentials only
-//	 3 context-1m-2025-08-07             [1m] model variants only
+//	 3 context-1m-2025-08-07             models with a 1M context, or requested
 //	 4 interleaved-thinking-2025-05-14
 //	 5 redact-thinking-2026-02-12        cli entrypoint, no thinking.display
 //	 6 thinking-token-count-2026-05-13
 //	 7 context-management-2025-06-27
 //	 8 prompt-caching-scope-2026-01-05
-//	 9 mid-conversation-system-2026-04-07  models accepting a role=system turn
-//	10 advanced-tool-use-2025-11-20       requests with tools
+//	 9 mid-conversation-system-2026-04-07  unconditional in 2.1.252
+//	10 advisor-tool-2026-03-01             advisor tools or explicit requests only
 //	11 effort-2025-11-24
-//	12 server-side-fallback-2026-06-01
-//	13 fallback-credit-2026-06-01
-//	14 fast-mode-2026-02-01               speed:fast requests only
-//	15 extended-cache-ttl-2025-04-11      OAuth credentials only
-//	16 cache-diagnosis-2026-04-07         requests with diagnostics only
+//	12 structured-outputs-2025-12-15      requests carrying output_config.format
+//	13 server-side-fallback-2026-06-01    caller-supplied only (not observed unrequested)
+//	14 fallback-credit-2026-06-01
+//	15 fast-mode-2026-02-01               speed:fast requests only
+//	16 extended-cache-ttl-2025-04-11      OAuth credentials only
+//	17 cache-diagnosis-2026-04-07         requests with diagnostics only
 //
-// An empty body keeps the optimistic role=system default, matching the cloaking
-// policy for unknown and future model IDs.
+// advanced-tool-use-2025-11-20, which 2.1.220 sent with every tools payload, is
+// no longer sent by 2.1.252 even when the request carries tools.
 func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool) string {
-	betas := make([]string, 0, len(claudeCodeCLIConstantBetas)+len(claudeCodeTrailingBetas)+7)
+	betas := make([]string, 0, len(claudeCodeCLIConstantBetas)+9)
 	betas = append(betas, claudeCodeBeta)
 	if oauthToken {
 		betas = append(betas, claudeOAuthBeta)
 	}
-	if requested[claudeContext1MBeta] {
+	if requested[claudeContext1MBeta] || claudeModelHas1MContext(body) {
 		betas = append(betas, claudeContext1MBeta)
 	}
 	redactThinking := !claudeThinkingDisplaySet(body)
@@ -117,21 +274,18 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		}
 		betas = append(betas, beta)
 	}
-	if !claudeUsesLegacySystemReminder(body) {
-		betas = append(betas, claudeMidConvSystemBeta)
-	}
-	if tools := gjson.GetBytes(body, "tools"); tools.IsArray() && len(tools.Array()) > 0 {
-		betas = append(betas, claudeAdvancedToolUseBeta)
+	betas = append(betas, claudeMidConvSystemBeta)
+	if requested[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body) {
+		betas = append(betas, claudeAdvisorToolBeta)
 	}
 	betas = append(betas, claudeEffortBeta)
-	if oauthToken && !requested[claudeFallbackCreditBeta] {
-		betas = append(betas, claudeFallbackCreditBeta)
+	if requested[claudeStructuredOutputsBeta] || gjson.GetBytes(body, "output_config.format").IsObject() {
+		betas = append(betas, claudeStructuredOutputsBeta)
 	}
-	for _, beta := range claudeCodeTrailingBetas {
-		if requested[beta] {
-			betas = append(betas, beta)
-		}
+	if requested[claudeServerSideFallbackBeta] {
+		betas = append(betas, claudeServerSideFallbackBeta)
 	}
+	betas = append(betas, claudeFallbackCreditBeta)
 	if claudeRequestUsesFastMode(body, requested) {
 		betas = append(betas, claudeFastModeBeta)
 	}
@@ -142,6 +296,36 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		betas = append(betas, claudeCacheDiagnosisBeta)
 	}
 	return strings.Join(betas, ",")
+}
+
+// claudeModelHas1MContext reports whether the request's model carries a 1M
+// context window. Claude Code 2.1.252 sends context-1m-2025-08-07 whenever the
+// selected model has one, not only for explicit [1m] aliases: the isolated
+// 2.1.252 capture selected claude-opus-5 (1M by default, /context renders it
+// as claude-opus-5[1m]) and still sent the beta.
+func claudeModelHas1MContext(body []byte) bool {
+	model := gjson.GetBytes(body, "model").String()
+	if strings.Contains(model, "[1m]") {
+		return true
+	}
+	return strings.HasPrefix(model, "claude-opus-5")
+}
+
+// claudeBodyHasAdvisorTool reports whether the request declares an
+// Anthropic-operated advisor tool. The matching beta is required for the
+// upstream schema to accept advisor_* tool types.
+func claudeBodyHasAdvisorTool(body []byte) bool {
+	tools := gjson.GetBytes(body, "tools")
+	if !tools.IsArray() {
+		return false
+	}
+	for _, tool := range tools.Array() {
+		toolType := strings.ToLower(strings.TrimSpace(tool.Get("type").String()))
+		if strings.HasPrefix(toolType, "advisor_") {
+			return true
+		}
+	}
+	return false
 }
 
 // claudeThinkingDisplaySet reports whether the request carries a thinking.display
@@ -173,10 +357,12 @@ func claudeRequestUsesFastMode(body []byte, requested map[string]bool) bool {
 	return speed.Type == gjson.String && strings.EqualFold(strings.TrimSpace(speed.String()), "fast")
 }
 
-// claudeCountTokensBetas is the fixed profile Claude Code 2.1.220 sends to
+// claudeCountTokensBetas is the fixed profile Claude Code sends to
 // /v1/messages/count_tokens. It is far smaller than the inference baseline:
-// redact-thinking, thinking-token-count, prompt-caching-scope, effort and every
-// conditional beta are absent. Verified identical across 37 captured calls.
+// redact-thinking, thinking-token-count, prompt-caching-scope and effort are
+// absent. Verified across 37 captured 2.1.220 calls and re-verified unchanged
+// on 19 ordinary 2.1.252 requests. Requests
+// declaring an advisor tool append its required capability beta separately.
 var claudeCountTokensBetas = []string{
 	claudeCodeBeta,
 	"interleaved-thinking-2025-05-14",
@@ -253,6 +439,46 @@ func withClaudeOAuthCredentialBetas(betas string) string {
 	return strings.Join(parts, ",")
 }
 
+// withClaudeAdvisorToolBeta inserts the advisor capability at its observed
+// position while preserving the surrounding 2.1.252 profile. Older callers may
+// still carry advanced-tool-use; advisor precedes it as well as effort.
+func withClaudeAdvisorToolBeta(betas string) string {
+	parts := make([]string, 0, 16)
+	seen := make(map[string]bool)
+	for _, beta := range strings.Split(betas, ",") {
+		beta = strings.TrimSpace(beta)
+		if beta == "" || beta == claudeAdvisorToolBeta || seen[beta] {
+			continue
+		}
+		parts = append(parts, beta)
+		seen[beta] = true
+	}
+
+	insertAt := len(parts)
+	for index, beta := range parts {
+		switch beta {
+		case claudeAdvancedToolUseBeta,
+			claudeEffortBeta,
+			claudeStructuredOutputsBeta,
+			claudeServerSideFallbackBeta,
+			claudeFallbackCreditBeta,
+			claudeFastModeBeta,
+			claudeExtendedCacheTTLBeta,
+			claudeCacheDiagnosisBeta:
+			insertAt = index
+		}
+		if insertAt != len(parts) {
+			break
+		}
+	}
+
+	ordered := make([]string, 0, len(parts)+1)
+	ordered = append(ordered, parts[:insertAt]...)
+	ordered = append(ordered, claudeAdvisorToolBeta)
+	ordered = append(ordered, parts[insertAt:]...)
+	return strings.Join(ordered, ",")
+}
+
 // claudeEntitlementError marks an upstream refusal that is a property of the
 // request shape combined with the account's entitlements, not of the credential's
 // health. The auth manager must neither rotate nor cool down on these.
@@ -281,6 +507,18 @@ func (e claudeRateLimitError) IsRequestScoped() bool {
 	return false
 }
 
+type claudeCredentialError struct {
+	statusErr
+}
+
+func (claudeCredentialError) IsCredentialScoped() bool {
+	return true
+}
+
+func (claudeCredentialError) IsRequestScoped() bool {
+	return false
+}
+
 // classifyClaudeUpstreamError promotes upstream refusals that no other credential
 // can satisfy into request-scoped errors.
 //
@@ -291,23 +529,60 @@ func (e claudeRateLimitError) IsRequestScoped() bool {
 // next one, which returns the same 429. A single speed:"fast" request would walk
 // the whole Claude pool and cool down every credential, all of which remain
 // perfectly healthy for ordinary traffic. The refusal belongs to the request.
+// claudeUpstreamOverloadedStatus is Anthropic's 529 "overloaded_error"
+// throttle code, which has no net/http constant.
+const claudeUpstreamOverloadedStatus = 529
+
 func classifyClaudeUpstreamError(statusCode int, headers http.Header, body []byte) error {
+	now := time.Now()
 	var retryAfter *time.Duration
 	if statusCode == http.StatusTooManyRequests || (statusCode >= 400 && statusCode < 600) {
-		retryAfter = helps.ParseClaudeRateLimitReset(headers, time.Now())
+		retryAfter = helps.ParseClaudeRateLimitReset(headers, now)
 	}
-	err := statusErr{code: statusCode, msg: string(body), retryAfter: retryAfter}
-	if statusCode == http.StatusTooManyRequests {
+	var downstreamRetryAfter *time.Duration
+	if raw, ok := helps.ParseClaudeDownstreamRetryAfter(headers, now); ok {
+		downstreamRetryAfter = &raw
+	}
+	statusError := statusErr{
+		code:       statusCode,
+		msg:        string(body),
+		retryAfter: retryAfter,
+	}
+	var classified error = statusError
+	if claudeErrorIsCredentialScoped(statusCode, body) {
+		classified = claudeCredentialError{statusErr: statusError}
+	} else if statusCode == http.StatusTooManyRequests {
 		if helps.ClaudeHeadersIndicateUnifiedRateLimitRejection(headers) {
-			return claudeRateLimitError{statusErr: err, credentialScoped: true}
+			classified = claudeRateLimitError{statusErr: statusError, credentialScoped: true}
+		} else if claudeBodyIndicatesFastModeCredits(body) {
+			classified = claudeEntitlementError{statusError}
+		} else {
+			// Ordinary model-level Claude 429 (not a unified 5h/7d rejection).
+			classified = claudeRateLimitError{statusErr: statusError, credentialScoped: false}
 		}
-		if claudeBodyIndicatesFastModeCredits(body) {
-			return claudeEntitlementError{err}
-		}
-		// Ordinary model-level Claude 429 (not a unified 5h/7d rejection)
-		return claudeRateLimitError{statusErr: err, credentialScoped: false}
+	} else if statusCode == claudeUpstreamOverloadedStatus {
+		// 529 "overloaded_error" is transient model capacity on Anthropic's
+		// side: cool the model on this credential and rotate like an ordinary
+		// 429, but do not flag the account quota (the sibling models on the
+		// same credential stay eligible).
+		classified = claudeRateLimitError{statusErr: statusError, credentialScoped: false}
 	}
-	return err
+	return withClaudeUpstreamThrottleMetadata(classified, headers, downstreamRetryAfter)
+}
+
+func claudeErrorIsCredentialScoped(statusCode int, body []byte) bool {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden:
+		return true
+	}
+	for _, path := range []string{"error.type", "error.code", "code"} {
+		code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, path).String()))
+		switch code {
+		case "authentication_error", "authorization_error", "billing_error", "invalid_api_key", "invalid_credential", "invalid_token", "permission_error", "token_expired", "unauthorized":
+			return true
+		}
+	}
+	return false
 }
 
 // claudeBodyIndicatesFastModeCredits matches Anthropic's fast-mode entitlement
@@ -480,7 +755,7 @@ func claudeResponseContentEncoding(header http.Header) string {
 	return strings.Join(header.Values("Content-Encoding"), ",")
 }
 
-func decodeResponseBody(body io.ReadCloser, contentEncoding string) (io.ReadCloser, error) {
+func decodeResponseBodyWithMemoryLimit(body io.ReadCloser, contentEncoding string, maxMemory uint64) (io.ReadCloser, error) {
 	if body == nil {
 		return nil, fmt.Errorf("response body is nil")
 	}
@@ -509,7 +784,7 @@ func decodeResponseBody(body io.ReadCloser, contentEncoding string) (io.ReadClos
 					},
 				}, nil
 			case len(magic) >= 4 && magic[0] == 0x28 && magic[1] == 0xb5 && magic[2] == 0x2f && magic[3] == 0xfd:
-				decoder, zdErr := zstd.NewReader(pb)
+				decoder, zdErr := newClaudeZstdReader(pb, maxMemory)
 				if zdErr != nil {
 					_ = pb.Close()
 					return nil, fmt.Errorf("magic-byte zstd: failed to create reader: %w", zdErr)
@@ -526,6 +801,19 @@ func decodeResponseBody(body io.ReadCloser, contentEncoding string) (io.ReadClos
 		return pb, nil
 	}
 	encodings := strings.Split(contentEncoding, ",")
+	if maxMemory > 0 {
+		decoderLayers := 0
+		for _, rawEncoding := range encodings {
+			encoding := strings.TrimSpace(strings.ToLower(rawEncoding))
+			if encoding != "" && encoding != "identity" {
+				decoderLayers++
+			}
+		}
+		if decoderLayers > claudeMaxResponseEncodingLayers {
+			_ = body.Close()
+			return nil, newClaudeResponseEncodingLayersError(claudeMaxResponseEncodingLayers)
+		}
+	}
 	reader := io.Reader(body)
 	decoderClosers := make([]func() error, 0, len(encodings))
 	cleanup := func() {
@@ -558,7 +846,7 @@ func decodeResponseBody(body io.ReadCloser, contentEncoding string) (io.ReadClos
 		case "br":
 			reader = brotli.NewReader(reader)
 		case "zstd":
-			decoder, errZstd := zstd.NewReader(reader)
+			decoder, errZstd := newClaudeZstdReader(reader, maxMemory)
 			if errZstd != nil {
 				cleanup()
 				return nil, fmt.Errorf("failed to create zstd reader: %w", errZstd)
@@ -582,6 +870,18 @@ func decodeResponseBody(body io.ReadCloser, contentEncoding string) (io.ReadClos
 	}
 	closers = append(closers, body.Close)
 	return &compositeReadCloser{Reader: reader, closers: closers}, nil
+}
+
+func newClaudeZstdReader(reader io.Reader, maxMemory uint64) (*zstd.Decoder, error) {
+	if maxMemory == 0 {
+		return zstd.NewReader(reader)
+	}
+	return zstd.NewReader(reader,
+		zstd.WithDecoderConcurrency(1),
+		zstd.WithDecoderLowmem(true),
+		zstd.WithDecoderMaxMemory(maxMemory),
+		zstd.WithDecoderMaxWindow(maxMemory),
+	)
 }
 
 func newClaudeDeflateReader(reader io.Reader) (io.ReadCloser, error) {
@@ -728,15 +1028,25 @@ func applyClaudeHeadersWithNativeProfile(
 
 	incomingBetas := strings.TrimSpace(strings.Join(incomingHeaders.Values("Anthropic-Beta"), ","))
 	countTokens := r.URL != nil && strings.HasSuffix(r.URL.Path, "/count_tokens")
+	requestedBetas := claudeRequestedBetas(incomingBetas, extraBetas)
+	advisorNeeded := requestedBetas[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body)
 	baseBetas := incomingBetas
 	if !preserveCallerFingerprint {
-		baseBetas = claudeCodeCLIBetas(body, claudeRequestedBetas(incomingBetas, extraBetas), useOAuthBetas)
+		baseBetas = claudeCodeCLIBetas(body, requestedBetas, useOAuthBetas)
 		if countTokens {
 			baseBetas = claudeCountTokensBetasForCredential(useOAuthBetas)
+			if advisorNeeded {
+				baseBetas = withClaudeAdvisorToolBeta(baseBetas)
+			}
 		}
 	}
 	if confirmedClaudeCode && incomingBetas != "" {
 		baseBetas = incomingBetas
+		if advisorNeeded {
+			// Advisor is a schema capability, so repair its presence and position
+			// even on otherwise fingerprint-preserving native requests.
+			baseBetas = withClaudeAdvisorToolBeta(baseBetas)
+		}
 		// Measured Haiku helper requests already carry the exact credential
 		// beta profile and intentionally omit extended-cache-ttl.
 		if useOAuthBetas && !helperProfile {
@@ -746,6 +1056,9 @@ func applyClaudeHeadersWithNativeProfile(
 				baseBetas = withClaudeOAuthCredentialBetas(baseBetas)
 			}
 		}
+	}
+	if preserveCallerFingerprint && advisorNeeded {
+		baseBetas = withClaudeAdvisorToolBeta(baseBetas)
 	}
 	existingSet := make(map[string]bool)
 	for _, beta := range strings.Split(baseBetas, ",") {
@@ -856,7 +1169,7 @@ func applyClaudeHeadersWithNativeProfile(
 	identityHeader("Anthropic-Version", "2023-06-01")
 	identityHeader("Anthropic-Dangerous-Direct-Browser-Access", "true")
 	identityHeader("X-App", "cli")
-	// Values below match Claude Code 2.1.220 / @anthropic-ai/sdk 0.94.0.
+	// Values below match Claude Code 2.1.252 / @anthropic-ai/sdk 0.112.1.
 	identityHeader("X-Stainless-Retry-Count", "0")
 	identityHeader("X-Stainless-Runtime", "node")
 	identityHeader("X-Stainless-Lang", "js")
@@ -907,13 +1220,9 @@ func applyClaudeHeadersWithNativeProfile(
 			r.Header.Set(hdr, val)
 		}
 	}
-	// Per-request UUID, matches Claude Code's x-client-request-id for first-party API.
-	// identityHeader prefers the incoming value for a confirmed client, so a confirmed
-	// helper keeps its own native request ID and this fresh UUID only covers a caller
-	// that sent none. Helpers opt in on custom gateways too.
-	if isAnthropicBase || helperProfile {
-		identityHeader("x-client-request-id", uuid.New().String())
-	}
+	// Claude Code 2.1.252 sends no x-client-request-id; callers
+	// that still do (older CLIs) have the header stripped by
+	// copyClaudeCallerFingerprintHeaders, so nothing needs to be injected.
 	r.Header.Set("Connection", "keep-alive")
 	// Regular Claude Code requests negotiate transport identically for streaming
 	// and non-streaming requests. Measured Haiku helpers are the exception: their
@@ -982,14 +1291,13 @@ func doClaudeUpstreamRequest(client *http.Client, req *http.Request) (*http.Resp
 }
 
 // claudeWireHeaderCasing maps Go's canonical header name to the exact casing
-// Claude Code 2.1.220 puts on the wire. Only the names that differ are listed;
-// the other twelve already survive canonicalisation unchanged.
+// Claude Code 2.1.252 puts on the wire. Only the names that differ are listed;
+// the other headers already survive canonicalisation unchanged.
 var claudeWireHeaderCasing = map[string]string{
-	"X-Stainless-Os":      "X-Stainless-OS",
-	"Anthropic-Beta":      "anthropic-beta",
-	"Anthropic-Version":   "anthropic-version",
-	"X-App":               "x-app",
-	"X-Client-Request-Id": "x-client-request-id",
+	"X-Stainless-Os":    "X-Stainless-OS",
+	"Anthropic-Beta":    "anthropic-beta",
+	"Anthropic-Version": "anthropic-version",
+	"X-App":             "x-app",
 
 	"Anthropic-Dangerous-Direct-Browser-Access": "anthropic-dangerous-direct-browser-access",
 }

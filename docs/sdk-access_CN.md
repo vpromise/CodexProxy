@@ -24,14 +24,16 @@ import (
 
 ```go
 manager := sdkaccess.NewManager()
-manager.SetProviders(sdkaccess.RegisteredProviders())
+manager.Configure(sdkaccess.RegisteredProviders(), false)
 ```
 
 - `NewManager` 创建空管理器。
-- `SetProviders` 替换提供者切片并做防御性拷贝。
+- `Configure` 原子替换提供者切片和匿名访问策略。
+- `SetProviders` 仅替换提供者切片并做防御性拷贝。
+- `SetAllowAnonymous` 在不替换 provider 的情况下更新匿名访问策略。
 - `Providers` 返回适合并发读取的快照。
 
-如果管理器本身为 `nil` 或未配置任何 provider，调用会返回 `nil, nil`，可视为关闭访问控制。
+管理器默认采用 fail-closed：管理器为 `nil` 或 provider 列表为空时返回 `AuthErrorCodeNoCredentials`。确实需要匿名部署时，必须显式设置顶层 `allow-anonymous: true` 或调用 `SetAllowAnonymous(true)`；匿名访问仅在 provider 列表为空时生效。
 
 ## 认证请求
 
@@ -148,7 +150,7 @@ svc, _ := cliproxy.NewBuilder().
 ```go
 // configaccess is github.com/router-for-me/CLIProxyAPI/v6/internal/access/config_access
 configaccess.Register(&newCfg.SDKConfig)
-accessManager.SetProviders(sdkaccess.RegisteredProviders())
+accessManager.Configure(sdkaccess.RegisteredProviders(), newCfg.AllowAnonymous)
 ```
 
 这一流程与 `internal/access.ApplyAccessProviders` 保持一致，避免为更新访问策略而重启进程。

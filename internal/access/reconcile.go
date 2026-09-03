@@ -92,11 +92,16 @@ func ApplyAccessProviders(manager *sdkaccess.Manager, oldCfg, newCfg *config.Con
 		return false, fmt.Errorf("reconciling access providers: %w", err)
 	}
 
-	manager.SetProviders(providers)
+	previousAllowAnonymous := manager.AllowAnonymous()
+	manager.Configure(providers, newCfg.AllowAnonymous)
+	allowAnonymousChanged := previousAllowAnonymous != newCfg.AllowAnonymous
 
-	if len(added)+len(updated)+len(removed) > 0 {
+	if len(added)+len(updated)+len(removed) > 0 || allowAnonymousChanged {
 		log.Debugf("auth providers reconciled (added=%d updated=%d removed=%d)", len(added), len(updated), len(removed))
 		log.Debugf("auth providers changes details - added=%v updated=%v removed=%v", added, updated, removed)
+		if allowAnonymousChanged {
+			log.Debugf("anonymous access updated: %t", newCfg.AllowAnonymous)
+		}
 		return true, nil
 	}
 

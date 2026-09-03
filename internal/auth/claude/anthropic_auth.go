@@ -252,7 +252,19 @@ func (o *ClaudeAuth) fetchOAuthControlPlaneJSON(ctx context.Context, endpoint, a
 		return nil, fmt.Errorf("read Claude OAuth %s response: %w", label, errRead)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("fetch Claude OAuth %s failed with status %d", label, resp.StatusCode)
+		var envelope struct {
+			Error struct {
+				Type    string `json:"type"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.Unmarshal(body, &envelope)
+		return nil, NewOAuthHTTPStatusError(
+			"fetch Claude OAuth "+label,
+			resp.StatusCode,
+			envelope.Error.Type,
+			envelope.Error.Message,
+		)
 	}
 	return body, nil
 }

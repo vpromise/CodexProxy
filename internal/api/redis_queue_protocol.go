@@ -9,14 +9,20 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	redisUsageChannel  = "usage"
-	redisErrorsChannel = "errors"
+	redisUsageChannel       = "usage"
+	redisErrorsChannel      = "errors"
+	redisAuthReadTimeout    = 15 * time.Second
+	redisCommandIdleTimeout = 5 * time.Minute
+	maxRESPArrayElements    = 128
+	maxRESPBulkStringBytes  = 1 << 20
+	maxRESPInlineLineBytes  = 64 << 10
 )
 
 type redisSubscriptionCommand struct {
@@ -63,10 +69,14 @@ func (s *Server) handleRedisConnection(conn net.Conn, reader *bufio.Reader) {
 		_ = writer.Flush()
 		return
 	}
+	_ = conn.SetReadDeadline(time.Now().Add(redisAuthReadTimeout))
 
 	for {
 		if !s.managementRoutesEnabled.Load() {
 			return
+		}
+		if authed {
+			_ = conn.SetReadDeadline(time.Now().Add(redisCommandIdleTimeout))
 		}
 
 		args, errRead := readRESPArray(reader)
@@ -170,6 +180,7 @@ func (s *Server) handleRedisConnection(conn net.Conn, reader *bufio.Reader) {
 				unsubscribe()
 				return
 			}
+			_ = conn.SetReadDeadline(time.Time{})
 			s.streamRedisSubscription(reader, writer, channel, messages, unsubscribe)
 			return
 		case "LPOP", "RPOP":
@@ -423,7 +434,7 @@ func readRESPArray(reader *bufio.Reader) ([]string, error) {
 		return nil, errLine
 	}
 	count, errParse := strconv.Atoi(line)
-	if errParse != nil || count < 0 {
+	if errParse != nil || count < 0 || count > maxRESPArrayElements {
 		return nil, fmt.Errorf("protocol error")
 	}
 	args := make([]string, 0, count)
@@ -464,6 +475,9 @@ func readRESPBulkString(reader *bufio.Reader) (string, error) {
 	if length < 0 {
 		return "", nil
 	}
+	if length > maxRESPBulkStringBytes {
+		return "", fmt.Errorf("protocol error")
+	}
 	buf := make([]byte, length+2)
 	if _, errRead := io.ReadFull(reader, buf); errRead != nil {
 		return "", errRead
@@ -475,13 +489,20 @@ func readRESPBulkString(reader *bufio.Reader) (string, error) {
 }
 
 func readRESPLine(reader *bufio.Reader) (string, error) {
-	line, errRead := reader.ReadString('\n')
-	if errRead != nil {
-		return "", errRead
+	line := make([]byte, 0, min(reader.Size(), maxRESPInlineLineBytes))
+	for {
+		fragment, more, errRead := reader.ReadLine()
+		if errRead != nil {
+			return "", errRead
+		}
+		if len(line)+len(fragment) > maxRESPInlineLineBytes {
+			return "", fmt.Errorf("protocol error")
+		}
+		line = append(line, fragment...)
+		if !more {
+			return string(line), nil
+		}
 	}
-	line = strings.TrimSuffix(line, "\n")
-	line = strings.TrimSuffix(line, "\r")
-	return line, nil
 }
 
 func writeRedisSimpleString(writer *bufio.Writer, value string) error {

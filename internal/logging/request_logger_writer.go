@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	log "github.com/sirupsen/logrus"
 )
@@ -134,7 +135,7 @@ func (l *FileRequestLogger) logRequestWithSources(url, method string, requestHea
 		responseToWrite = response
 	}
 
-	logFile, errOpen := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	logFile, errOpen := fileperm.OpenPrivateFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if errOpen != nil {
 		return fmt.Errorf("failed to create log file: %w", errOpen)
 	}
@@ -265,10 +266,7 @@ func (l *FileRequestLogger) generateErrorFilename(url string, requestID ...strin
 // Returns:
 //   - error: An error if directory creation fails, nil otherwise
 func (l *FileRequestLogger) ensureLogsDir() error {
-	if _, err := os.Stat(l.logsDir); os.IsNotExist(err) {
-		return os.MkdirAll(l.logsDir, 0755)
-	}
-	return nil
+	return fileperm.EnsurePrivateDir(l.logsDir)
 }
 
 // generateFilename creates a sanitized filename from the URL path and current timestamp.

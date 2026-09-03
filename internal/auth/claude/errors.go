@@ -7,7 +7,58 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
+
+// OAuthHTTPStatusError preserves structured details from a rejected OAuth
+// control-plane request without putting the response body in the error string.
+type OAuthHTTPStatusError struct {
+	Operation string
+	Status    int
+	ErrorType string
+	Message   string
+}
+
+func (e *OAuthHTTPStatusError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s failed with status %d", strings.TrimSpace(e.Operation), e.Status)
+}
+
+// StatusCode returns the upstream HTTP status.
+func (e *OAuthHTTPStatusError) StatusCode() int {
+	if e == nil {
+		return 0
+	}
+	return e.Status
+}
+
+// NewOAuthHTTPStatusError creates a typed OAuth control-plane error.
+func NewOAuthHTTPStatusError(operation string, status int, errorType, message string) *OAuthHTTPStatusError {
+	return &OAuthHTTPStatusError{
+		Operation: strings.TrimSpace(operation),
+		Status:    status,
+		ErrorType: strings.TrimSpace(errorType),
+		Message:   strings.TrimSpace(message),
+	}
+}
+
+// IsOAuthProfileScopeError reports only explicit profile-scope rejections.
+// A bare 403 is ambiguous: it may come from a proxy or an organization policy
+// and must remain retryable.
+func IsOAuthProfileScopeError(err error) bool {
+	var statusErr *OAuthHTTPStatusError
+	if !errors.As(err, &statusErr) || statusErr == nil || statusErr.Status != http.StatusForbidden {
+		return false
+	}
+	errorType := strings.ToLower(strings.TrimSpace(statusErr.ErrorType))
+	message := strings.ToLower(strings.TrimSpace(statusErr.Message))
+	permissionError := errorType == "permission_error" || errorType == "insufficient_scope"
+	scopeError := strings.Contains(message, "scope requirement") || strings.Contains(message, "insufficient_scope")
+	profileScope := strings.Contains(message, "user:profile") || strings.Contains(message, "user:office")
+	return permissionError && scopeError && profileScope
+}
 
 // OAuthError represents an OAuth-specific error.
 type OAuthError struct {

@@ -26,6 +26,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
+	claudehandlers "github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
@@ -121,6 +122,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 
 	// Create gin engine
 	engine := gin.New()
+	configureTrustedProxies(engine, cfg.TrustedProxies)
 	if optionState.engineConfigurator != nil {
 		optionState.engineConfigurator(engine)
 	}
@@ -129,6 +131,8 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	engine.Use(logging.GinLogrusLogger())
 	engine.Use(logging.GinLogrusRecovery())
 	engine.Use(logging.CPATraceIDMiddleware())
+	engine.Use(claudeRequestIDMiddleware())
+	engine.Use(claudeRequestBodyLimitMiddleware(claudehandlers.RequestBodyMaxBytes))
 	for _, mw := range optionState.extraMiddleware {
 		engine.Use(mw)
 	}
@@ -232,8 +236,11 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 
 	// Create HTTP server
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Handler: engine,
+		Addr:              fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Handler:           engine,
+		ReadHeaderTimeout: defaultReadHeaderTimeout,
+		IdleTimeout:       defaultIdleTimeout,
+		MaxHeaderBytes:    defaultMaxHeaderBytes,
 	}
 
 	return s

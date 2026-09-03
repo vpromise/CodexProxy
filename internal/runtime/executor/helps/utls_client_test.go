@@ -213,9 +213,16 @@ type claudeCodeTLSFingerprintFixture struct {
 	KeyShareGroups      []uint16
 }
 
-func TestClaudeCodeTLSClientHelloSpecMatches220Capture(t *testing.T) {
+func TestClaudeCodeTLSClientHelloSpecMatches252Capture(t *testing.T) {
 	t.Parallel()
 
+	// research/21§6 + research/23§6: 2.1.252 (Bun 1.4.1 / BoringSSL) keeps
+	// 2.1.220's ciphers, sigalgs and extension order, but sends a fixed 0xff01
+	// extension (parsed here as renegotiation_info, one zero byte) instead of
+	// real renegotiation_info data. Like BoringSSL it pads the ClientHello
+	// record to 0x200 (512) once the unpadded length exceeds 0xff: the SNI
+	// extension pushes hostname connections over the threshold (277 -> +231),
+	// IP connections (251) stay under it and carry no padding extension.
 	fixture := claudeCodeTLSFingerprintFixture{
 		ClientHelloLength: 508,
 		JA3:               "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-21,29-23-24,0",
@@ -276,9 +283,9 @@ func TestClaudeCodeTLSClientHelloSpecMatches220Capture(t *testing.T) {
 		t.Fatalf("JA3 = %q (%s), want %q (%s)", actual.JA3, actual.JA3MD5, fixture.JA3, fixture.JA3MD5)
 	}
 
-	transport, ok := newClaudeCodeRoundTripper("").(*http.Transport)
+	transport, ok := newClaudeCodeRoundTripper("", nil).(*http.Transport)
 	if !ok {
-		t.Fatalf("Claude Code transport type = %T, want *http.Transport", newClaudeCodeRoundTripper(""))
+		t.Fatalf("Claude Code transport type = %T, want *http.Transport", newClaudeCodeRoundTripper("", nil))
 	}
 	if transport.ForceAttemptHTTP2 {
 		t.Fatal("Claude Code transport must not force HTTP/2")
@@ -291,8 +298,10 @@ func TestClaudeCodeTLSClientHelloSpecMatches220Capture(t *testing.T) {
 func TestClaudeCodeTLSResumptionIsWireSafe(t *testing.T) {
 	t.Parallel()
 
-	// RFC 8446 4.2.11 requires pre_shared_key to be the final extension, after
-	// the padding extension.
+	// RFC 8446 4.2.11 requires pre_shared_key to be the final extension. The
+	// BoringSSL padding extension (research/23§6) sits right before it; it
+	// contributes zero bytes on first connections whose unpadded ClientHello
+	// is under the 0xff threshold.
 	spec := claudeCodeTLSClientHelloSpec()
 	last := spec.Extensions[len(spec.Extensions)-1]
 	if _, ok := last.(*tls.UtlsPreSharedKeyExtension); !ok {
@@ -316,7 +325,7 @@ func TestClaudeCodeTLSResumptionIsWireSafe(t *testing.T) {
 	}
 }
 
-func TestClaudeCodeRequestHeaderOrderMatchesNative220Capture(t *testing.T) {
+func TestClaudeCodeRequestHeaderOrderMatchesNative252Capture(t *testing.T) {
 	t.Parallel()
 
 	if got, want := claudeCodeRequestHeaderOrder(http.MethodPost, "/v1/messages?beta=true"), claudeCodeMessagesHeaderOrder; !reflect.DeepEqual(got, want) {
@@ -336,23 +345,215 @@ func TestCachedClaudeCodeRoundTripperReusesTransport(t *testing.T) {
 	t.Parallel()
 
 	const proxyURL = "http://127.0.0.1:29653"
-	first := cachedClaudeCodeRoundTripper(proxyURL)
-	second := cachedClaudeCodeRoundTripper(proxyURL)
+	first := cachedClaudeCodeRoundTripper("owner-a", proxyURL, "", "https://api.anthropic.com", nil)
+	second := cachedClaudeCodeRoundTripper("owner-a", proxyURL, "", "https://api.anthropic.com", nil)
 	if first != second {
 		t.Fatal("Claude Code transport cache returned different transports for one proxy")
 	}
 }
 
+func TestCachedClaudeCodeRoundTripperSeparatesCredentialAndEgress(t *testing.T) {
+	proxyURL := "http://127.0.0.1:29654"
+	base := cachedClaudeCodeRoundTripper("owner-a", proxyURL, "127.0.0.1", "https://api.anthropic.com", net.ParseIP("127.0.0.1"))
+	if otherOwner := cachedClaudeCodeRoundTripper("owner-b", proxyURL, "127.0.0.1", "https://api.anthropic.com", net.ParseIP("127.0.0.1")); otherOwner == base {
+		t.Fatal("different Claude credentials shared one transport")
+	}
+	if otherBind := cachedClaudeCodeRoundTripper("owner-a", proxyURL, "127.0.0.2", "https://api.anthropic.com", net.ParseIP("127.0.0.2")); otherBind == base {
+		t.Fatal("different Claude bind IPs shared one transport")
+	}
+	if otherProxy := cachedClaudeCodeRoundTripper("owner-a", "http://127.0.0.1:29655", "127.0.0.1", "https://api.anthropic.com", net.ParseIP("127.0.0.1")); otherProxy == base {
+		t.Fatal("different Claude proxies shared one transport")
+	}
+	if otherOrigin := cachedClaudeCodeRoundTripper("owner-a", proxyURL, "127.0.0.1", "https://claude.example.com", net.ParseIP("127.0.0.1")); otherOrigin == base {
+		t.Fatal("different Claude origins shared one transport")
+	}
+}
+
+func TestCachedClaudeStandardRoundTripperSeparatesCredentialAndEgress(t *testing.T) {
+	base := cachedClaudeStandardRoundTripper("owner-a", "direct", "127.0.0.1", "https://example.com", net.ParseIP("127.0.0.1"))
+	if reused := cachedClaudeStandardRoundTripper("owner-a", "direct", "127.0.0.1", "https://example.com", net.ParseIP("127.0.0.1")); reused != base {
+		t.Fatal("one Claude credential did not reuse its standard transport")
+	}
+	if otherOwner := cachedClaudeStandardRoundTripper("owner-b", "direct", "127.0.0.1", "https://example.com", net.ParseIP("127.0.0.1")); otherOwner == base {
+		t.Fatal("different Claude credentials shared one standard transport")
+	}
+	if otherBind := cachedClaudeStandardRoundTripper("owner-a", "direct", "127.0.0.2", "https://example.com", net.ParseIP("127.0.0.2")); otherBind == base {
+		t.Fatal("different Claude bind IPs shared one standard transport")
+	}
+}
+
+func TestClaudeStandardRoundTripperBindsLocalIP(t *testing.T) {
+	listener, errListen := net.Listen("tcp4", "127.0.0.1:0")
+	if errListen != nil {
+		t.Fatal(errListen)
+	}
+	defer listener.Close()
+
+	remoteAddress := make(chan string, 1)
+	go func() {
+		conn, errAccept := listener.Accept()
+		if errAccept != nil {
+			remoteAddress <- ""
+			return
+		}
+		remoteAddress <- conn.RemoteAddr().String()
+		_ = conn.Close()
+	}()
+
+	roundTripper := newClaudeStandardRoundTripper("direct", net.ParseIP("127.0.0.2"))
+	transport, ok := roundTripper.(*http.Transport)
+	if !ok || transport.DialContext == nil {
+		t.Fatalf("standard round tripper = %T, want transport with DialContext", roundTripper)
+	}
+	conn, errDial := transport.DialContext(t.Context(), "tcp4", listener.Addr().String())
+	if errDial != nil {
+		t.Fatal(errDial)
+	}
+	_ = conn.Close()
+	select {
+	case got := <-remoteAddress:
+		host, _, errSplit := net.SplitHostPort(got)
+		if errSplit != nil || host != "127.0.0.2" {
+			t.Fatalf("remote address = %q, want source 127.0.0.2", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("listener did not observe bound connection")
+	}
+}
+
+func TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS(t *testing.T) {
+	listener, errListen := net.Listen("tcp4", "127.0.0.1:0")
+	if errListen != nil {
+		t.Fatal(errListen)
+	}
+	defer listener.Close()
+
+	remoteAddress := make(chan string, 1)
+	go func() {
+		conn, errAccept := listener.Accept()
+		if errAccept != nil {
+			remoteAddress <- ""
+			return
+		}
+		remoteAddress <- conn.RemoteAddr().String()
+		_ = conn.Close()
+	}()
+
+	roundTripper := newClaudeStandardRoundTripper("https://proxy.example.com:8443", net.ParseIP("127.0.0.2"))
+	transport, ok := roundTripper.(*http.Transport)
+	if !ok {
+		t.Fatalf("standard round tripper = %T, want *http.Transport", roundTripper)
+	}
+	if transport.Proxy == nil || transport.DialTLSContext == nil || transport.DialContext == nil {
+		t.Fatal("HTTPS proxy transport is missing proxy, TLS, or base dial configuration")
+	}
+	req, errRequest := http.NewRequest(http.MethodGet, "https://api.example.com", nil)
+	if errRequest != nil {
+		t.Fatal(errRequest)
+	}
+	proxyURL, errProxy := transport.Proxy(req)
+	if errProxy != nil || proxyURL == nil || proxyURL.String() != "https://proxy.example.com:8443" {
+		t.Fatalf("proxy = %v, error = %v", proxyURL, errProxy)
+	}
+
+	conn, errDial := transport.DialContext(t.Context(), "tcp4", listener.Addr().String())
+	if errDial != nil {
+		t.Fatal(errDial)
+	}
+	_ = conn.Close()
+	select {
+	case got := <-remoteAddress:
+		host, _, errSplit := net.SplitHostPort(got)
+		if errSplit != nil || host != "127.0.0.2" {
+			t.Fatalf("remote address = %q, want source 127.0.0.2", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("listener did not observe bound HTTPS proxy connection")
+	}
+}
+
+func TestClaudeBindIPFromAuth(t *testing.T) {
+	t.Run("attribute", func(t *testing.T) {
+		auth := &cliproxyauth.Auth{Provider: "claude", Attributes: map[string]string{"bind_ip": " 127.0.0.1 "}}
+		canonical, parsed, errBind := claudeBindIP(auth)
+		if errBind != nil || canonical != "127.0.0.1" || !parsed.Equal(net.ParseIP("127.0.0.1")) {
+			t.Fatalf("claudeBindIP() = %q, %v, %v", canonical, parsed, errBind)
+		}
+	})
+	t.Run("file metadata", func(t *testing.T) {
+		auth := &cliproxyauth.Auth{Provider: "claude", Metadata: map[string]any{"bind-ip": "::1"}}
+		canonical, parsed, errBind := claudeBindIP(auth)
+		if errBind != nil || canonical != "::1" || !parsed.Equal(net.ParseIP("::1")) {
+			t.Fatalf("claudeBindIP() = %q, %v, %v", canonical, parsed, errBind)
+		}
+	})
+	t.Run("invalid fails closed", func(t *testing.T) {
+		auth := &cliproxyauth.Auth{ID: "invalid-bind", Provider: "claude", Attributes: map[string]string{"bind_ip": "not-an-ip"}}
+		client := NewUtlsHTTPClient(t.Context(), nil, auth, 0)
+		req, errRequest := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://api.anthropic.com/v1/messages", nil)
+		if errRequest != nil {
+			t.Fatal(errRequest)
+		}
+		if _, errDo := client.Do(req); errDo == nil || !strings.Contains(errDo.Error(), "invalid bind IP") {
+			t.Fatalf("client.Do() error = %v, want invalid bind IP", errDo)
+		}
+	})
+	t.Run("unspecified fails closed", func(t *testing.T) {
+		auth := &cliproxyauth.Auth{Provider: "claude", Attributes: map[string]string{"bind_ip": "0.0.0.0"}}
+		if _, _, errBind := claudeBindIP(auth); errBind == nil {
+			t.Fatal("claudeBindIP() accepted an unspecified address")
+		}
+	})
+	t.Run("non-Claude auth ignores bind attribute", func(t *testing.T) {
+		auth := &cliproxyauth.Auth{Provider: "codex", Attributes: map[string]string{"bind_ip": "not-an-ip"}}
+		canonical, parsed, errBind := claudeBindIP(auth)
+		if errBind != nil || canonical != "" || parsed != nil {
+			t.Fatalf("claudeBindIP() = %q, %v, %v; want ignored", canonical, parsed, errBind)
+		}
+	})
+}
+
+func TestClaudeTransportOriginCanonicalization(t *testing.T) {
+	auth := &cliproxyauth.Auth{Attributes: map[string]string{"base_url": "HTTPS://API.ANTHROPIC.COM:443/v1/"}}
+	if got := claudeTransportOrigin(auth); got != "https://api.anthropic.com" {
+		t.Fatalf("origin = %q, want canonical Anthropic origin", got)
+	}
+	auth.Attributes["base_url"] = "https://example.com:8443/path"
+	if got := claudeTransportOrigin(auth); got != "https://example.com:8443" {
+		t.Fatalf("custom origin = %q", got)
+	}
+	auth.Attributes["base_url"] = "https://user:secret%@example.com"
+	if got := claudeTransportOrigin(auth); strings.Contains(got, "secret") || !strings.HasPrefix(got, "invalid:") {
+		t.Fatalf("invalid origin cache key is not redacted: %q", got)
+	}
+}
+
+func TestClaudeTransportOwnerIsStableAndOpaque(t *testing.T) {
+	auth := &cliproxyauth.Auth{ID: "claude-owner-visible-name"}
+	first := claudeTransportOwner(auth)
+	second := claudeTransportOwner(auth.Clone())
+	if first == "" || first != second {
+		t.Fatalf("owner key = %q/%q, want stable non-empty value", first, second)
+	}
+	if strings.Contains(first, auth.ID) {
+		t.Fatalf("owner key exposes auth ID: %q", first)
+	}
+	keyOnly := &cliproxyauth.Auth{Provider: "claude", Attributes: map[string]string{"api_key": "secret-key"}}
+	if derived := claudeTransportOwner(keyOnly); derived == "anonymous" || strings.Contains(derived, "secret-key") {
+		t.Fatalf("owner key from credential identity is not opaque: %q", derived)
+	}
+}
+
 func TestCachedClaudeCodeRoundTripperBoundsProxyCardinality(t *testing.T) {
 	firstProxy := fmt.Sprintf("http://127.0.0.1:%d", 30000)
-	first := cachedClaudeCodeRoundTripper(firstProxy)
+	first := cachedClaudeCodeRoundTripper("owner", firstProxy, "", "https://api.anthropic.com", nil)
 	for index := 1; index <= claudeCodeRoundTripperCacheCapacity; index++ {
-		cachedClaudeCodeRoundTripper(fmt.Sprintf("http://127.0.0.1:%d", 30000+index))
+		cachedClaudeCodeRoundTripper("owner", fmt.Sprintf("http://127.0.0.1:%d", 30000+index), "", "https://api.anthropic.com", nil)
 	}
 	if got := claudeCodeRoundTripperCache.Len(); got > claudeCodeRoundTripperCacheCapacity {
 		t.Fatalf("transport cache entries = %d, want at most %d", got, claudeCodeRoundTripperCacheCapacity)
 	}
-	if recreated := cachedClaudeCodeRoundTripper(firstProxy); recreated == first {
+	if recreated := cachedClaudeCodeRoundTripper("owner", firstProxy, "", "https://api.anthropic.com", nil); recreated == first {
 		t.Fatal("least recently used proxy transport was not evicted")
 	}
 }
@@ -430,6 +631,25 @@ func TestFallbackRoundTripperSelectsProviderFingerprint(t *testing.T) {
 				t.Fatalf("route = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNewUtlsHTTPClientRejectsInvalidCodexProxyWithoutDirectFallback(t *testing.T) {
+	client := NewUtlsHTTPClient(t.Context(), nil, &cliproxyauth.Auth{
+		Provider: "codex",
+		ProxyURL: "://invalid-proxy",
+	}, 0)
+	request, errRequest := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://chatgpt.com/backend-api/codex/responses", strings.NewReader("{}"))
+	if errRequest != nil {
+		t.Fatal(errRequest)
+	}
+	response, errDo := client.Do(request)
+	if response != nil {
+		_ = response.Body.Close()
+		t.Fatal("invalid proxy unexpectedly returned a response")
+	}
+	if errDo == nil || !strings.Contains(errDo.Error(), "configure proxy dialer") {
+		t.Fatalf("invalid proxy error = %v, want fail-closed configuration error", errDo)
 	}
 }
 

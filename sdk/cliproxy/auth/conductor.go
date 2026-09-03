@@ -60,10 +60,19 @@ type Result struct {
 	Error *Error
 	// Options carries execution request options (headers, metadata, etc.) for result tracking.
 	Options cliproxyexecutor.Options
+	// AttemptStartedAt records when the upstream attempt that produced this
+	// result began. A successful attempt may only clear model state that was
+	// established no later than this timestamp. The zero value preserves the
+	// legacy behavior for external callers that construct Result directly.
+	AttemptStartedAt time.Time
 	// SkipQuotaObservation reports that this result must not replace the last
-	// observed watermark. Count-tokens requests reuse the credential but are not
-	// generation traffic; their response headers are not a generation snapshot.
+	// observed watermark or clear generation availability. Count-tokens requests
+	// reuse the credential but are not generation traffic; their successful
+	// responses are not evidence that a messages cooldown has recovered.
 	SkipQuotaObservation bool
+	// SkipAllowedWarningObservation reports that streaming response headers were
+	// already observed when the upstream stream was established.
+	SkipAllowedWarningObservation bool
 }
 
 // Selector chooses an auth candidate for execution.
@@ -162,6 +171,9 @@ type Manager struct {
 	refreshLoop   *authAutoRefreshLoop
 
 	requestPrepareLocks sync.Map
+	// localCredentialAdmissions owns non-Home per-credential inference admission.
+	// Entries are keyed by auth ID and removed with the auth lifecycle.
+	localCredentialAdmissions sync.Map
 	// refreshLocks serializes credential refresh per auth ID so concurrent
 	// 401 recoveries and auto-refresh workers do not race the same refresh_token.
 	refreshLocks sync.Map

@@ -121,8 +121,10 @@ func StreamingKeepAliveInterval(cfg *config.SDKConfig) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// NonStreamingKeepAliveInterval returns the keep-alive interval for non-streaming responses.
-// Returning 0 disables keep-alives (default when unset).
+// NonStreamingKeepAliveInterval returns the blank-line keep-alive interval for
+// non-streaming handlers that can commit HTTP 200 before completion. Native
+// Claude handlers intentionally do not use it because their final upstream
+// status and Request-Id must remain writable. Returning 0 disables keep-alives.
 func NonStreamingKeepAliveInterval(cfg *config.SDKConfig) time.Duration {
 	seconds := 0
 	if cfg != nil {
@@ -502,8 +504,10 @@ func (h *BaseAPIHandler) GetContextWithCancel(handler interfaces.APIHandler, c *
 	}
 }
 
-// StartNonStreamingKeepAlive emits blank lines every 5 seconds while waiting for a non-streaming response.
-// It returns a stop function that must be called before writing the final response.
+// StartNonStreamingKeepAlive emits blank lines at the configured interval while
+// waiting for a compatible non-streaming response. Native Claude handlers must
+// not use it because the first blank line commits HTTP 200. The returned stop
+// function must be called before writing the final response.
 func (h *BaseAPIHandler) StartNonStreamingKeepAlive(c *gin.Context, ctx context.Context) func() {
 	if h == nil || c == nil {
 		return func() {}

@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 )
 
 const (
@@ -429,7 +430,7 @@ func writeOAuthCallbackFile(authDir, canonicalProvider, state, code, errorMessag
 
 	fileName := fmt.Sprintf(".oauth-%s-%s.oauth", canonicalProvider, state)
 	filePath := filepath.Join(authDir, fileName)
-	if err := os.MkdirAll(authDir, 0o700); err != nil {
+	if err := fileperm.EnsurePrivateDir(authDir); err != nil {
 		return "", fmt.Errorf("create oauth callback dir: %w", err)
 	}
 	payload := oauthCallbackFilePayload{
@@ -441,7 +442,7 @@ func writeOAuthCallbackFile(authDir, canonicalProvider, state, code, errorMessag
 	if err != nil {
 		return "", fmt.Errorf("marshal oauth callback payload: %w", err)
 	}
-	if err := os.WriteFile(filePath, data, 0o600); err != nil {
+	if err := fileperm.WritePrivateFile(filePath, data); err != nil {
 		return "", fmt.Errorf("write oauth callback file: %w", err)
 	}
 	return filePath, nil

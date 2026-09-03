@@ -3,8 +3,8 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
@@ -65,8 +65,13 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	originalTranslated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, upstreamStream, helps.APIKeyModelIsCompat(req))
 	body := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, upstreamStream, helps.APIKeyModelIsCompat(req))
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
+	nativeThinkingWire := bytes.Clone(body)
 
-	body, err = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
+	// Canonical validation always runs. Recognized native 2.1.252 title helpers
+	// deliberately pair
+	// thinking:{type:"disabled"} with output_config.effort. The generic
+	// pipeline validates the request before the measured representation is restored.
+	body, err = applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return resp, err
 	}
@@ -90,6 +95,9 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	if err != nil {
 		return resp, err
 	}
+	nativePassthrough := confirmedClaudeCode && !cloaked
+	nativeHelperProfile := claudeCodeDetection.HelperProfile && nativePassthrough
+	body = restoreClaudeHelperOutputConfigIfEligible(nativeThinkingWire, body, req, opts, from.String(), to.String(), claudeCodeDetection, nativePassthrough)
 	systemPlacementState := captureClaudeCodeSystemPlacement(bodyBeforeCloaking, body, cloaked)
 	// Only the Messages endpoint on Anthropic itself was captured; count_tokens
 	// keeps its own shape and other gateways never see this field.
@@ -114,15 +122,14 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 	body = reconcileClaudeCodeContextManagement(body, contextManagementState)
-	body = normalizeClaudeSamplingForUpstream(body, confirmedClaudeCode)
+	body = normalizeClaudeSamplingForUpstream(body, nativePassthrough)
 
 	// Default cache_control for translated entrypoints (Responses/Chat) and other
-	// non-native callers. Confirmed native Claude Code owns its marker placement and must
+	// non-native callers. A recognized native client in passthrough mode owns its
+	// marker placement and must
 	// not be rewritten. Cloaked requests always run section-independent ensure so cloaking's
 	// first-user marker cannot suppress system/latest-user breakpoints.
-	// cloaked and confirmedClaudeCode are mutually exclusive: resolveClaudeWirePolicy
-	// forces Cloak off for a confirmed native client.
-	cpaOwnsCacheControl := shouldEnsureCacheControl(body, cloaked, confirmedClaudeCode)
+	cpaOwnsCacheControl := shouldEnsureCacheControl(body, cloaked, nativePassthrough)
 	if cpaOwnsCacheControl {
 		body = ensureCacheControl(body)
 	}
@@ -155,7 +162,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// Native non-stream Haiku helper requests omit stream rather than sending
 	// false, so preserve that measured wire shape when the transport agrees.
 	streamField := gjson.GetBytes(body, "stream")
-	if !claudeCodeDetection.HelperProfile || streamField.Exists() || upstreamStream {
+	if !nativeHelperProfile || streamField.Exists() || upstreamStream {
 		body = helps.SetBoolIfDifferent(body, "stream", upstreamStream)
 	}
 
@@ -178,7 +185,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	}
 	cchBilling := ""
 	if cchSigning {
-		if !claudeCodeDetection.HelperProfile || claudeBodyNeedsBillingFallback(bodyForUpstream) {
+		if !nativeHelperProfile || claudeBodyNeedsBillingFallback(bodyForUpstream) {
 			cchBilling = claudeCCHFallbackBillingHeader(ctx, e.cfg, bodyForUpstream, claudeCodeDetection.Entrypoint)
 		}
 		bodyForUpstream, err = finalizeAnthropicMessagesBodyCCH(bodyForUpstream, cchBilling)
@@ -189,7 +196,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	// Runs on the finished body: payload rules can rewrite model and messages
 	// long after translation, so an earlier check would not describe the request
 	// that is about to be sent.
-	if errMidSystem := validateClaudeMidSystemMessageModel(bodyForUpstream, confirmedClaudeCode, isAnthropicUpstreamBase(baseURL)); errMidSystem != nil {
+	if errMidSystem := validateClaudeMidSystemMessageModel(bodyForUpstream, isAnthropicUpstreamBase(baseURL)); errMidSystem != nil {
 		return resp, errMidSystem
 	}
 	reporter.SetTranslatedReasoningEffort(bodyForUpstream, to.String())
@@ -206,8 +213,8 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		bodyForUpstream,
 		e.cfg,
 		incomingHeaders,
-		confirmedClaudeCode && !cloaked,
-		claudeCodeDetection.HelperProfile,
+		nativePassthrough,
+		nativeHelperProfile,
 		claudeSessionID,
 	); errHeaders != nil {
 		return resp, errHeaders
@@ -235,12 +242,23 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	}
 	helps.RecordAPIResponseMetadata(ctx, e.cfg, httpResp.StatusCode, httpResp.Header.Clone())
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		if errLimit := validateClaudeResponseContentLength(httpResp, claudeMaxErrorResponseBytes, "error"); errLimit != nil {
+			helps.RecordAPIResponseError(ctx, e.cfg, errLimit)
+			if errClose := httpResp.Body.Close(); errClose != nil {
+				log.Errorf("response body close error: %v", errClose)
+			}
+			return resp, withClaudeUpstreamResponseMetadata(errLimit, httpResp.Header)
+		}
 		// Decompress error responses — pass the Content-Encoding value (may be empty)
 		// and let decodeResponseBody handle both header-declared and magic-byte-detected
 		// compression.  This keeps error-path behaviour consistent with the success path.
-		errBody, decErr := decodeResponseBody(httpResp.Body, claudeResponseContentEncoding(httpResp.Header))
+		errBody, decErr := decodeResponseBodyWithMemoryLimit(httpResp.Body, claudeResponseContentEncoding(httpResp.Header), claudeMaxDecoderMemory)
 		if decErr != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, decErr)
+			var tooLarge claudeResponseTooLargeError
+			if errors.As(decErr, &tooLarge) {
+				return resp, withClaudeUpstreamResponseMetadata(decErr, httpResp.Header)
+			}
 			msg := fmt.Sprintf("failed to decode error response body: %v", decErr)
 			helps.LogWithRequestID(ctx).Warn(msg)
 			errClassified := classifyClaudeUpstreamError(httpResp.StatusCode, httpResp.Header, []byte(msg))
@@ -249,9 +267,16 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 			}
 			return resp, errClassified
 		}
-		b, readErr := io.ReadAll(errBody)
+		b, readErr := readClaudeResponseBodyLimited(errBody, claudeMaxErrorResponseBytes, "error")
 		if readErr != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, readErr)
+			var tooLarge claudeResponseTooLargeError
+			if errors.As(readErr, &tooLarge) {
+				if errClose := errBody.Close(); errClose != nil {
+					log.Errorf("response body close error: %v", errClose)
+				}
+				return resp, withClaudeUpstreamResponseMetadata(readErr, httpResp.Header)
+			}
 			msg := fmt.Sprintf("failed to read error response body: %v", readErr)
 			helps.LogWithRequestID(ctx).Warn(msg)
 			b = []byte(msg)
@@ -266,29 +291,40 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		}
 		return resp, classifyClaudeUpstreamError(httpResp.StatusCode, httpResp.Header, b)
 	}
-	decodedBody, err := decodeResponseBody(httpResp.Body, claudeResponseContentEncoding(httpResp.Header))
+	if errLimit := validateClaudeResponseContentLength(httpResp, claudeMaxNonStreamResponseBytes, "non-stream"); errLimit != nil {
+		helps.RecordAPIResponseError(ctx, e.cfg, errLimit)
+		if errClose := httpResp.Body.Close(); errClose != nil {
+			log.Errorf("response body close error: %v", errClose)
+		}
+		return resp, withClaudeUpstreamResponseMetadata(errLimit, httpResp.Header)
+	}
+	decodedBody, err := decodeResponseBodyWithMemoryLimit(httpResp.Body, claudeResponseContentEncoding(httpResp.Header), claudeMaxDecoderMemory)
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
 		if errClose := httpResp.Body.Close(); errClose != nil {
 			log.Errorf("response body close error: %v", errClose)
 		}
-		return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, err)
+		var tooLarge claudeResponseTooLargeError
+		if errors.As(err, &tooLarge) {
+			return resp, withClaudeUpstreamResponseMetadata(err, httpResp.Header)
+		}
+		return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(err, httpResp.Header))
 	}
 	defer func() {
 		if errClose := decodedBody.Close(); errClose != nil {
 			log.Errorf("response body close error: %v", errClose)
 		}
 	}()
-	data, err := io.ReadAll(decodedBody)
+	data, err := readClaudeResponseBodyLimited(decodedBody, claudeMaxNonStreamResponseBytes, "non-stream")
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
-		return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, err)
+		return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(err, httpResp.Header))
 	}
 	helps.AppendAPIResponseChunk(ctx, e.cfg, data)
 	if upstreamStream {
 		if errValidate := validateClaudeStreamingResponse(data); errValidate != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, errValidate)
-			return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, errValidate)
+			return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errValidate, httpResp.Header))
 		}
 		commitClaudeDiagnostics(diagnosticsState, claudeMessageIDFromSSE(data))
 		lines := bytes.Split(data, []byte("\n"))
@@ -300,7 +336,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 			if errRestore != nil {
 				errRestore = fmt.Errorf("restore Claude OAuth tool name from streaming response: %w", errRestore)
 				helps.RecordAPIResponseError(ctx, e.cfg, errRestore)
-				return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, errRestore)
+				return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errRestore, httpResp.Header))
 			}
 			lines[i] = restoredLine
 		}
@@ -313,7 +349,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		if errRestore != nil {
 			errRestore = fmt.Errorf("restore Claude OAuth tool name from response: %w", errRestore)
 			helps.RecordAPIResponseError(ctx, e.cfg, errRestore)
-			return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, errRestore)
+			return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errRestore, httpResp.Header))
 		}
 	}
 	data = e.restoreResponseModel(data, req.Model)

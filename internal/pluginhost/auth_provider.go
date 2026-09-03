@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
 )
@@ -509,7 +510,7 @@ func atomicWriteFile(path string, data []byte) error {
 		return fmt.Errorf("path is empty")
 	}
 	dir := filepath.Dir(path)
-	if errMkdir := os.MkdirAll(dir, 0o700); errMkdir != nil {
+	if errMkdir := fileperm.EnsurePrivateDir(dir); errMkdir != nil {
 		return fmt.Errorf("create auth directory: %w", errMkdir)
 	}
 	tmp, errCreate := os.CreateTemp(dir, ".plugin-auth-*.tmp")

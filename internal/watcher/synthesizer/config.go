@@ -67,7 +67,13 @@ func (s *ConfigSynthesizer) synthesizeClaudeKeys(ctx *SynthesisContext) []*corea
 		}
 		prefix := strings.TrimSpace(ck.Prefix)
 		proxyURL := strings.TrimSpace(ck.ProxyURL)
-		id, token := idGen.Next("claude:apikey", key, base, proxyURL, prefix, config.FormatSortedHeaders(ck.Headers))
+		bindIP := strings.TrimSpace(ck.BindIP)
+		identityParts := []string{key, base, proxyURL}
+		if bindIP != "" {
+			identityParts = append(identityParts, "bind-ip="+bindIP)
+		}
+		identityParts = append(identityParts, prefix, config.FormatSortedHeaders(ck.Headers))
+		id, token := idGen.Next("claude:apikey", identityParts...)
 		attrs := map[string]string{
 			"source":       fmt.Sprintf("config:claude[%s]", token),
 			"config_index": strconv.Itoa(i),
@@ -76,6 +82,15 @@ func (s *ConfigSynthesizer) synthesizeClaudeKeys(ctx *SynthesisContext) []*corea
 			attrs["api_key"] = key
 		}
 		metadata := map[string]any{}
+		if ck.MaxInFlight != nil {
+			metadata["max_in_flight"] = *ck.MaxInFlight
+		}
+		if ck.QueueCapacity != nil {
+			metadata["queue_capacity"] = *ck.QueueCapacity
+		}
+		if ck.QueueTimeoutSeconds != nil {
+			metadata["queue_timeout_seconds"] = *ck.QueueTimeoutSeconds
+		}
 		if ck.DisableCooling != nil {
 			metadata["disable_cooling"] = *ck.DisableCooling
 		}
@@ -87,6 +102,9 @@ func (s *ConfigSynthesizer) synthesizeClaudeKeys(ctx *SynthesisContext) []*corea
 		addWeightToAttrs(ck.Weight, attrs)
 		if base != "" {
 			attrs["base_url"] = base
+		}
+		if bindIP != "" {
+			attrs["bind_ip"] = bindIP
 		}
 		if ck.RebuildMidSystemMessage {
 			attrs["rebuild_mid_system_message"] = "true"

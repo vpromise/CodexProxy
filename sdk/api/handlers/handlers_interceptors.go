@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -265,18 +266,40 @@ func finalInterceptorHeaders(current, intercepted http.Header) http.Header {
 	return cloneHeader(intercepted)
 }
 
-func downstreamHeadersFromExecutor(headers http.Header, passthrough bool) http.Header {
-	if !passthrough {
-		return nil
+func downstreamHeadersFromExecutor(headers http.Header, passthrough bool, responseProtocol string) http.Header {
+	var downstream http.Header
+	if passthrough {
+		downstream = FilterUpstreamHeaders(headers)
 	}
-	return FilterUpstreamHeaders(headers)
+	return preserveProtocolResponseMetadata(responseProtocol, headers, downstream)
 }
 
-func downstreamHeadersAfterInterceptors(baseRaw, finalRaw http.Header, passthrough bool) http.Header {
+func downstreamHeadersAfterInterceptors(baseRaw, finalRaw http.Header, passthrough bool, responseProtocol string) http.Header {
+	var downstream http.Header
 	if passthrough {
-		return FilterUpstreamHeaders(finalRaw)
+		downstream = FilterUpstreamHeaders(finalRaw)
+	} else {
+		downstream = FilterUpstreamHeaders(diffHeaders(baseRaw, finalRaw))
 	}
-	return FilterUpstreamHeaders(diffHeaders(baseRaw, finalRaw))
+	return preserveProtocolResponseMetadata(responseProtocol, finalRaw, downstream)
+}
+
+// preserveProtocolResponseMetadata retains response metadata that belongs to a
+// protocol contract rather than general upstream-header passthrough. Claude's
+// Request-Id is safe to expose and is required for first-party error correlation.
+func preserveProtocolResponseMetadata(responseProtocol string, raw, downstream http.Header) http.Header {
+	if !strings.EqualFold(strings.TrimSpace(responseProtocol), "claude") {
+		return downstream
+	}
+	requestID := strings.TrimSpace(raw.Get("Request-Id"))
+	if requestID == "" {
+		return downstream
+	}
+	if downstream == nil {
+		downstream = make(http.Header)
+	}
+	downstream.Set("Request-Id", requestID)
+	return downstream
 }
 
 func diffHeaders(base, next http.Header) http.Header {
@@ -573,7 +596,7 @@ func (h *BaseAPIHandler) applyResponseInterceptors(ctx context.Context, requestI
 		StatusCode:      statusCode,
 		Metadata:        opts.Metadata,
 	}, skipPluginID)
-	responseHeaders = downstreamHeadersAfterInterceptors(rawResponseHeaders, finalInterceptorHeaders(rawResponseHeaders, resp.Headers), PassthroughHeadersEnabled(h.Cfg))
+	responseHeaders = downstreamHeadersAfterInterceptors(rawResponseHeaders, finalInterceptorHeaders(rawResponseHeaders, resp.Headers), PassthroughHeadersEnabled(h.Cfg), handlerType)
 	if len(resp.Body) > 0 {
 		body = cloneBytes(resp.Body)
 	}

@@ -24,14 +24,16 @@ Providers are registered globally and then attached to a `Manager` as a snapshot
 
 ```go
 manager := sdkaccess.NewManager()
-manager.SetProviders(sdkaccess.RegisteredProviders())
+manager.Configure(sdkaccess.RegisteredProviders(), false)
 ```
 
 * `NewManager` constructs an empty manager.
-* `SetProviders` replaces the provider slice using a defensive copy.
+* `Configure` atomically replaces the provider slice and anonymous-access policy.
+* `SetProviders` replaces only the provider slice using a defensive copy.
+* `SetAllowAnonymous` changes the anonymous-access policy without replacing providers.
 * `Providers` retrieves a snapshot that can be iterated safely from other goroutines.
 
-If the manager itself is `nil` or no providers are configured, the call returns `nil, nil`, allowing callers to treat access control as disabled.
+The manager fails closed by default: a `nil` manager or an empty provider list returns `AuthErrorCodeNoCredentials`. To preserve an intentionally anonymous deployment, set top-level `allow-anonymous: true` or call `SetAllowAnonymous(true)`. Anonymous access applies only while the provider list is empty.
 
 ## Authenticating Requests
 
@@ -148,7 +150,7 @@ When configuration changes, refresh any config-backed providers and then reset t
 ```go
 // configaccess is github.com/router-for-me/CLIProxyAPI/v6/internal/access/config_access
 configaccess.Register(&newCfg.SDKConfig)
-accessManager.SetProviders(sdkaccess.RegisteredProviders())
+accessManager.Configure(sdkaccess.RegisteredProviders(), newCfg.AllowAnonymous)
 ```
 
 This mirrors the behaviour in `internal/access.ApplyAccessProviders`, enabling runtime updates without restarting the process.

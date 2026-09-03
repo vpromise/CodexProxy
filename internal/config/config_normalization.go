@@ -209,6 +209,7 @@ func (cfg *Config) SanitizeClaudeKeys() {
 	}
 	for i := range cfg.ClaudeKey {
 		entry := &cfg.ClaudeKey[i]
+		entry.BindIP = strings.TrimSpace(entry.BindIP)
 		entry.Prefix = normalizeModelPrefix(entry.Prefix)
 		entry.Headers = NormalizeHeaders(entry.Headers)
 		entry.ExcludedModels = NormalizeExcludedModels(entry.ExcludedModels)

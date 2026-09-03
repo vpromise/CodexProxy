@@ -228,6 +228,7 @@ func TestClaudeExecutor_PayloadOverrideReconcilesRelocatedSystemPrompt(t *testin
 			return err
 		}},
 		{name: "execute stream", send: func(t *testing.T, ex *ClaudeExecutor, ctx context.Context, payload []byte) error {
+			payload = []byte(strings.TrimSuffix(string(payload), "}") + `,"stream":true}`)
 			result, err := ex.ExecuteStream(ctx, midSystemAuth(), cliproxyexecutor.Request{
 				Model: "claude-sonnet-5", Payload: payload,
 			}, cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude})
@@ -277,24 +278,21 @@ func TestClaudeExecutor_PayloadOverrideReconcilesRelocatedSystemPrompt(t *testin
 	}
 }
 
-// A confirmed native caller owns its wire. It gates the turn on the model
-// itself, so CPA forwards the body untouched and lets the upstream answer.
-func TestClaudeExecutor_ConfirmedNativeLegacyMidSystemMessageForwarded(t *testing.T) {
+// Native request fingerprints are caller-controlled compatibility signals, so
+// they do not bypass a pairing that is known to be invalid on Anthropic.
+func TestClaudeExecutor_RecognizedNativeLegacyMidSystemMessageRejected(t *testing.T) {
 	upstream := &midSystemUpstream{}
 	ex := NewClaudeExecutor(midSystemConfig())
-	headers := claudeNativeHelperHeaders("claude-code-20250219,"+claudeNativeHelperCoreBetas, "gzip", false)
+	headers := claudeNativeHelperHeaders(claudeNativeHelperCoreBetas)
 
 	if _, err := ex.Execute(upstream.context(t, headers), midSystemAuth(), cliproxyexecutor.Request{
 		Model:   "claude-haiku-4-5-20251001",
 		Payload: midSystemLegacyPayload("claude-haiku-4-5-20251001"),
-	}, cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude, Headers: headers}); err != nil {
-		t.Fatalf("Execute() error = %v, want the native body forwarded", err)
+	}, cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude, Headers: headers}); err == nil {
+		t.Fatal("Execute() error = nil, want invalid mid-system/model pairing rejected")
 	}
-	if !upstream.called {
-		t.Fatal("expected the native request to reach the upstream")
-	}
-	if !gjson.GetBytes(upstream.body, `messages.#(role=="system")`).Exists() {
-		t.Fatalf("confirmed native caller lost its role=system turn; body=%s", upstream.body)
+	if upstream.called {
+		t.Fatal("invalid recognized-native request reached upstream")
 	}
 }
 
@@ -445,7 +443,6 @@ func TestValidateClaudeMidSystemMessageModel(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		payload    string
-		confirmed  bool
 		thirdParty bool
 		wantError  bool
 	}{
@@ -455,7 +452,7 @@ func TestValidateClaudeMidSystemMessageModel(t *testing.T) {
 			payload: `{"model":"anthropic/claude-sonnet-4-6"` + turn},
 		{name: "model casing is ignored", wantError: true,
 			payload: `{"model":"Claude-Haiku-4-5-20251001"` + turn},
-		{name: "confirmed native keeps the passthrough", confirmed: true,
+		{name: "recognized native is still validated", wantError: true,
 			payload: `{"model":"claude-haiku-4-5-20251001"` + turn},
 		{name: "third party gateway decides for itself", thirdParty: true,
 			payload: `{"model":"claude-haiku-4-5-20251001"` + turn},
@@ -467,7 +464,7 @@ func TestValidateClaudeMidSystemMessageModel(t *testing.T) {
 			payload: `{"model":"claude-haiku-4-5-20251001","messages":[{"role":"user","content":"a"}]}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateClaudeMidSystemMessageModel([]byte(test.payload), test.confirmed, !test.thirdParty)
+			err := validateClaudeMidSystemMessageModel([]byte(test.payload), !test.thirdParty)
 			if test.wantError != (err != nil) {
 				t.Fatalf("validateClaudeMidSystemMessageModel error = %v, want error %v", err, test.wantError)
 			}

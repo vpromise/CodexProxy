@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/clienterror"
@@ -85,11 +87,6 @@ func (h *BaseAPIHandler) WriteErrorResponse(c *gin.Context, msg *interfaces.Erro
 		writeDirectErrorResponse(c, status, msg)
 		return
 	}
-	if msg != nil && msg.Error != nil {
-		for _, value := range coreauth.SafeResponseHeaders(msg.Error).Values("Retry-After") {
-			c.Writer.Header().Add("Retry-After", value)
-		}
-	}
 	if msg != nil && msg.Addon != nil && PassthroughHeadersEnabled(h.Cfg) {
 		for key, values := range msg.Addon {
 			if len(values) == 0 || IsCPAReservedResponseHeader(key) {
@@ -101,7 +98,7 @@ func (h *BaseAPIHandler) WriteErrorResponse(c *gin.Context, msg *interfaces.Erro
 			}
 		}
 	}
-
+	writeDownstreamRetryAfter(c, status, msg)
 	errText := http.StatusText(status)
 	if msg != nil && msg.Error != nil {
 		if v := strings.TrimSpace(msg.Error.Error()); v != "" {
@@ -132,6 +129,55 @@ func (h *BaseAPIHandler) WriteErrorResponse(c *gin.Context, msg *interfaces.Erro
 	}
 	c.Status(status)
 	_, _ = c.Writer.Write(body)
+}
+
+// writeDownstreamRetryAfter preserves a trusted retry signal without imposing
+// a protocol-specific patience cap. Prefer the upstream-derived duration over
+// an internally padded cooldown window when both are available.
+func writeDownstreamRetryAfter(c *gin.Context, status int, msg *interfaces.ErrorMessage) {
+	if c == nil || msg == nil || msg.Error == nil || (status != http.StatusTooManyRequests && status != 529) {
+		return
+	}
+	duration, ok := ResolveDownstreamRetryAfter(msg.Error)
+	if !ok {
+		return
+	}
+	writeRetryAfterDuration(c, duration)
+}
+
+// ResolveDownstreamRetryAfter returns the authoritative client-facing retry
+// delay carried by an error. It prefers an explicit unpadded downstream value
+// over the error's internal retry delay.
+func ResolveDownstreamRetryAfter(err error) (time.Duration, bool) {
+	if err == nil {
+		return 0, false
+	}
+	var downstream interface{ DownstreamRetryAfter() *time.Duration }
+	if errors.As(err, &downstream) {
+		if duration := downstream.DownstreamRetryAfter(); duration != nil && *duration > 0 {
+			return *duration, true
+		}
+	}
+	var retry interface{ RetryAfter() *time.Duration }
+	if !errors.As(err, &retry) || retry == nil {
+		return 0, false
+	}
+	duration := retry.RetryAfter()
+	if duration == nil || *duration <= 0 {
+		return 0, false
+	}
+	return *duration, true
+}
+
+func writeRetryAfterDuration(c *gin.Context, duration time.Duration) {
+	seconds := int64(duration / time.Second)
+	if duration%time.Second != 0 {
+		seconds++
+	}
+	if seconds < 1 {
+		seconds = 1
+	}
+	c.Writer.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
 }
 
 func writeDirectErrorResponse(c *gin.Context, status int, msg *interfaces.ErrorMessage) {

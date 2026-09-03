@@ -189,6 +189,21 @@ func ReadMetadataString(metadata *map[string]any, key string) string {
 	return value
 }
 
+// ReadMetadataBool reads a bool-valued metadata entry under the metadata lock.
+func ReadMetadataBool(metadata *map[string]any, key string) bool {
+	if metadata == nil {
+		return false
+	}
+	claudeDevicePoolMu.Lock()
+	defer claudeDevicePoolMu.Unlock()
+
+	if *metadata == nil {
+		return false
+	}
+	value, _ := (*metadata)[key].(bool)
+	return value
+}
+
 // StoreMetadataString writes a string-valued metadata entry under the metadata
 // lock, initializing the map when needed. Empty values are skipped so callers can
 // forward optional fields without erasing a previously resolved value.
@@ -218,6 +233,20 @@ func StoreMetadataValue(metadata *map[string]any, key string, value any) {
 		*metadata = make(map[string]any)
 	}
 	(*metadata)[key] = value
+}
+
+// DeleteMetadataValue removes a metadata entry under the metadata lock.
+func DeleteMetadataValue(metadata *map[string]any, key string) {
+	if metadata == nil {
+		return
+	}
+	claudeDevicePoolMu.Lock()
+	defer claudeDevicePoolMu.Unlock()
+
+	if *metadata == nil {
+		return
+	}
+	delete(*metadata, key)
 }
 
 // EnsureMetadataMap initializes the metadata map under the metadata lock.

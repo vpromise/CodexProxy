@@ -203,7 +203,7 @@ func claudeCCHFallbackBillingHeader(ctx context.Context, cfg *config.Config, pay
 const claudeCodeCLIIdentity = "You are Claude Code, Anthropic's official CLI for Claude."
 
 func checkSystemInstructionsWithMode(payload []byte, strictMode bool) []byte {
-	return checkSystemInstructionsWithSigningMode(payload, strictMode, false, "2.1.220", "cli", "")
+	return checkSystemInstructionsWithSigningMode(payload, strictMode, false, helps.DefaultClaudeVersion(nil), "cli", "")
 }
 
 // checkSystemInstructionsWithSigningMode keeps the top-level system in Claude
@@ -383,9 +383,6 @@ func newClaudeMidSystemMessageModelError(model string) error {
 //     api.anthropic.com. A third-party gateway may map these model IDs onto
 //     something that accepts the turn, and answering locally would also stop
 //     failover to another credential or base URL.
-//   - confirmedClaudeCode, because a client that still matches the native
-//     fingerprint owns its wire. It gates the turn itself, so its body is
-//     forwarded untouched and any upstream error reaches it unchanged.
 //   - the pairing itself, so unknown and future model IDs stay optimistic in
 //     the same way checkSystemInstructions treats them.
 //
@@ -395,8 +392,8 @@ func newClaudeMidSystemMessageModelError(model string) error {
 // The error is request-scoped: the body/model pairing is invalid independently
 // of first-party credential health, so no credential should be cooled or
 // retried.
-func validateClaudeMidSystemMessageModel(payload []byte, confirmedClaudeCode, firstPartyAnthropic bool) error {
-	if confirmedClaudeCode || !firstPartyAnthropic {
+func validateClaudeMidSystemMessageModel(payload []byte, firstPartyAnthropic bool) error {
+	if !firstPartyAnthropic {
 		return nil
 	}
 	if !claudeUsesLegacySystemReminder(payload) || !claudePayloadHasMidSystemMessage(payload) {
@@ -701,8 +698,9 @@ func reconcileClaudeCodeSystemPlacementAfterPayload(payload []byte, state claude
 	return prependClaudeSystemRemindersToFirstUserMessage(updated, state.texts)
 }
 
-// claudeCodeLocalDate reproduces Claude Code 2.1.220's wcs() helper:
-// new Date(), local calendar fields, and zero-padded YYYY-MM-DD components.
+// claudeCodeLocalDate reproduces Claude Code's wcs() helper:
+// new Date(), local calendar fields, and zero-padded YYYY-MM-DD components
+// (identical in the measured 2.1.220 and 2.1.252 clients).
 func claudeCodeLocalDate(now time.Time) string {
 	year, month, day := now.Date()
 	return fmt.Sprintf("%04d-%02d-%02d", year, int(month), day)
@@ -835,10 +833,11 @@ func injectClaudeCodeCurrentDate(payload []byte, now time.Time) []byte {
 }
 
 // claudeCodeContextManagement is the context_management object Claude Code
-// 2.1.220 sends on every Messages request, captured 2026-08-01 from an isolated
-// profile talking to api.anthropic.com. keep:"all" retains every thinking block,
-// so replicating the client's exact value cannot produce upstream behaviour the
-// real client does not already get.
+// sends on every Messages request, captured 2026-08-01 from an isolated 2.1.220
+// profile talking to api.anthropic.com and re-verified unchanged on 2.1.252
+// captures. keep:"all" retains every thinking block, so replicating the client's
+// exact value cannot produce upstream behaviour the real client does not already
+// get.
 const claudeCodeContextManagement = `{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`
 
 // claudeThinkingAcceptsClearThinking reports whether the payload's thinking
@@ -979,24 +978,20 @@ func resolveClaudeWirePolicy(cfg *config.Config, auth *cliproxyauth.Auth, apiKey
 		OAuth:                fp.AuthIsOAuthToken,
 		ProfileClaudeCodeCLI: fp.ProfileClaudeCodeCLI,
 		ConfirmedClaudeCode:  confirmedClaudeCode,
-		Cloak:                (fp.ProfileClaudeCodeCLI || cloakConfigured) && !confirmedClaudeCode,
-	}
-	if confirmedClaudeCode {
-		// Native Claude Code is always a passthrough client. An operator-level
-		// "always" mode may cloak unknown callers, but must not overwrite a
-		// strongly confirmed CLI, sdk-cli, or claude-vscode fingerprint.
-		policy.Cloak = false
-		return policy, settings
+		Cloak:                fp.ProfileClaudeCodeCLI || cloakConfigured,
 	}
 	switch strings.ToLower(strings.TrimSpace(cloakMode)) {
 	case "always":
+		// Request fingerprints are caller-controlled compatibility signals. An
+		// explicit operator policy must not be bypassed by mimicking native headers.
 		policy.Cloak = true
 	case "never":
 		policy.Cloak = false
 	default:
 		// Auto applies the CLI cloak only to real Claude OAuth credentials,
 		// explicit fingerprint-profile opt-ins, or credentials with explicit cloak
-		// settings. Other API keys and delegated providers keep the caller shape.
+		// settings. Recognized native clients retain their measured shape in auto.
+		policy.Cloak = policy.Cloak && !confirmedClaudeCode
 	}
 	return policy, settings
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -219,7 +220,7 @@ func (w *FileStreamingLogWriter) Close() error {
 		return nil
 	}
 
-	logFile, errOpen := os.OpenFile(w.logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	logFile, errOpen := fileperm.OpenPrivateFile(w.logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if errOpen != nil {
 		w.cleanupTempFiles()
 		return fmt.Errorf("failed to create log file: %w", errOpen)

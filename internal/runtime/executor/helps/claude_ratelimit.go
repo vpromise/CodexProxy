@@ -82,13 +82,28 @@ func parseClaudeRateLimitResetWithFuzz(headers http.Header, now time.Time, minFu
 		rejectedWindows = append(rejectedWindows, "7d_oi")
 	}
 
-	// 1. Retry-After header
-	if rawRetryAfter := getHeaderCaseInsensitive(headers, "Retry-After"); rawRetryAfter != "" {
-		if !containsString(rejectedWindows, "retry-after") {
-			rejectedWindows = append(rejectedWindows, "retry-after")
+	// 1. Retry-After headers. Retry-After-Ms (milliseconds) takes precedence
+	// when present; the plain Retry-After covers deployments that only send it.
+	// The cooldown keeps the true upstream value: the pool queue wants the real
+	// reset time, and the <=60s clamp belongs to the downstream headers only
+	// (see claudeDownstreamRetryAfterCap).
+	retryAfterDeadline := false
+	if rawRetryAfterMs := getHeaderCaseInsensitive(headers, "Retry-After-Ms"); rawRetryAfterMs != "" {
+		if ms, err := strconv.ParseFloat(rawRetryAfterMs, 64); err == nil && ms > 0 {
+			if t := now.Add(time.Duration(ms * float64(time.Millisecond))); t.After(now) {
+				candidateDeadlines = append(candidateDeadlines, t)
+				retryAfterDeadline = true
+			}
 		}
-		if t, ok := parseRetryAfterHeader(rawRetryAfter, now); ok && t.After(now) {
-			candidateDeadlines = append(candidateDeadlines, t)
+	}
+	if !retryAfterDeadline {
+		if rawRetryAfter := getHeaderCaseInsensitive(headers, "Retry-After"); rawRetryAfter != "" {
+			if !containsString(rejectedWindows, "retry-after") {
+				rejectedWindows = append(rejectedWindows, "retry-after")
+			}
+			if t, ok := parseRetryAfterHeader(rawRetryAfter, now); ok && t.After(now) {
+				candidateDeadlines = append(candidateDeadlines, t)
+			}
 		}
 	}
 
@@ -250,4 +265,86 @@ func randomClaudeFuzzDuration(minSec, maxSec int) time.Duration {
 		return time.Duration(minSec) * time.Second
 	}
 	return time.Duration(minSec+int(nBig.Int64())) * time.Second
+}
+
+// claudeDownstreamRetryAfterCap bounds the retry-after the proxy exposes to
+// downstream clients. The native Claude Code client gives up retrying entirely
+// when retry-after exceeds 60s, so a longer upstream value has to be clamped
+// before it reaches the client, or the client surfaces a permanent failure
+// while the pool queue is still pacing the owner's slot.
+const claudeDownstreamRetryAfterCap = 60 * time.Second
+
+// ParseClaudeDownstreamRetryAfter reads the upstream Retry-After-Ms
+// (milliseconds, takes precedence) or Retry-After (delta-seconds or HTTP-date)
+// headers into a duration.
+func ParseClaudeDownstreamRetryAfter(headers http.Header, now time.Time) (time.Duration, bool) {
+	if raw := getHeaderCaseInsensitive(headers, "Retry-After-Ms"); raw != "" {
+		if ms, err := strconv.ParseFloat(raw, 64); err == nil && ms > 0 {
+			return time.Duration(ms * float64(time.Millisecond)), true
+		}
+	}
+	if raw := getHeaderCaseInsensitive(headers, "Retry-After"); raw != "" {
+		if t, ok := parseRetryAfterHeader(raw, now); ok {
+			if d := t.Sub(now); d > 0 {
+				return d, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// ClampClaudeDownstreamRetryAfterHeaders normalizes Retry-After and
+// Retry-After-Ms to one authoritative duration and caps it at the Claude client
+// limit. Retry-After-Ms takes precedence when both headers are valid. Headers
+// are left untouched only when neither value can be parsed. Intended for
+// 429/529 responses only.
+func ClampClaudeDownstreamRetryAfterHeaders(headers http.Header, now time.Time) {
+	if headers == nil {
+		return
+	}
+	d, ok := ParseClaudeDownstreamRetryAfter(headers, now)
+	if !ok {
+		return
+	}
+	SetClaudeDownstreamRetryAfterHeaders(headers, d)
+}
+
+// SetClaudeDownstreamRetryAfterHeaders writes one authoritative duration to
+// Retry-After and, when present, Retry-After-Ms. The visible delay is capped to
+// the Claude client's retry limit.
+func SetClaudeDownstreamRetryAfterHeaders(headers http.Header, d time.Duration) {
+	if headers == nil || d <= 0 {
+		return
+	}
+	if d > claudeDownstreamRetryAfterCap {
+		d = claudeDownstreamRetryAfterCap
+	}
+	seconds := int64(d / time.Second)
+	if d%time.Second != 0 {
+		seconds++
+	}
+	milliseconds := int64(d / time.Millisecond)
+	if d%time.Millisecond != 0 {
+		milliseconds++
+	}
+	if seconds < 1 {
+		seconds = 1
+	}
+	if milliseconds < 1 {
+		milliseconds = 1
+	}
+	headers.Set("Retry-After", strconv.FormatInt(seconds, 10))
+	if getHeaderCaseInsensitive(headers, "Retry-After-Ms") == "" {
+		return
+	}
+	for key, values := range headers {
+		lower := strings.ToLower(key)
+		if lower != "retry-after-ms" {
+			continue
+		}
+		replacement := strconv.FormatInt(milliseconds, 10)
+		for i := range values {
+			values[i] = replacement
+		}
+	}
 }

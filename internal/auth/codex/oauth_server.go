@@ -84,10 +84,12 @@ func (s *OAuthServer) Start() error {
 	mux.HandleFunc("/success", s.handleSuccess)
 
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:              fmt.Sprintf(":%d", s.port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 
 	s.running = true

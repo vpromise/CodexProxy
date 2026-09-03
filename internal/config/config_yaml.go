@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,7 +63,7 @@ func SaveConfigPreserveComments(configFile string, cfg *Config) error {
 	normalizeCollectionNodeStyles(original.Content[0])
 
 	// Write back.
-	f, err := os.Create(configFile)
+	f, err := fileperm.OpenPrivateFile(configFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func SaveConfigPreserveCommentsUpdateNestedScalar(configFile string, path []stri
 			node = next
 		}
 	}
-	f, err := os.Create(configFile)
+	f, err := fileperm.OpenPrivateFile(configFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
 		return err
 	}

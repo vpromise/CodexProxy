@@ -46,6 +46,10 @@ type SDKConfig struct {
 	// APIKeys is a list of keys for authenticating clients to this proxy server.
 	APIKeys []string `yaml:"api-keys" json:"api-keys"`
 
+	// AllowAnonymous permits proxy API requests only when no access providers are configured.
+	// The default is false so an empty provider list fails closed.
+	AllowAnonymous bool `yaml:"allow-anonymous" json:"allow-anonymous"`
+
 	// PassthroughHeaders controls whether upstream response headers are forwarded to downstream clients.
 	// Default is false (disabled).
 	PassthroughHeaders bool `yaml:"passthrough-headers" json:"passthrough-headers"`
@@ -53,8 +57,11 @@ type SDKConfig struct {
 	// Streaming configures server-side streaming behavior (keep-alives and safe bootstrap retries).
 	Streaming StreamingConfig `yaml:"streaming" json:"streaming"`
 
-	// NonStreamKeepAliveInterval controls how often blank lines are emitted for non-streaming responses.
-	// <= 0 disables keep-alives. Value is in seconds.
+	// NonStreamKeepAliveInterval controls how often blank lines are emitted for
+	// non-streaming OpenAI-compatible responses. Native Claude responses ignore
+	// this setting because any response byte would commit HTTP 200 before the
+	// upstream status and Request-Id are known. <= 0 disables keep-alives.
+	// Value is in seconds.
 	NonStreamKeepAliveInterval int `yaml:"nonstream-keepalive-interval,omitempty" json:"nonstream-keepalive-interval,omitempty"`
 }
 
@@ -62,6 +69,19 @@ type SDKConfig struct {
 type ClaudeCodeConfig struct {
 	// DisableCloakingModelList disables model ID cloaking in Anthropic model list responses.
 	DisableCloakingModelList bool `yaml:"disable-cloaking-model-list" json:"disable-cloaking-model-list"`
+
+	// MaxInFlight limits concurrent inference requests per local Claude credential.
+	// A non-positive value disables local credential admission control. Home mode
+	// remains authoritative and does not use this local limit.
+	MaxInFlight int `yaml:"max-in-flight,omitempty" json:"max-in-flight,omitempty"`
+
+	// QueueCapacity bounds requests waiting for a saturated local Claude credential.
+	// A non-positive value disables waiting; the scheduler can still try another credential.
+	QueueCapacity int `yaml:"queue-capacity,omitempty" json:"queue-capacity,omitempty"`
+
+	// QueueTimeoutSeconds bounds local credential admission waits. Values at or
+	// below zero use the default when QueueCapacity is enabled.
+	QueueTimeoutSeconds int `yaml:"queue-timeout-seconds,omitempty" json:"queue-timeout-seconds,omitempty"`
 }
 
 // StreamingConfig holds server streaming behavior configuration.

@@ -93,6 +93,9 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	if errValidate := cfg.Codex.LiveMediaRelay.Validate(); errValidate != nil {
 		return nil, errValidate
 	}
+	if errValidate := cfg.ValidateClaudeAdmission(); errValidate != nil {
+		return nil, errValidate
+	}
 	if errValidate := cfg.ValidateCredentialWeights(); errValidate != nil {
 		return nil, errValidate
 	}
@@ -151,6 +154,9 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 
 	// Sanitize Claude key headers
 	cfg.SanitizeClaudeKeys()
+	if errValidate := cfg.ValidateClaudeBindIPs(); errValidate != nil {
+		return nil, errValidate
+	}
 
 	// Sanitize OpenAI compatibility providers: drop entries without base-url
 	cfg.SanitizeOpenAICompatibility()

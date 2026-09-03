@@ -12,6 +12,10 @@ type Config struct {
 	Host string `yaml:"host" json:"-"`
 	// Port is the network port on which the API server will listen.
 	Port int `yaml:"port" json:"-"`
+	// TrustedProxies lists proxy IPs or CIDRs whose forwarding headers Gin may trust.
+	// An empty list is the safe default and disables forwarded client IP resolution.
+	// Changes apply when the HTTP server is recreated.
+	TrustedProxies []string `yaml:"trusted-proxies" json:"trusted-proxies"`
 
 	// TLS config controls HTTPS server settings.
 	TLS TLSConfig `yaml:"tls" json:"tls"`

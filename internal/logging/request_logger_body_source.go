@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -26,7 +27,7 @@ func NewFileBodySourceInDir(baseDir string, prefix string) (*FileBodySource, err
 	if baseDir == "" {
 		return nil, fmt.Errorf("base directory is required")
 	}
-	if errMkdir := os.MkdirAll(baseDir, 0755); errMkdir != nil {
+	if errMkdir := fileperm.EnsurePrivateDir(baseDir); errMkdir != nil {
 		return nil, errMkdir
 	}
 	dir, errCreate := os.MkdirTemp(baseDir, "request-log-parts-"+prefix+"-*")
@@ -74,7 +75,7 @@ func (s *FileBodySource) CreatePart(prefix string) (*os.File, error) {
 		return nil, fmt.Errorf("file body source has been cleaned")
 	}
 	prefix = sanitizeTempPrefix(prefix)
-	if errMkdir := os.MkdirAll(s.dir, 0755); errMkdir != nil {
+	if errMkdir := fileperm.EnsurePrivateDir(s.dir); errMkdir != nil {
 		return nil, errMkdir
 	}
 	file, errCreate := os.CreateTemp(s.dir, prefix+"-*.tmp")
@@ -117,7 +118,7 @@ func (s *FileBodySource) AppendBytes(data []byte) error {
 	if s.cleaned {
 		return fmt.Errorf("file body source has been cleaned")
 	}
-	if errMkdir := os.MkdirAll(s.dir, 0755); errMkdir != nil {
+	if errMkdir := fileperm.EnsurePrivateDir(s.dir); errMkdir != nil {
 		return errMkdir
 	}
 
@@ -129,7 +130,7 @@ func (s *FileBodySource) AppendBytes(data []byte) error {
 			s.paths = append(s.paths, file.Name())
 		}
 	} else {
-		file, errOpen = os.OpenFile(s.paths[len(s.paths)-1], os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		file, errOpen = fileperm.OpenPrivateFile(s.paths[len(s.paths)-1], os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 	}
 	if errOpen != nil {
 		return errOpen

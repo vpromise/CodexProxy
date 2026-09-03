@@ -138,6 +138,7 @@ func (p *pprofServer) startServer(addr string, owner uint64) *http.Server {
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 
 	p.mu.Lock()

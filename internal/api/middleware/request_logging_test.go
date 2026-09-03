@@ -92,14 +92,14 @@ func TestShouldCaptureRequestBody(t *testing.T) {
 		want          bool
 	}{
 		{
-			name:          "logger enabled always captures",
+			name:          "logger enabled defers unknown-size body",
 			loggerEnabled: true,
 			req: &http.Request{
 				Body:          io.NopCloser(strings.NewReader("{}")),
 				ContentLength: -1,
 				Header:        http.Header{"Content-Type": []string{"application/json"}},
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name:          "nil request",
@@ -165,7 +165,7 @@ func TestDeferredRequestBodyCaptureDoesNotDrainUnreadBody(t *testing.T) {
 	request.ContentLength = -1
 	request.Header.Set("Content-Type", "application/json")
 	requestInfo := &RequestInfo{Headers: map[string][]string{"Content-Type": {"application/json"}}}
-	capture := attachDeferredRequestBodyCapture(request, logger, requestInfo, false, false)
+	capture := attachDeferredRequestBodyCapture(request, logger, requestInfo, false)
 	if capture == nil {
 		t.Fatal("deferred request body capture was not attached")
 	}

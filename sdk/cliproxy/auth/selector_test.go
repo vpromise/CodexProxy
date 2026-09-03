@@ -487,7 +487,7 @@ func TestSelectorPick_AllCooldownReturnsModelCooldownError(t *testing.T) {
 		},
 	}
 
-	t.Run("mixed provider redacts provider field", func(t *testing.T) {
+	t.Run("mixed provider stays neutral", func(t *testing.T) {
 		t.Parallel()
 
 		selector := &FillFirstSelector{}
@@ -504,28 +504,14 @@ func TestSelectorPick_AllCooldownReturnsModelCooldownError(t *testing.T) {
 			t.Fatalf("StatusCode() = %d, want %d", mce.StatusCode(), http.StatusTooManyRequests)
 		}
 
-		headers := mce.Headers()
-		if got := headers.Get("Retry-After"); got == "" {
-			t.Fatalf("Headers().Get(Retry-After) = empty")
+		if got := mce.RetryAfter(); got == nil || *got <= 59*time.Second || *got > time.Minute {
+			t.Fatalf("RetryAfter() = %v, want full cooldown", got)
 		}
 
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(mce.Error()), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(Error()) error = %v", err)
-		}
-		rawErr, ok := payload["error"].(map[string]any)
-		if !ok {
-			t.Fatalf("Error() payload missing error object: %v", payload)
-		}
-		if got, _ := rawErr["code"].(string); got != "model_cooldown" {
-			t.Fatalf("Error().error.code = %q, want %q", got, "model_cooldown")
-		}
-		if _, ok := rawErr["provider"]; ok {
-			t.Fatalf("Error().error.provider exists for mixed provider: %v", rawErr["provider"])
-		}
+		assertModelCooldownNeutralMessage(t, mce.Error())
 	})
 
-	t.Run("non-mixed provider includes provider field", func(t *testing.T) {
+	t.Run("single provider stays neutral too", func(t *testing.T) {
 		t.Parallel()
 
 		selector := &FillFirstSelector{}
@@ -538,19 +524,56 @@ func TestSelectorPick_AllCooldownReturnsModelCooldownError(t *testing.T) {
 		if !errors.As(err, &mce) {
 			t.Fatalf("Pick() error = %T, want *modelCooldownError", err)
 		}
-
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(mce.Error()), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(Error()) error = %v", err)
-		}
-		rawErr, ok := payload["error"].(map[string]any)
-		if !ok {
-			t.Fatalf("Error() payload missing error object: %v", payload)
-		}
-		if got, _ := rawErr["provider"].(string); got != "gemini" {
-			t.Fatalf("Error().error.provider = %q, want %q", got, "gemini")
-		}
+		assertModelCooldownNeutralMessage(t, mce.Error())
 	})
+}
+
+func assertModelCooldownNeutralMessage(t *testing.T, message string) {
+	t.Helper()
+	if message != "model temporarily unavailable" {
+		t.Fatalf("Error() = %q, want protocol-neutral message", message)
+	}
+	for _, leaked := range []string{"test-model", "gemini", "mixed", "provider", "credential"} {
+		if strings.Contains(strings.ToLower(message), leaked) {
+			t.Fatalf("Error() leaks pool detail %q: %q", leaked, message)
+		}
+	}
+}
+
+func TestModelCooldownError_RetryAfterRemainsProtocolNeutral(t *testing.T) {
+	cooldownErr := newModelCooldownError("test-model", "test-provider", 90*time.Second)
+	if got := cooldownErr.StatusCode(); got != http.StatusTooManyRequests {
+		t.Fatalf("StatusCode() = %d, want %d", got, http.StatusTooManyRequests)
+	}
+	assertModelCooldownNeutralMessage(t, cooldownErr.Error())
+	if !IsModelCooldownError(cooldownErr) {
+		t.Fatal("IsModelCooldownError(selector cooldown) = false")
+	}
+
+	smallErr := newModelCooldownError("test-model", "", 5*time.Second)
+	assertModelCooldownNeutralMessage(t, smallErr.Error())
+
+	// RetryAfter exposes the unclamped remainder; the handler's clamped
+	// writer is responsible for capping it to the client's patience window.
+	if got := cooldownErr.RetryAfter(); got == nil || *got != 90*time.Second {
+		t.Fatalf("RetryAfter() = %v, want 90s remainder", got)
+	}
+	if got := SafeResponseHeaders(cooldownErr).Get("Retry-After"); got != "90" {
+		t.Fatalf("SafeResponseHeaders Retry-After = %q, want 90", got)
+	}
+	if got := smallErr.RetryAfter(); got == nil || *got != 5*time.Second {
+		t.Fatalf("RetryAfter() = %v, want 5s remainder", got)
+	}
+	zeroErr := newModelCooldownError("test-model", "", 0)
+	if got := zeroErr.RetryAfter(); got != nil {
+		t.Fatalf("RetryAfter() = %v, want nil for a zero remainder", got)
+	}
+	if !IsModelCooldownError(&Error{Code: "model_cooldown", Message: "Home detail"}) {
+		t.Fatal("IsModelCooldownError(Home-style error) = false")
+	}
+	if IsModelCooldownError(&Error{Code: "auth_unavailable", Message: "no auth"}) {
+		t.Fatal("IsModelCooldownError(non-cooldown) = true")
+	}
 }
 
 func TestIsAuthBlockedForModel_UnavailableWithoutNextRetryIsBlocked(t *testing.T) {
@@ -611,6 +634,130 @@ func TestIsAuthBlockedForModel_ExpiredRecoveryIsAvailable(t *testing.T) {
 	blocked, reason, next := isAuthBlockedForModel(auth, "", now)
 	if blocked || reason != blockReasonNone || !next.IsZero() {
 		t.Fatalf("isAuthBlockedForModel() = %v, %v, %v; want false, none, zero", blocked, reason, next)
+	}
+}
+
+func TestIsAuthBlockedForModel_TimedPermanentFailuresAreNotCapacityCooldowns(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	for _, status := range []int{
+		http.StatusUnauthorized,
+		http.StatusPaymentRequired,
+		http.StatusForbidden,
+		http.StatusNotFound,
+	} {
+		status := status
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+			state := &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Hour),
+				LastError:      &Error{HTTPStatus: status, Message: http.StatusText(status)},
+			}
+			auth := &Auth{ID: "permanent", ModelStates: map[string]*ModelState{"test-model": state}}
+			blocked, reason, next := isAuthBlockedForModel(auth, "test-model", now)
+			if !blocked || reason != blockReasonOther || next.IsZero() {
+				t.Fatalf("isAuthBlockedForModel() = %v, %v, %v; want blocked/other/future", blocked, reason, next)
+			}
+
+			_, errPick := (&FillFirstSelector{}).Pick(context.Background(), "claude", "test-model", cliproxyexecutor.Options{}, []*Auth{auth})
+			var cooldownErr *modelCooldownError
+			if errors.As(errPick, &cooldownErr) {
+				t.Fatalf("permanent status %d became model cooldown: %v", status, errPick)
+			}
+			var authErr *Error
+			if !errors.As(errPick, &authErr) || authErr.Code != "auth_unavailable" {
+				t.Fatalf("Pick() error = %T %v, want auth_unavailable", errPick, errPick)
+			}
+
+			authLevel := &Auth{
+				ID:             "permanent-auth-level",
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Hour),
+				LastError:      &Error{HTTPStatus: status, Message: http.StatusText(status)},
+			}
+			blocked, reason, next = isAuthBlockedForModel(authLevel, "", now)
+			if !blocked || reason != blockReasonOther || next.IsZero() {
+				t.Fatalf("auth-level block = %v, %v, %v; want blocked/other/future", blocked, reason, next)
+			}
+		})
+	}
+}
+
+func TestIsAuthBlockedForModel_CooldownEligibleFailuresRemainCooldowns(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	tests := []struct {
+		name  string
+		state *ModelState
+	}{
+		{
+			name: "quota",
+			state: &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Hour),
+				Quota:          QuotaState{Exceeded: true, NextRecoverAt: now.Add(time.Hour)},
+			},
+		},
+		{
+			name: "overloaded",
+			state: &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Minute),
+				LastError:      &Error{HTTPStatus: claudeUpstreamOverloadedStatus, Message: "Overloaded."},
+			},
+		},
+		{
+			name: "allowed warning",
+			state: &ModelState{
+				Status:         StatusError,
+				StatusMessage:  "allowed_warning",
+				Unavailable:    true,
+				NextRetryAfter: now.Add(claudeAllowedWarnPause),
+			},
+		},
+		{
+			name: "transient upstream",
+			state: &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Second),
+				LastError:      &Error{HTTPStatus: http.StatusServiceUnavailable, Message: "unavailable"},
+			},
+		},
+		{
+			name: "retryable unknown failure",
+			state: &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Second),
+				LastError:      &Error{Code: "empty_stream", Message: "empty stream", Retryable: true},
+			},
+		},
+		{
+			name: "forced cooldown",
+			state: &ModelState{
+				Status:         StatusError,
+				Unavailable:    true,
+				NextRetryAfter: now.Add(time.Second),
+				LastError:      &Error{Code: ErrorCodeForceCooldown, HTTPStatus: http.StatusBadRequest, Message: "forced"},
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			blocked, reason, next := isAuthBlockedForModel(&Auth{ModelStates: map[string]*ModelState{"test-model": test.state}}, "test-model", now)
+			if !blocked || reason != blockReasonCooldown || next.IsZero() {
+				t.Fatalf("isAuthBlockedForModel() = %v, %v, %v; want cooldown with deadline", blocked, reason, next)
+			}
+		})
 	}
 }
 

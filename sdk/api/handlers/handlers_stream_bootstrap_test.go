@@ -637,8 +637,17 @@ func TestExecuteStreamWithAuthManager_EmptyClosedStream(t *testing.T) {
 			streamErr = msg
 		}
 	}
-	if streamErr == nil || streamErr.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("empty stream error = %+v, want terminal internal-server error", streamErr)
+	// Both credentials returned an empty stream, so selection reports the
+	// protocol-neutral model cooldown after bootstrap retries are exhausted.
+	if streamErr == nil || streamErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("empty stream error = %+v, want generic 429 cooldown", streamErr)
+	}
+	if streamErr.Error == nil || streamErr.Error.Error() != "model temporarily unavailable" {
+		t.Fatalf("generic cooldown error = %+v", streamErr)
+	}
+	retryAfter, ok := ResolveDownstreamRetryAfter(streamErr.Error)
+	if !ok || retryAfter <= 59*time.Second || retryAfter > time.Minute {
+		t.Fatalf("Retry-After = %v, %t, want remaining one-minute cooldown", retryAfter, ok)
 	}
 }
 
@@ -876,7 +885,7 @@ func TestExecuteStreamWithAuthManager_DoesNotRetryAfterFirstByte(t *testing.T) {
 	}
 }
 
-func TestExecuteStreamWithAuthManager_EnrichesBootstrapRetryAuthUnavailableError(t *testing.T) {
+func TestExecuteStreamWithAuthManager_BootstrapRetryUnauthorizedYieldsAuthUnavailable(t *testing.T) {
 	executor := &failOnceStreamExecutor{}
 	manager := coreauth.NewManager(nil, nil, nil)
 	manager.RegisterExecutor(executor)
@@ -923,22 +932,23 @@ func TestExecuteStreamWithAuthManager_EnrichesBootstrapRetryAuthUnavailableError
 	if gotErr == nil {
 		t.Fatalf("expected terminal error")
 	}
+	// Authentication failures are not capacity cooldowns. Once the only
+	// credential is unavailable, bootstrap selection returns auth_unavailable.
 	if gotErr.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want %d", gotErr.StatusCode, http.StatusServiceUnavailable)
+		t.Fatalf("status = %d, want 503", gotErr.StatusCode)
 	}
-
 	var authErr *coreauth.Error
 	if !errors.As(gotErr.Error, &authErr) || authErr == nil {
-		t.Fatalf("expected coreauth.Error, got %T", gotErr.Error)
+		t.Fatalf("error = %T, want coreauth.Error", gotErr.Error)
 	}
 	if authErr.Code != "auth_unavailable" {
-		t.Fatalf("code = %q, want %q", authErr.Code, "auth_unavailable")
+		t.Fatalf("code = %q, want auth_unavailable", authErr.Code)
 	}
-	if !strings.Contains(authErr.Message, "providers=codex") {
-		t.Fatalf("message missing provider context: %q", authErr.Message)
+	if !strings.Contains(authErr.Message, "providers=codex") || !strings.Contains(authErr.Message, "model=test-model") {
+		t.Fatalf("message = %q, want provider/model context", authErr.Message)
 	}
-	if !strings.Contains(authErr.Message, "model=test-model") {
-		t.Fatalf("message missing model context: %q", authErr.Message)
+	if gotErr.Addon.Get("Retry-After") != "" {
+		t.Fatalf("Retry-After = %q, want empty for auth_unavailable", gotErr.Addon.Get("Retry-After"))
 	}
 
 	if executor.Calls() != 1 {

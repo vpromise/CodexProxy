@@ -72,6 +72,7 @@ func startCallbackForwarder(port int, provider, targetBase string) (*callbackFor
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      5 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 	done := make(chan struct{})
 

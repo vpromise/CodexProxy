@@ -1,5 +1,10 @@
 package auth
 
+import (
+	"errors"
+	"strings"
+)
+
 // ErrorCodeRequestScoped identifies failures tied to the current request rather
 // than the selected credential.
 const ErrorCodeRequestScoped = "request_scoped"
@@ -68,4 +73,19 @@ func NewRequestScopedError(message string, httpStatus int) *Error {
 		Message:    message,
 		HTTPStatus: httpStatus,
 	}
+}
+
+// IsModelCooldownError reports whether err represents temporary model
+// unavailability. Protocol handlers use this semantic signal to render their
+// own downstream error contract.
+func IsModelCooldownError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var cooldownErr *modelCooldownError
+	if errors.As(err, &cooldownErr) && cooldownErr != nil {
+		return true
+	}
+	var authErr *Error
+	return errors.As(err, &authErr) && authErr != nil && strings.EqualFold(strings.TrimSpace(authErr.Code), "model_cooldown")
 }

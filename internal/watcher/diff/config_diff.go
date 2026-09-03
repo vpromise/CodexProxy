@@ -22,6 +22,9 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 	if oldCfg.Port != newCfg.Port {
 		changes = append(changes, fmt.Sprintf("port: %d -> %d", oldCfg.Port, newCfg.Port))
 	}
+	if !reflect.DeepEqual(oldCfg.TrustedProxies, newCfg.TrustedProxies) {
+		changes = append(changes, fmt.Sprintf("trusted-proxies: updated (%d -> %d entries; restart required)", len(oldCfg.TrustedProxies), len(newCfg.TrustedProxies)))
+	}
 	if oldCfg.AuthDir != newCfg.AuthDir {
 		changes = append(changes, fmt.Sprintf("auth-dir: %s -> %s", oldCfg.AuthDir, newCfg.AuthDir))
 	}
@@ -40,6 +43,9 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 	if oldCfg.UsageStatisticsEnabled != newCfg.UsageStatisticsEnabled {
 		changes = append(changes, fmt.Sprintf("usage-statistics-enabled: %t -> %t", oldCfg.UsageStatisticsEnabled, newCfg.UsageStatisticsEnabled))
 	}
+	if oldCfg.AllowAnonymous != newCfg.AllowAnonymous {
+		changes = append(changes, fmt.Sprintf("allow-anonymous: %t -> %t", oldCfg.AllowAnonymous, newCfg.AllowAnonymous))
+	}
 	if oldCfg.RedisUsageQueueRetentionSeconds != newCfg.RedisUsageQueueRetentionSeconds {
 		changes = append(changes, fmt.Sprintf("redis-usage-queue-retention-seconds: %d -> %d", oldCfg.RedisUsageQueueRetentionSeconds, newCfg.RedisUsageQueueRetentionSeconds))
 	}
@@ -57,6 +63,15 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 	}
 	if oldCfg.ClaudeCode.DisableCloakingModelList != newCfg.ClaudeCode.DisableCloakingModelList {
 		changes = append(changes, fmt.Sprintf("claude-code.disable-cloaking-model-list: %t -> %t", oldCfg.ClaudeCode.DisableCloakingModelList, newCfg.ClaudeCode.DisableCloakingModelList))
+	}
+	if oldCfg.ClaudeCode.MaxInFlight != newCfg.ClaudeCode.MaxInFlight {
+		changes = append(changes, fmt.Sprintf("claude-code.max-in-flight: %d -> %d", oldCfg.ClaudeCode.MaxInFlight, newCfg.ClaudeCode.MaxInFlight))
+	}
+	if oldCfg.ClaudeCode.QueueCapacity != newCfg.ClaudeCode.QueueCapacity {
+		changes = append(changes, fmt.Sprintf("claude-code.queue-capacity: %d -> %d", oldCfg.ClaudeCode.QueueCapacity, newCfg.ClaudeCode.QueueCapacity))
+	}
+	if oldCfg.ClaudeCode.QueueTimeoutSeconds != newCfg.ClaudeCode.QueueTimeoutSeconds {
+		changes = append(changes, fmt.Sprintf("claude-code.queue-timeout-seconds: %d -> %d", oldCfg.ClaudeCode.QueueTimeoutSeconds, newCfg.ClaudeCode.QueueTimeoutSeconds))
 	}
 	if oldCfg.DisableImageGeneration != newCfg.DisableImageGeneration {
 		changes = append(changes, fmt.Sprintf("disable-image-generation: %v -> %v", oldCfg.DisableImageGeneration, newCfg.DisableImageGeneration))
@@ -155,6 +170,12 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 			if strings.TrimSpace(o.ProxyURL) != strings.TrimSpace(n.ProxyURL) {
 				changes = append(changes, fmt.Sprintf("claude[%d].proxy-url: %s -> %s", i, formatProxyURL(o.ProxyURL), formatProxyURL(n.ProxyURL)))
 			}
+			if strings.TrimSpace(o.BindIP) != strings.TrimSpace(n.BindIP) {
+				changes = append(changes, fmt.Sprintf("claude[%d].bind-ip: %s -> %s", i, strings.TrimSpace(o.BindIP), strings.TrimSpace(n.BindIP)))
+			}
+			changes = appendOptionalIntChange(changes, fmt.Sprintf("claude[%d].max-in-flight", i), o.MaxInFlight, n.MaxInFlight)
+			changes = appendOptionalIntChange(changes, fmt.Sprintf("claude[%d].queue-capacity", i), o.QueueCapacity, n.QueueCapacity)
+			changes = appendOptionalIntChange(changes, fmt.Sprintf("claude[%d].queue-timeout-seconds", i), o.QueueTimeoutSeconds, n.QueueTimeoutSeconds)
 			if strings.TrimSpace(o.Prefix) != strings.TrimSpace(n.Prefix) {
 				changes = append(changes, fmt.Sprintf("claude[%d].prefix: %s -> %s", i, strings.TrimSpace(o.Prefix), strings.TrimSpace(n.Prefix)))
 			}

@@ -44,6 +44,9 @@ func ParseConfigBytes(data []byte) (*Config, error) {
 	if errValidate := cfg.CredentialInFlight.Validate(); errValidate != nil {
 		return nil, errValidate
 	}
+	if errValidate := cfg.ValidateClaudeAdmission(); errValidate != nil {
+		return nil, errValidate
+	}
 	if errValidate := cfg.ValidateCredentialWeights(); errValidate != nil {
 		return nil, errValidate
 	}
@@ -91,6 +94,9 @@ func ParseConfigBytes(data []byte) (*Config, error) {
 	cfg.SanitizeCodexHeaderDefaults()
 	cfg.SanitizeClaudeHeaderDefaults()
 	cfg.SanitizeClaudeKeys()
+	if errValidate := cfg.ValidateClaudeBindIPs(); errValidate != nil {
+		return nil, errValidate
+	}
 	cfg.SanitizeOpenAICompatibility()
 	cfg.OAuthExcludedModels = NormalizeOAuthExcludedModels(cfg.OAuthExcludedModels)
 	cfg.SanitizeOAuthModelAlias()

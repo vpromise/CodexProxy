@@ -92,6 +92,7 @@ func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
 	if m.scheduler != nil {
 		m.scheduler.upsertAuth(authClone)
 	}
+	m.refreshLocalCredentialAdmission(authClone)
 	m.queueRefreshReschedule(auth.ID)
 	_ = m.persist(ctx, auth)
 	m.hook.OnAuthRegistered(ctx, auth.Clone())
@@ -127,6 +128,7 @@ func (m *Manager) Update(ctx context.Context, auth *Auth) (*Auth, error) {
 		if len(auth.ModelStates) == 0 && len(existing.ModelStates) > 0 {
 			auth.ModelStates = existing.ModelStates
 		}
+		preserveModelRuntimeState(auth.ModelStates, existing.ModelStates)
 		if existing.Quota.Exceeded && existing.Quota.Reason == "credential_quota" && existing.Quota.NextRecoverAt.After(time.Now()) {
 			auth.Unavailable = existing.Unavailable
 			auth.NextRetryAfter = existing.NextRetryAfter
@@ -151,6 +153,7 @@ func (m *Manager) Update(ctx context.Context, auth *Auth) (*Auth, error) {
 	if m.scheduler != nil {
 		m.scheduler.upsertAuth(authClone)
 	}
+	m.refreshLocalCredentialAdmission(authClone)
 	m.queueRefreshReschedule(auth.ID)
 	_ = m.persist(ctx, auth)
 	m.hook.OnAuthUpdated(ctx, auth.Clone())
@@ -202,6 +205,7 @@ func (m *Manager) Remove(ctx context.Context, id string) {
 	}
 	m.queueRefreshUnschedule(id)
 	m.invalidateSessionAffinity(id)
+	m.removeLocalCredentialAdmission(id)
 
 	if provider != "" {
 		if exec, ok := m.Executor(provider); ok && exec != nil {

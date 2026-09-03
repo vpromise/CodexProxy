@@ -22,12 +22,13 @@ import (
 const (
 	maxErrorOnlyCapturedRequestBodyBytes int64 = 1 << 20  // 1 MiB
 	maxDeferredErrorRequestBodyBytes     int64 = 32 << 20 // 32 MiB
+	maxCapturedContentEncodingLayers           = 4
 )
 
 // RequestLoggingMiddleware creates a Gin middleware that logs HTTP requests and responses.
 // It captures detailed information about the request and response, including headers and body,
-// and uses the provided RequestLogger to record this data. When full request logging is disabled,
-// large and unknown-size bodies are spooled to disk and retained only for error logs.
+// and uses the provided RequestLogger to record this data. Large and unknown-size
+// bodies are spooled to a bounded file capture instead of copied into memory.
 func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if logger == nil {
@@ -65,7 +66,7 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 		}
 		c.Writer = wrapper
 		attachRequestLogSources(c, logger, loggerEnabled)
-		attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, loggerEnabled, captureBody)
+		attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, captureBody)
 
 		// Process the request
 		c.Next()
@@ -95,8 +96,8 @@ type deferredRequestBodyCapture struct {
 	truncated     bool
 }
 
-func attachDeferredRequestBodyCapture(req *http.Request, logger logging.RequestLogger, requestInfo *RequestInfo, loggerEnabled, bodyCaptured bool) *deferredRequestBodyCapture {
-	if loggerEnabled || bodyCaptured || req == nil || req.Body == nil || req.Body == http.NoBody || req.ContentLength == 0 || requestInfo == nil {
+func attachDeferredRequestBodyCapture(req *http.Request, logger logging.RequestLogger, requestInfo *RequestInfo, bodyCaptured bool) *deferredRequestBodyCapture {
+	if bodyCaptured || req == nil || req.Body == nil || req.Body == http.NoBody || req.ContentLength == 0 || requestInfo == nil {
 		return nil
 	}
 	contentType := strings.ToLower(strings.TrimSpace(req.Header.Get("Content-Type")))
@@ -288,10 +289,7 @@ func isResponsesWebsocketUpgrade(req *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(req.Header.Get("Upgrade")), "websocket")
 }
 
-func shouldCaptureRequestBody(loggerEnabled bool, req *http.Request) bool {
-	if loggerEnabled {
-		return true
-	}
+func shouldCaptureRequestBody(_ bool, req *http.Request) bool {
 	if req == nil || req.Body == nil {
 		return false
 	}
@@ -336,7 +334,8 @@ func captureRequestInfo(c *gin.Context, captureBody bool) (*RequestInfo, error) 
 
 		// Restore the body for the actual request processing
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		body = decodeCapturedRequestBodyForLog(bodyBytes, c.Request.Header.Get("Content-Encoding"))
+		encoding := strings.Join(c.Request.Header.Values("Content-Encoding"), ",")
+		body = decodeCapturedRequestBodyForLogWithLimit(bodyBytes, encoding, maxDeferredErrorRequestBodyBytes)
 	}
 
 	return &RequestInfo{
@@ -349,18 +348,6 @@ func captureRequestInfo(c *gin.Context, captureBody bool) (*RequestInfo, error) 
 	}, nil
 }
 
-func decodeCapturedRequestBodyForLog(raw []byte, encoding string) []byte {
-	if len(raw) == 0 {
-		return raw
-	}
-
-	decoded, errDecode := decodeCapturedRequestBody(raw, encoding)
-	if errDecode != nil {
-		return raw
-	}
-	return decoded
-}
-
 func decodeCapturedRequestBodyForLogWithLimit(raw []byte, encoding string, limit int64) []byte {
 	if len(raw) == 0 || limit <= 0 {
 		return raw
@@ -371,6 +358,9 @@ func decodeCapturedRequestBodyForLogWithLimit(raw []byte, encoding string, limit
 	}
 
 	parts := strings.Split(encoding, ",")
+	if len(parts) > maxCapturedContentEncodingLayers {
+		return raw
+	}
 	body := raw
 	for i := len(parts) - 1; i >= 0; i-- {
 		enc := strings.ToLower(strings.TrimSpace(parts[i]))
@@ -396,48 +386,18 @@ func decodeCapturedRequestBodyForLogWithLimit(raw []byte, encoding string, limit
 	return body
 }
 
-func decodeCapturedRequestBody(raw []byte, encoding string) ([]byte, error) {
-	encoding = strings.TrimSpace(encoding)
-	if encoding == "" || strings.EqualFold(encoding, "identity") {
-		return raw, nil
-	}
-
-	parts := strings.Split(encoding, ",")
-	body := raw
-	for i := len(parts) - 1; i >= 0; i-- {
-		enc := strings.ToLower(strings.TrimSpace(parts[i]))
-		switch enc {
-		case "", "identity":
-			continue
-		case "zstd":
-			decoded, errDecode := decodeCapturedZstdRequestBody(body)
-			if errDecode != nil {
-				return nil, errDecode
-			}
-			body = decoded
-		default:
-			return nil, fmt.Errorf("unsupported request content encoding: %s", enc)
-		}
-	}
-	return body, nil
-}
-
-func decodeCapturedZstdRequestBody(raw []byte) ([]byte, error) {
-	decoder, errNewReader := zstd.NewReader(bytes.NewReader(raw))
-	if errNewReader != nil {
-		return nil, fmt.Errorf("failed to create zstd request decoder: %w", errNewReader)
-	}
-	defer decoder.Close()
-
-	decoded, errRead := io.ReadAll(decoder)
-	if errRead != nil {
-		return nil, fmt.Errorf("failed to decode zstd request body: %w", errRead)
-	}
-	return decoded, nil
-}
-
 func decodeCapturedZstdRequestBodyWithLimit(raw []byte, limit int64) ([]byte, bool, error) {
-	decoder, errNewReader := zstd.NewReader(bytes.NewReader(raw))
+	decoderMemoryLimit := uint64(limit)
+	if decoderMemoryLimit < 1<<20 {
+		decoderMemoryLimit = 1 << 20
+	}
+	decoder, errNewReader := zstd.NewReader(
+		bytes.NewReader(raw),
+		zstd.WithDecoderConcurrency(1),
+		zstd.WithDecoderLowmem(true),
+		zstd.WithDecoderMaxMemory(decoderMemoryLimit),
+		zstd.WithDecoderMaxWindow(decoderMemoryLimit),
+	)
 	if errNewReader != nil {
 		return nil, false, fmt.Errorf("failed to create zstd request decoder: %w", errNewReader)
 	}

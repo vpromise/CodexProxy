@@ -121,7 +121,7 @@ func (h *BaseAPIHandler) streamWithPluginExecutor(ctx context.Context, entryProt
 		}, execOptions.SkipInterceptorPluginID)
 		applyStreamHeaders(intercepted.Headers)
 	}
-	upstreamHeaders := downstreamHeadersAfterInterceptors(baseStreamHeaders, rawStreamHeaders, passthroughHeadersEnabled)
+	upstreamHeaders := downstreamHeadersAfterInterceptors(baseStreamHeaders, rawStreamHeaders, passthroughHeadersEnabled, responseProtocol)
 	if upstreamHeaders == nil && (passthroughHeadersEnabled || streamInterceptorsActive) {
 		upstreamHeaders = make(http.Header)
 	}
@@ -573,7 +573,7 @@ func (h *BaseAPIHandler) executeStreamWithAuthManagerFormats(ctx context.Context
 		}
 	}
 
-	upstreamHeaders := downstreamHeadersAfterInterceptors(baseStreamHeaders, rawStreamHeaders, passthroughHeadersEnabled)
+	upstreamHeaders := downstreamHeadersAfterInterceptors(baseStreamHeaders, rawStreamHeaders, passthroughHeadersEnabled, responseProtocol)
 	if upstreamHeaders == nil && (passthroughHeadersEnabled || streamInterceptorsActive) {
 		upstreamHeaders = make(http.Header)
 	}

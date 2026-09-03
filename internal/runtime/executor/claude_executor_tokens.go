@@ -3,8 +3,8 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -145,8 +145,8 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	stream := from != to
 	body := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, stream, helps.APIKeyModelIsCompat(req))
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
-	var errThinking error
-	body, errThinking = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
+	nativeThinkingWire := bytes.Clone(body)
+	body, errThinking := applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if errThinking != nil {
 		return cliproxyexecutor.Response{}, errThinking
 	}
@@ -162,6 +162,8 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// Messages path.
 	policy, settings := resolveClaudeWirePolicy(e.cfg, auth, apiKey, confirmedClaudeCode)
 	cloaked := policy.Cloak
+	nativePassthrough := confirmedClaudeCode && !cloaked
+	body = restoreClaudeHelperOutputConfigIfEligible(nativeThinkingWire, body, req, opts, from.String(), to.String(), claudeCodeDetection, nativePassthrough)
 	if cloaked {
 		if !settings.strictMode {
 			if errSystem := validateClaudeCallerSystemBlocks(gjson.GetBytes(body, "system")); errSystem != nil {
@@ -214,14 +216,14 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// Runs on the finished body: payload rules can rewrite model and messages
 	// long after translation, so an earlier check would not describe the request
 	// that is about to be sent.
-	if errMidSystem := validateClaudeMidSystemMessageModel(body, confirmedClaudeCode, directAnthropic); errMidSystem != nil {
+	if errMidSystem := validateClaudeMidSystemMessageModel(body, directAnthropic); errMidSystem != nil {
 		return cliproxyexecutor.Response{}, errMidSystem
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return cliproxyexecutor.Response{}, err
 	}
-	if errHeaders := applyClaudeHeaders(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, confirmedClaudeCode && !cloaked, claudeSessionID); errHeaders != nil {
+	if errHeaders := applyClaudeHeaders(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, nativePassthrough, claudeSessionID); errHeaders != nil {
 		return cliproxyexecutor.Response{}, errHeaders
 	}
 	var authID, authLabel, authType, authValue string
@@ -250,19 +252,37 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	}
 	helps.RecordAPIResponseMetadata(ctx, e.cfg, resp.StatusCode, resp.Header.Clone())
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if errLimit := validateClaudeResponseContentLength(resp, claudeMaxErrorResponseBytes, "token-count error"); errLimit != nil {
+			helps.RecordAPIResponseError(ctx, e.cfg, errLimit)
+			if errClose := resp.Body.Close(); errClose != nil {
+				log.Errorf("response body close error: %v", errClose)
+			}
+			return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(errLimit, resp.Header)
+		}
 		// Decompress error responses — pass the Content-Encoding value (may be empty)
 		// and let decodeResponseBody handle both header-declared and magic-byte-detected
 		// compression.  This keeps error-path behaviour consistent with the success path.
-		errBody, decErr := decodeResponseBody(resp.Body, claudeResponseContentEncoding(resp.Header))
+		errBody, decErr := decodeResponseBodyWithMemoryLimit(resp.Body, claudeResponseContentEncoding(resp.Header), claudeMaxDecoderMemory)
 		if decErr != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, decErr)
+			var tooLarge claudeResponseTooLargeError
+			if errors.As(decErr, &tooLarge) {
+				return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(decErr, resp.Header)
+			}
 			msg := fmt.Sprintf("failed to decode error response body: %v", decErr)
 			helps.LogWithRequestID(ctx).Warn(msg)
 			return cliproxyexecutor.Response{}, classifyClaudeUpstreamError(resp.StatusCode, resp.Header, []byte(msg))
 		}
-		b, readErr := io.ReadAll(errBody)
+		b, readErr := readClaudeResponseBodyLimited(errBody, claudeMaxErrorResponseBytes, "token-count error")
 		if readErr != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, readErr)
+			var tooLarge claudeResponseTooLargeError
+			if errors.As(readErr, &tooLarge) {
+				if errClose := errBody.Close(); errClose != nil {
+					log.Errorf("response body close error: %v", errClose)
+				}
+				return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(readErr, resp.Header)
+			}
 			msg := fmt.Sprintf("failed to read error response body: %v", readErr)
 			helps.LogWithRequestID(ctx).Warn(msg)
 			b = []byte(msg)
@@ -273,23 +293,30 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		}
 		return cliproxyexecutor.Response{}, classifyClaudeUpstreamError(resp.StatusCode, resp.Header, b)
 	}
-	decodedBody, err := decodeResponseBody(resp.Body, claudeResponseContentEncoding(resp.Header))
+	if errLimit := validateClaudeResponseContentLength(resp, claudeMaxTokenCountResponseBytes, "token-count"); errLimit != nil {
+		helps.RecordAPIResponseError(ctx, e.cfg, errLimit)
+		if errClose := resp.Body.Close(); errClose != nil {
+			log.Errorf("response body close error: %v", errClose)
+		}
+		return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(errLimit, resp.Header)
+	}
+	decodedBody, err := decodeResponseBodyWithMemoryLimit(resp.Body, claudeResponseContentEncoding(resp.Header), claudeMaxDecoderMemory)
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
 		if errClose := resp.Body.Close(); errClose != nil {
 			log.Errorf("response body close error: %v", errClose)
 		}
-		return cliproxyexecutor.Response{}, err
+		return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(err, resp.Header)
 	}
 	defer func() {
 		if errClose := decodedBody.Close(); errClose != nil {
 			log.Errorf("response body close error: %v", errClose)
 		}
 	}()
-	data, err := io.ReadAll(decodedBody)
+	data, err := readClaudeResponseBodyLimited(decodedBody, claudeMaxTokenCountResponseBytes, "token-count")
 	if err != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, err)
-		return cliproxyexecutor.Response{}, err
+		return cliproxyexecutor.Response{}, withClaudeUpstreamResponseMetadata(err, resp.Header)
 	}
 	helps.AppendAPIResponseChunk(ctx, e.cfg, data)
 	count := gjson.GetBytes(data, "input_tokens").Int()

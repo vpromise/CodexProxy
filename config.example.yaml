@@ -9,6 +9,10 @@
 host: ""
 port: 8317
 
+# Proxy IPs or CIDRs allowed to supply X-Forwarded-For/X-Real-IP. Empty means
+# forwarded client IP headers are ignored. Changes require a server restart.
+trusted-proxies: []
+
 tls:
   enable: false
   cert: ""
@@ -30,6 +34,10 @@ auth-dir: "~/.cli-proxy-api"
 # disables proxy endpoints while a known example key remains configured.
 api-keys:
   - "your-api-key-1"
+
+# Keep false to reject proxy API requests when no access provider is configured.
+# Enable only for an intentionally anonymous deployment.
+allow-anonymous: false
 
 debug: false
 
@@ -72,6 +80,12 @@ routing:
 disable-claude-cloak-mode: false
 claude-code:
   disable-cloaking-model-list: false
+  # Local non-Home admission control, applied independently to each Claude credential.
+  # These conservative template values can be tuned per credential below.
+  # Set max-in-flight to 0 to disable; queue-capacity bounds waiting requests.
+  max-in-flight: 3
+  queue-capacity: 12
+  queue-timeout-seconds: 30
 
 # Codex behavior.
 codex:
@@ -91,6 +105,8 @@ codex:
 # true, "chat", and "passthrough".
 disable-image-generation: false
 
+# Applies to OpenAI-compatible non-streaming responses. Native Claude ignores
+# this setting so delayed upstream errors retain their real HTTP status.
 nonstream-keepalive-interval: 0
 streaming:
   keepalive-seconds: 0
@@ -123,6 +139,10 @@ streaming:
 #     prefix: "team-a"
 #     weight: 1
 #     proxy-url: "direct"
+#     bind-ip: "192.0.2.10" # Optional local source IP for this Claude credential.
+#     max-in-flight: 3       # Optional per-credential override; 0 disables.
+#     queue-capacity: 12
+#     queue-timeout-seconds: 30
 #     models:
 #       - name: "claude-sonnet-latest"
 #         alias: "claude-sonnet"

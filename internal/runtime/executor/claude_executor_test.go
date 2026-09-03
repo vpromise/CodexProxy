@@ -789,7 +789,7 @@ func TestApplyClaudeHeaders_EmptyAPIKey_OmitsAuthHeaders(t *testing.T) {
 	}
 }
 
-func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode220CLIFingerprint(t *testing.T) {
+func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode252CLIFingerprint(t *testing.T) {
 	var seenBody []byte
 	var seenHeaders http.Header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -816,7 +816,7 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode220CLIFingerprint(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.220 (external, cli)", "0.94.0", "v26.3.0", "MacOS", "arm64")
+	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.252 (external, cli)", "0.112.1", "v26.3.0", "MacOS", "arm64")
 	if got := seenHeaders.Get("X-App"); got != "cli" {
 		t.Fatalf("X-App = %q, want cli", got)
 	}
@@ -828,8 +828,8 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode220CLIFingerprint(t *testi
 	if len(system) != 2 {
 		t.Fatalf("system block count = %d, want 2: %s", len(system), seenBody)
 	}
-	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.220.04c; cc_entrypoint=cli;" {
-		t.Fatalf("billing header = %q, want 2.1.220 CLI fingerprint", got)
+	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.252.0a8; cc_entrypoint=cli;" {
+		t.Fatalf("billing header = %q, want 2.1.252 CLI fingerprint", got)
 	}
 	if got := system[1].Get("text").String(); got != claudeCodeCLIIdentity {
 		t.Fatalf("system[1].text = %q, want official CLI identity", got)
@@ -855,10 +855,90 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode220CLIFingerprint(t *testi
 
 	userID := gjson.GetBytes(seenBody, "metadata.user_id").String()
 	if !helps.IsValidUserID(userID) {
-		t.Fatalf("metadata.user_id = %q, want Claude Code 2.1.220 JSON shape", userID)
+		t.Fatalf("metadata.user_id = %q, want Claude Code 2.1.252 JSON shape", userID)
 	}
 	if got, want := gjson.Get(userID, "session_id").String(), seenHeaders.Get("X-Claude-Code-Session-Id"); got != want {
 		t.Fatalf("metadata session_id = %q, header session ID = %q", got, want)
+	}
+}
+
+// Claude Code 2.1.252 stopped sending x-client-request-id (research/21§4,
+// baseline-2.1.252 header capture: 22 headers, none of them). The proxy must
+// neither inject it for cloaked requests nor resurrect it when a confirmed
+// 2.1.252 client omits it.
+func TestClaudeExecutor_252WireCarriesNoClientRequestID(t *testing.T) {
+	type capture struct {
+		server  *httptest.Server
+		headers http.Header
+	}
+	newCapture := func(t *testing.T) *capture {
+		t.Helper()
+		c := &capture{}
+		c.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.headers = r.Header.Clone()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","model":"claude-opus-4-6","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+		}))
+		t.Cleanup(c.server.Close)
+		return c
+	}
+	t.Run("cloaked request", func(t *testing.T) {
+		c := newCapture(t)
+		server := c.server
+		executor := NewClaudeExecutor(&config.Config{})
+		auth := &cliproxyauth.Auth{Attributes: map[string]string{
+			"api_key":    "key-no-request-id",
+			"base_url":   server.URL,
+			"cloak_mode": "always",
+		}}
+		payload := []byte(`{"model":"claude-opus-4-6","messages":[{"role":"user","content":"x"}]}`)
+		if _, errExecute := executor.Execute(context.Background(), auth, cliproxyexecutor.Request{
+			Model:   "claude-opus-4-6",
+			Payload: payload,
+		}, cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude}); errExecute != nil {
+			t.Fatalf("Execute() error = %v", errExecute)
+		}
+		assertNoClientRequestID(t, c.headers)
+	})
+	t.Run("confirmed 2.1.252 client omitting it", func(t *testing.T) {
+		c := newCapture(t)
+		server := c.server
+		executor := NewClaudeExecutor(&config.Config{})
+		auth := &cliproxyauth.Auth{Attributes: map[string]string{
+			"api_key":  "key-no-request-id-confirmed",
+			"base_url": server.URL,
+		}}
+		sessionID := "11111111-2222-4333-8444-555555555555"
+		userID := `{"device_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","account_uuid":"","session_id":"` + sessionID + `"}`
+		payload := []byte(`{"model":"claude-opus-4-6","messages":[{"role":"user","content":"x"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
+		incoming := http.Header{
+			"User-Agent":                  {"claude-cli/2.1.252 (external, cli)"},
+			"X-App":                       {"cli"},
+			"Anthropic-Beta":              {"claude-code-20250219"},
+			"X-Claude-Code-Session-Id":    {sessionID},
+			"X-Stainless-Package-Version": {"0.112.1"},
+			"X-Stainless-Runtime-Version": {"v26.3.0"},
+		}
+		if _, errExecute := executor.Execute(context.Background(), auth, cliproxyexecutor.Request{
+			Model:   "claude-opus-4-6",
+			Payload: payload,
+		}, cliproxyexecutor.Options{
+			SourceFormat:    sdktranslator.FormatClaude,
+			OriginalRequest: payload,
+			Headers:         incoming,
+		}); errExecute != nil {
+			t.Fatalf("Execute() error = %v", errExecute)
+		}
+		assertNoClientRequestID(t, c.headers)
+	})
+}
+
+func assertNoClientRequestID(t *testing.T, headers http.Header) {
+	t.Helper()
+	for name := range headers {
+		if strings.EqualFold(name, "x-client-request-id") {
+			t.Fatalf("upstream request carries %s: %q", name, headers.Get(name))
+		}
 	}
 }
 
@@ -877,11 +957,11 @@ func TestClaudeExecutor_ConfirmedClaudeCodeRequestPreservesInteractiveIdentity(t
 	const userID = `{"device_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","account_uuid":"","session_id":"11111111-2222-4333-8444-555555555555"}`
 	payload := []byte(`{"model":"claude-opus-4-6","system":[{"type":"text","text":"interactive-system","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"x"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
 	incoming := http.Header{
-		"User-Agent":                  {"claude-cli/2.1.220 (external, cli)"},
+		"User-Agent":                  {"claude-cli/2.1.252 (external, cli)"},
 		"X-App":                       {"cli"},
 		"Anthropic-Beta":              {"claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"},
 		"X-Claude-Code-Session-Id":    {sessionID},
-		"X-Stainless-Package-Version": {"0.94.0"},
+		"X-Stainless-Package-Version": {"0.112.1"},
 		"X-Stainless-Runtime-Version": {"v26.3.0"},
 		"X-Stainless-Os":              {"MacOS"},
 		"X-Stainless-Arch":            {"arm64"},
@@ -904,7 +984,7 @@ func TestClaudeExecutor_ConfirmedClaudeCodeRequestPreservesInteractiveIdentity(t
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.220 (external, cli)", "0.94.0", "v26.3.0", "MacOS", "arm64")
+	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.252 (external, cli)", "0.112.1", "v26.3.0", "MacOS", "arm64")
 	if got := gjson.GetBytes(seenBody, "system.0.text").String(); got != "interactive-system" {
 		t.Fatalf("system.0.text = %q, want confirmed client system preserved", got)
 	}
@@ -947,7 +1027,7 @@ func TestClaudeExecutor_ConfirmedClaudeCodeWithoutCacheControlPreservesContent(t
 			const userID = `{"device_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","account_uuid":"","session_id":"11111111-2222-4333-8444-555555555555"}`
 			payload := []byte(`{"model":"claude-opus-4-6","messages":[{"role":"user","content":"x"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
 			incoming := http.Header{
-				"User-Agent":               {"claude-cli/2.1.220 (external, cli)"},
+				"User-Agent":               {"claude-cli/2.1.252 (external, cli)"},
 				"X-App":                    {"cli"},
 				"Anthropic-Beta":           {"claude-code-20250219"},
 				"X-Claude-Code-Session-Id": {sessionID},
@@ -1098,7 +1178,7 @@ func TestClaudeExecutor_CopiedVSCodeAgentSDKHeadersWithoutMetadataAreCloaked(t *
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.220 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.252 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.#").Int(); got != 2 {
@@ -1147,7 +1227,7 @@ func TestClaudeExecutor_AgentSDKEntrypointWithStrongSignalsUsesCLICloak(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.220 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.252 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.0.text").String(); !strings.Contains(got, "cc_entrypoint=cli;") {
@@ -1170,7 +1250,7 @@ func TestClaudeExecutor_ConfirmedVSCodeOAuthPreservesToolNames(t *testing.T) {
 	defer server.Close()
 
 	const userID = `{"device_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","account_uuid":"","session_id":"33333333-4444-4555-8666-777777777777"}`
-	payload := []byte(`{"model":"claude-opus-4-6","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.04c; cc_entrypoint=claude-vscode; cch=00000;"}],"tools":[{"name":"bash","description":"known native name must pass through","input_schema":{"type":"object"}},{"name":"search_web","description":"unknown native name must pass through","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"x"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
+	payload := []byte(`{"model":"claude-opus-4-6","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.252.0a8; cc_entrypoint=claude-vscode; cch=00000;"}],"tools":[{"name":"bash","description":"known native name must pass through","input_schema":{"type":"object"}},{"name":"search_web","description":"unknown native name must pass through","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"x"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
 	deviceIDs := []string{
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	}
@@ -1183,7 +1263,7 @@ func TestClaudeExecutor_ConfirmedVSCodeOAuthPreservesToolNames(t *testing.T) {
 		Metadata: map[string]any{
 			"account_uuid":      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 			"claude_device_ids": deviceIDs,
-			"cloak_mode":        "always",
+			"cloak_mode":        "auto",
 		},
 	}
 	_, errExecute := executor.Execute(context.Background(), auth, cliproxyexecutor.Request{
@@ -1193,10 +1273,10 @@ func TestClaudeExecutor_ConfirmedVSCodeOAuthPreservesToolNames(t *testing.T) {
 		SourceFormat:    sdktranslator.FormatClaude,
 		OriginalRequest: payload,
 		Headers: http.Header{
-			"User-Agent":                  {"claude-cli/2.1.220 (external, claude-vscode, agent-sdk/0.3.220)"},
+			"User-Agent":                  {"claude-cli/2.1.252 (external, claude-vscode, agent-sdk/0.3.252)"},
 			"X-App":                       {"cli"},
 			"Anthropic-Beta":              {"claude-code-20250219"},
-			"X-Stainless-Package-Version": {"0.94.0"},
+			"X-Stainless-Package-Version": {"0.112.1"},
 			"X-Stainless-Runtime-Version": {"v26.3.0"},
 		},
 	})
@@ -2324,7 +2404,7 @@ func TestClaudeExecutor_CountTokensUpstreamConfirmedVSCodePreservesCustomTool(t 
 			"base_url": server.URL,
 		},
 		Metadata: map[string]any{
-			"cloak_mode": "always",
+			"cloak_mode": "auto",
 		},
 	}
 	payload := []byte(`{"model":"claude-opus-4-6","messages":[{"role":"user","content":"search"}],"tools":[{"name":"search_web","input_schema":{"type":"object"}}]}`)
@@ -2334,7 +2414,7 @@ func TestClaudeExecutor_CountTokensUpstreamConfirmedVSCodePreservesCustomTool(t 
 	}, cliproxyexecutor.Options{
 		SourceFormat: sdktranslator.FormatClaude,
 		Headers: http.Header{
-			"User-Agent":     {"claude-cli/2.1.220 (external, claude-vscode, agent-sdk/0.3.220)"},
+			"User-Agent":     {"claude-cli/2.1.252 (external, claude-vscode, agent-sdk/0.3.252)"},
 			"X-App":          {"cli"},
 			"Anthropic-Beta": {"claude-code-20250219"},
 		},
@@ -2773,7 +2853,7 @@ func TestClaudeExecutor_ExecuteOpenAINonStreamRejectsClaudeErrorEvent(t *testing
 	if err == nil {
 		t.Fatal("Execute error = nil, want upstream error event")
 	}
-	assertStatusErr(t, err, http.StatusBadGateway)
+	assertStatusErr(t, err, 529)
 	if !strings.Contains(err.Error(), "upstream overloaded") {
 		t.Fatalf("Execute error = %q, want upstream overloaded", err.Error())
 	}
@@ -2793,6 +2873,23 @@ func TestClaudeExecutor_ExecuteOpenAINonStreamRejectsIncompleteClaudeStream(t *t
 	assertStatusErr(t, err, http.StatusBadGateway)
 	if !strings.Contains(err.Error(), "ended before message completion") {
 		t.Fatalf("Execute error = %q, want incomplete stream error", err.Error())
+	}
+}
+
+func TestClaudeExecutor_ExecuteOpenAINonStreamRequiresMessageStop(t *testing.T) {
+	body := strings.Join([]string{
+		`data: {"type":"message_start","message":{"id":"msg_123","model":"claude-3-5-sonnet-20241022"}}`,
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}`,
+		``,
+	}, "\n")
+
+	_, err := executeOpenAIChatCompletionThroughClaude(t, body)
+	if err == nil {
+		t.Fatal("Execute error = nil, want missing message_stop error")
+	}
+	assertStatusErr(t, err, http.StatusBadGateway)
+	if !strings.Contains(err.Error(), "missing message_stop") {
+		t.Fatalf("Execute error = %q, want missing message_stop", err.Error())
 	}
 }
 
@@ -3460,7 +3557,7 @@ func TestDecodeResponseBodyStackedRepeatedHeaders(t *testing.T) {
 	header := make(http.Header)
 	header.Add("Content-Encoding", "gzip")
 	header.Add("Content-Encoding", "br")
-	decoded, errDecode := decodeResponseBody(io.NopCloser(bytes.NewReader(brotliOutput.Bytes())), claudeResponseContentEncoding(header))
+	decoded, errDecode := decodeResponseBodyWithMemoryLimit(io.NopCloser(bytes.NewReader(brotliOutput.Bytes())), claudeResponseContentEncoding(header), 0)
 	if errDecode != nil {
 		t.Fatal(errDecode)
 	}
@@ -3485,7 +3582,7 @@ func TestDecodeResponseBody_MagicByteGzipNoHeader(t *testing.T) {
 	_ = gz.Close()
 
 	rc := io.NopCloser(&buf)
-	decoded, err := decodeResponseBody(rc, "")
+	decoded, err := decodeResponseBodyWithMemoryLimit(rc, "", 0)
 	if err != nil {
 		t.Fatalf("decodeResponseBody error: %v", err)
 	}
@@ -3514,7 +3611,7 @@ func TestDecodeResponseBody_MagicByteZstdNoHeader(t *testing.T) {
 	_ = enc.Close()
 
 	rc := io.NopCloser(&buf)
-	decoded, err := decodeResponseBody(rc, "")
+	decoded, err := decodeResponseBodyWithMemoryLimit(rc, "", 0)
 	if err != nil {
 		t.Fatalf("decodeResponseBody error: %v", err)
 	}
@@ -3534,7 +3631,7 @@ func TestDecodeResponseBody_MagicByteZstdNoHeader(t *testing.T) {
 func TestDecodeResponseBody_PlainTextNoHeader(t *testing.T) {
 	const plaintext = "data: {\"type\":\"message_stop\"}\n"
 	rc := io.NopCloser(strings.NewReader(plaintext))
-	decoded, err := decodeResponseBody(rc, "")
+	decoded, err := decodeResponseBodyWithMemoryLimit(rc, "", 0)
 	if err != nil {
 		t.Fatalf("decodeResponseBody error: %v", err)
 	}
@@ -4509,7 +4606,7 @@ func TestResolveClaudeWirePolicy(t *testing.T) {
 		{name: "unknown always", mode: "always", wantCloak: true},
 		{name: "unknown never", mode: "never", wantCloak: false},
 		{name: "confirmed auto", confirmed: true, mode: "auto", wantCloak: false},
-		{name: "confirmed always", confirmed: true, mode: "always", wantCloak: false},
+		{name: "confirmed always", confirmed: true, mode: "always", wantCloak: true},
 		{name: "confirmed never", confirmed: true, mode: "never", wantCloak: false},
 	}
 	for _, test := range tests {
@@ -5205,7 +5302,7 @@ func TestClaudeExecutor_ExecuteOAuthCustomToolMCPAliasRoundTrip(t *testing.T) {
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.220 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.252 (external, cli)" {
 		t.Fatalf("Messages User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)
@@ -5282,7 +5379,7 @@ func TestClaudeExecutor_ExecuteStreamOAuthCustomToolMCPAliasRoundTrip(t *testing
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("streaming Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.220 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.252 (external, cli)" {
 		t.Fatalf("streaming User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)
@@ -5418,10 +5515,14 @@ func TestInsertClaudeMidConversationSystemMessages_IsIdempotent(t *testing.T) {
 }
 
 // TestClaudeCodeCLIBetas_MatchesObservedClientMatrix pins the Anthropic-Beta
-// baseline to Claude Code 2.1.220 behavior captured against api.anthropic.com.
-// The OAuth profile was reverified on 2026-08-03 with two distinct accounts.
+// baseline to Claude Code 2.1.252 behavior captured against api.anthropic.com
+// (research/23§3: 10 betas for the cli entrypoint, 9 for sdk-cli without
+// redact-thinking). Against the 2.1.220 matrix the 2.1.252 client stops
+// sending advanced-tool-use and server-side-fallback by default, sends
+// mid-conversation-system and fallback-credit unconditionally, and adds
+// context-1m whenever the selected model has a 1M window.
 func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
-	const constants = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05"
+	const constants = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24,fallback-credit-2026-06-01"
 
 	tests := []struct {
 		name      string
@@ -5431,9 +5532,9 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 		want      string
 	}{
 		{
-			name: "legacy model without tools omits both conditional betas",
+			name: "plain request carries the full constant baseline",
 			body: `{"model":"claude-opus-4-6"}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
 			name:      "context 1m sits right after claude-code, not at the end",
@@ -5442,10 +5543,11 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,effort-2025-11-24",
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"effort-2025-11-24,fallback-credit-2026-06-01",
 		},
 		{
-			name: "opus-5 1m variant reproduces the full observed order",
+			name: "opus-5 1m variant reproduces the observed order with caller extras",
 			body: `{"model":"claude-opus-5","tools":[{"name":"Read"}]}`,
 			requested: map[string]bool{
 				claudeContext1MBeta:          true,
@@ -5456,49 +5558,59 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
 				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
-				"advanced-tool-use-2025-11-20,effort-2025-11-24," +
-				"server-side-fallback-2026-06-01,fallback-credit-2026-06-01",
+				"effort-2025-11-24,server-side-fallback-2026-06-01," +
+				"fallback-credit-2026-06-01",
 		},
 		{
 			name:      "structured outputs trails effort",
 			body:      `{"model":"claude-opus-4-6"}`,
 			requested: map[string]bool{claudeStructuredOutputsBeta: true},
-			want:      constants + ",effort-2025-11-24,structured-outputs-2025-12-15",
+			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
+				"redact-thinking-2026-02-12,thinking-token-count-2026-05-13," +
+				"context-management-2025-06-27,prompt-caching-scope-2026-01-05," +
+				"mid-conversation-system-2026-04-07,effort-2025-11-24," +
+				"structured-outputs-2025-12-15,fallback-credit-2026-06-01",
 		},
 		{
 			name:      "unknown caller beta is not smuggled into the baseline",
 			body:      `{"model":"claude-opus-4-6"}`,
 			requested: map[string]bool{"totally-made-up-2030-01-01": true},
-			want:      constants + ",effort-2025-11-24",
+			want:      constants,
 		},
 		{
-			name: "claude-sonnet-5 accepts role=system",
+			name:      "requested advanced tool use is no longer emitted in 2.1.252",
+			body:      `{"model":"claude-sonnet-4-6","tools":[{"name":"Read"}]}`,
+			requested: map[string]bool{claudeAdvancedToolUseBeta: true},
+			want:      constants,
+		},
+		{
+			name: "claude-sonnet-5 carries the constant baseline",
 			body: `{"model":"claude-sonnet-5"}`,
-			want: constants + ",mid-conversation-system-2026-04-07,effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "claude-opus-4-8 accepts role=system",
+			name: "claude-opus-4-8 carries the constant baseline",
 			body: `{"model":"claude-opus-4-8"}`,
-			want: constants + ",mid-conversation-system-2026-04-07,effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "claude-fable-5 accepts role=system",
+			name: "claude-fable-5 carries the constant baseline",
 			body: `{"model":"claude-fable-5"}`,
-			want: constants + ",mid-conversation-system-2026-04-07,effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "claude-opus-4-7 stays on the reminder path",
+			name: "claude-opus-4-7 carries the constant baseline",
 			body: `{"model":"claude-opus-4-7"}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name:  "oauth uses advanced tools and the current cache TTL trailer",
+			name:  "oauth adds the cache TTL trailer",
 			body:  `{"model":"claude-opus-4-6","tools":[{"name":"Read"}]}`,
 			oauth: true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
 				"effort-2025-11-24,fallback-credit-2026-06-01," +
 				"extended-cache-ttl-2025-04-11",
 		},
@@ -5515,69 +5627,72 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
 				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
-				"advanced-tool-use-2025-11-20,effort-2025-11-24," +
-				"server-side-fallback-2026-06-01,fallback-credit-2026-06-01," +
-				"extended-cache-ttl-2025-04-11",
+				"effort-2025-11-24,server-side-fallback-2026-06-01," +
+				"fallback-credit-2026-06-01,extended-cache-ttl-2025-04-11",
 		},
 		{
 			name: "api key path sends neither oauth beta",
 			body: `{"model":"claude-opus-4-6"}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "claude-haiku-4-5-20251001 stays on the reminder path",
+			name: "claude-haiku-4-5-20251001 carries the constant baseline",
 			body: `{"model":"claude-haiku-4-5-20251001"}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "legacy model with tools adds advanced tool use only",
-			body: `{"model":"claude-sonnet-4-6","tools":[{"name":"Read"}]}`,
-			want: constants + ",advanced-tool-use-2025-11-20,effort-2025-11-24",
-		},
-		{
-			name: "role=system model without tools adds mid conversation system only",
+			name: "opus-5 adds context-1m without an explicit 1m alias",
 			body: `{"model":"claude-opus-5"}`,
-			want: constants + ",mid-conversation-system-2026-04-07,effort-2025-11-24",
+			want: "claude-code-20250219,context-1m-2025-08-07," +
+				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
+				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"effort-2025-11-24,fallback-credit-2026-06-01",
 		},
 		{
-			name: "role=system model with tools adds both in wire order",
+			name: "opus-5 with tools changes nothing beyond context-1m",
 			body: `{"model":"claude-opus-5","tools":[{"name":"Read"}]}`,
-			want: constants + ",mid-conversation-system-2026-04-07,advanced-tool-use-2025-11-20,effort-2025-11-24",
+			want: "claude-code-20250219,context-1m-2025-08-07," +
+				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
+				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"effort-2025-11-24,fallback-credit-2026-06-01",
 		},
 		{
-			name: "empty tools array does not add advanced tool use",
+			name: "empty tools array leaves the baseline untouched",
 			body: `{"model":"claude-opus-4-6","tools":[]}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
-			name: "unknown future model keeps the optimistic role=system default",
+			name: "unknown future model keeps the constant baseline",
 			body: `{"model":"claude-future-9"}`,
-			want: constants + ",mid-conversation-system-2026-04-07,effort-2025-11-24",
+			want: constants,
 		},
 		{
 			name: "thinking display summarized drops redact-thinking",
 			body: `{"model":"claude-opus-5","thinking":{"type":"adaptive","display":"summarized"}}`,
-			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
+			want: "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
 				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
-				"effort-2025-11-24",
+				"effort-2025-11-24,fallback-credit-2026-06-01",
 		},
 		{
 			name: "thinking display omitted drops redact-thinking as well",
 			body: `{"model":"claude-opus-4-6","thinking":{"type":"enabled","budget_tokens":2048,"display":"omitted"}}`,
 			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,effort-2025-11-24",
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"effort-2025-11-24,fallback-credit-2026-06-01",
 		},
 		{
 			name: "thinking without display keeps redact-thinking",
 			body: `{"model":"claude-opus-4-6","thinking":{"type":"adaptive"}}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 		{
 			name: "blank display value keeps redact-thinking",
 			body: `{"model":"claude-opus-4-6","thinking":{"type":"adaptive","display":"  "}}`,
-			want: constants + ",effort-2025-11-24",
+			want: constants,
 		},
 	}
 

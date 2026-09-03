@@ -519,9 +519,9 @@ func (h *OpenAIResponsesAPIHandler) prepareCodexMultiAgentV2Tools(c *gin.Context
 //   - c: The Gin context containing the HTTP request and response
 func (h *OpenAIResponsesAPIHandler) Responses(c *gin.Context) {
 	rawJSON, err := handlers.ReadRequestBody(c)
-	// If data retrieval fails, return a 400 Bad Request error.
+	// If data retrieval fails, reject malformed bodies or oversized payloads.
 	if err != nil {
-		c.JSON(http.StatusBadRequest, handlers.ErrorResponse{
+		c.JSON(handlers.RequestBodyErrorStatus(err), handlers.ErrorResponse{
 			Error: handlers.ErrorDetail{
 				Message: fmt.Sprintf("Invalid request: %v", err),
 				Type:    "invalid_request_error",
@@ -545,7 +545,7 @@ func (h *OpenAIResponsesAPIHandler) Responses(c *gin.Context) {
 func (h *OpenAIResponsesAPIHandler) Compact(c *gin.Context) {
 	rawJSON, err := handlers.ReadRequestBody(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, handlers.ErrorResponse{
+		c.JSON(handlers.RequestBodyErrorStatus(err), handlers.ErrorResponse{
 			Error: handlers.ErrorDetail{
 				Message: fmt.Sprintf("Invalid request: %v", err),
 				Type:    "invalid_request_error",

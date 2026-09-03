@@ -21,6 +21,28 @@ import (
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 )
 
+// claudeUpstreamOverloadedStatus is Anthropic's 529 "overloaded_error"
+// throttle code, which has no net/http constant.
+const claudeUpstreamOverloadedStatus = 529
+
+// claudeAllowedWarnWindow bounds how far apart two allowed_warning
+// observations on the same model may be to still count toward its soft
+// cooldown, and claudeAllowedWarnPause is the model-level pause applied
+// once the second warning lands inside that window.
+const (
+	claudeAllowedWarnWindow = 120 * time.Second
+	claudeAllowedWarnPause  = 30 * time.Second
+)
+
+// claudeUnifiedStatusHeaders are the Anthropic unified rate-limit status
+// headers. Any one of them reporting allowed_warning counts as a warning
+// observation (Header.Get is case-insensitive).
+var claudeUnifiedStatusHeaders = []string{
+	"Anthropic-Ratelimit-Unified-Status",
+	"Anthropic-Ratelimit-Unified-5h-Status",
+	"Anthropic-Ratelimit-Unified-7d-Status",
+}
+
 var quotaCooldownDisabled atomic.Bool
 
 var transientErrorCooldownSeconds atomic.Int64
@@ -142,6 +164,7 @@ func (m *Manager) setConfigSnapshotLocked(cfg *internalconfig.Config) bool {
 		m.homeSessionAliases.clear()
 	}
 	m.runtimeConfig.Store(cfg)
+	m.notifyLocalCredentialAdmissionConfigChanged()
 	clearedCooldowns := m.clearDisabledCooldownStates(cfg)
 	if clearedCooldowns && oldCooldownStore != nil {
 		m.mu.Lock()
@@ -396,6 +419,10 @@ func clearCooldownStateForAuth(auth *Auth, now time.Time) bool {
 		if state == nil {
 			continue
 		}
+		if !state.allowedWarningAt.IsZero() {
+			state.allowedWarningAt = time.Time{}
+			changed = true
+		}
 		if state.Unavailable || !state.NextRetryAfter.IsZero() || state.Quota.Exceeded || !state.Quota.NextRecoverAt.IsZero() {
 			state.Unavailable = false
 			state.NextRetryAfter = time.Time{}
@@ -466,6 +493,7 @@ func (m *Manager) ResetQuota(ctx context.Context, authID string) (*Auth, []strin
 		models = append(models, modelKey)
 		if state != nil {
 			resetModelState(state, now)
+			state.allowedWarningAt = time.Time{}
 		}
 	}
 	if clearCooldownStateForAuth(auth, now) {
@@ -734,22 +762,41 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 			auth.Failed++
 		}
 
-		if result.Success {
+		if result.Success && result.SkipQuotaObservation {
+			// Auxiliary requests such as count_tokens share a credential and model
+			// name with generation traffic, but their success does not prove that
+			// the messages endpoint recovered. Keep cooldown and warning state intact.
+		} else if result.Success {
 			if auth.Quota.Reason == "credential_quota" && auth.Quota.NextRecoverAt.After(now) {
 				// Retain active credential-scoped cooldown
 			} else if modelKey != "" {
 				state := ensureModelState(auth, modelKey)
 				modelState = state
-				resetModelState(state, now)
-				updateAggregatedAvailability(auth, now)
-				if !hasModelError(auth, now) {
-					auth.LastError = nil
-					auth.StatusMessage = ""
-					auth.Status = StatusActive
+				if resultMayClearModelState(result, state, now) {
+					resetModelState(state, now)
+					updateAggregatedAvailability(auth, now)
+					if !hasModelError(auth, now) {
+						auth.LastError = nil
+						auth.StatusMessage = ""
+						auth.Status = StatusActive
+					}
+					auth.UpdatedAt = now
+					shouldResumeModel = true
+					clearModelQuota = true
+					// A 200 that carries an allowed_warning still costs the
+					// per-model window; the soft backoff may re-cool the model
+					// right after the reset above. Cooling overrides apply to
+					// this proactive pause just as they do to failure cooldowns.
+					if !m.cooldownDisabledForAuth(auth) {
+						if !result.SkipAllowedWarningObservation && applyClaudeAllowedWarningCooldown(auth, state, responseHeaders, now) {
+							shouldResumeModel = false
+							shouldSuspendModel = true
+							suspendReason = "allowed_warning"
+						}
+					} else {
+						state.allowedWarningAt = time.Time{}
+					}
 				}
-				auth.UpdatedAt = now
-				shouldResumeModel = true
-				clearModelQuota = true
 			} else {
 				clearAuthStateOnSuccess(auth, now)
 			}
@@ -881,6 +928,17 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 								auth.Quota.NextRecoverAt = authNext
 								auth.NextRetryAfter = authNext
 							}
+						case claudeUpstreamOverloadedStatus:
+							// Upstream overload ("overloaded_error"): transient model
+							// capacity. Cool only this model for the announced window
+							// and rotate; the account quota and the credential's
+							// sibling models stay untouched.
+							if !disableCooling && result.RetryAfter != nil {
+								state.NextRetryAfter = now.Add(*result.RetryAfter)
+							} else {
+								state.NextRetryAfter = recoverableFailureRetryAfter(now, disableCooling)
+							}
+							state.Unavailable = !state.NextRetryAfter.IsZero()
 						case 408, 500, 502, 503, 504:
 							state.NextRetryAfter = recoverableFailureRetryAfter(now, disableCooling)
 							state.Unavailable = !state.NextRetryAfter.IsZero()
@@ -1086,6 +1144,7 @@ func mergeModelState(target, source *ModelState) *ModelState {
 		},
 		UpdatedAt: target.UpdatedAt,
 	}
+	merged.allowedWarningAt = preferred.allowedWarningAt
 	merged.Quota = mergeQuotaObservation(merged.Quota, fallback.Quota)
 	merged.Quota = mergeQuotaObservation(merged.Quota, preferred.Quota)
 	if source.NextRetryAfter.After(merged.NextRetryAfter) {
@@ -1131,6 +1190,37 @@ func resetModelState(state *ModelState, now time.Time) {
 	state.UpdatedAt = now
 }
 
+func preserveModelRuntimeState(target, source map[string]*ModelState) {
+	if len(target) == 0 || len(source) == 0 {
+		return
+	}
+	for model, targetState := range target {
+		if targetState == nil {
+			continue
+		}
+		sourceState := source[model]
+		if sourceState == nil {
+			sourceState = source[canonicalModelKey(model)]
+		}
+		if sourceState != nil {
+			targetState.allowedWarningAt = sourceState.allowedWarningAt
+		}
+	}
+}
+
+func resultMayClearModelState(result Result, state *ModelState, now time.Time) bool {
+	if result.AttemptStartedAt.IsZero() || state == nil || state.UpdatedAt.IsZero() {
+		return true
+	}
+	blocked, _, _ := availabilityBlock(state.Unavailable, state.Quota.Exceeded, state.NextRetryAfter, state.Quota.NextRecoverAt, now)
+	if !blocked && state.Status != StatusDisabled {
+		// Successful observations do not form an ordering barrier. This allows
+		// concurrent allowed_warning responses to contribute to the same window.
+		return true
+	}
+	return !state.UpdatedAt.After(result.AttemptStartedAt)
+}
+
 func modelStateIsClean(state *ModelState) bool {
 	if state == nil {
 		return true
@@ -1143,6 +1233,106 @@ func modelStateIsClean(state *ModelState) bool {
 	}
 	if state.Quota.Exceeded || state.Quota.Reason != "" || !state.Quota.NextRecoverAt.IsZero() || state.Quota.BackoffLevel != 0 {
 		return false
+	}
+	return true
+}
+
+// applyClaudeAllowedWarningCooldown implements the per-model window soft
+// backoff. Two allowed_warning observations within the window pause only this
+// model; ordinary allowed responses do not erase an earlier warning.
+func claudeResponseHasAllowedWarning(responseHeaders http.Header) bool {
+	if responseHeaders == nil {
+		return false
+	}
+	for _, header := range claudeUnifiedStatusHeaders {
+		if strings.EqualFold(responseHeaders.Get(header), "allowed_warning") {
+			return true
+		}
+	}
+	return false
+}
+
+// applyClaudeAllowedWarningCooldown returns true when this observation starts
+// a soft cooldown. The caller is responsible for synchronizing schedulers and
+// registry availability after the state mutation.
+func applyClaudeAllowedWarningCooldown(auth *Auth, state *ModelState, responseHeaders http.Header, now time.Time) bool {
+	if auth == nil || state == nil || responseHeaders == nil {
+		return false
+	}
+	if !claudeResponseHasAllowedWarning(responseHeaders) {
+		return false
+	}
+	if state.allowedWarningAt.IsZero() || now.Before(state.allowedWarningAt) || now.Sub(state.allowedWarningAt) > claudeAllowedWarnWindow {
+		// First observation, or the window lapsed: record and keep serving.
+		state.allowedWarningAt = now
+		return false
+	}
+	// Second warning inside the window: soft-cool this model only.
+	state.allowedWarningAt = time.Time{}
+	pause := now.Add(claudeAllowedWarnPause)
+	if pause.After(state.NextRetryAfter) {
+		state.NextRetryAfter = pause
+	}
+	state.Unavailable = true
+	state.Status = StatusError
+	state.StatusMessage = "allowed_warning"
+	state.UpdatedAt = now
+	updateAggregatedAvailability(auth, now)
+	return true
+}
+
+// observeClaudeStreamAllowedWarning processes a successful stream's response
+// headers immediately, before a potentially long-lived SSE body completes.
+func (m *Manager) observeClaudeStreamAllowedWarning(ctx context.Context, authID, model string, responseHeaders http.Header, observedAt time.Time) bool {
+	if m == nil || authID == "" || !claudeResponseHasAllowedWarning(responseHeaders) {
+		return false
+	}
+	modelKey := canonicalModelKey(model)
+	if modelKey == "" {
+		return false
+	}
+	if observedAt.IsZero() {
+		observedAt = time.Now()
+	}
+
+	var (
+		authSnapshot         *Auth
+		cooldownStateChanged bool
+		softCooled           bool
+	)
+	m.mu.Lock()
+	if auth := m.auths[authID]; auth != nil {
+		state := ensureModelState(auth, modelKey)
+		if m.cooldownDisabledForAuth(auth) {
+			state.allowedWarningAt = time.Time{}
+		} else {
+			var before []CooldownStateRecord
+			trackCooldownState := m.cooldownStore != nil
+			if trackCooldownState {
+				before = m.cooldownStateRecordsForAuthLocked(auth, observedAt)
+			}
+			softCooled = applyClaudeAllowedWarningCooldown(auth, state, responseHeaders, observedAt)
+			if softCooled {
+				auth.UpdatedAt = observedAt
+				_ = m.persist(ctx, auth)
+				authSnapshot = auth.Clone()
+				if trackCooldownState {
+					after := m.cooldownStateRecordsForAuthLocked(auth, observedAt)
+					cooldownStateChanged = !cooldownStateRecordsEqual(before, after)
+				}
+			}
+		}
+	}
+	m.mu.Unlock()
+
+	if authSnapshot != nil && m.scheduler != nil {
+		m.scheduler.upsertAuth(authSnapshot)
+	}
+	if cooldownStateChanged {
+		m.persistCooldownStates(context.Background())
+	}
+	if softCooled {
+		registry.GetGlobalRegistry().SuspendClientModel(authID, modelKey, "allowed_warning")
 	}
 	return true
 }
@@ -1974,6 +2164,17 @@ func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Durati
 		}
 		auth.Quota.NextRecoverAt = next
 		auth.NextRetryAfter = next
+	case claudeUpstreamOverloadedStatus:
+		// Upstream overload ("overloaded_error"): transient capacity. Cool the
+		// credential for the announced window without flagging quota
+		// exhaustion, so quota-based eligibility checks stay unblocked.
+		auth.StatusMessage = "overloaded"
+		if !disableCooling && retryAfter != nil {
+			auth.NextRetryAfter = now.Add(*retryAfter)
+		} else {
+			auth.NextRetryAfter = recoverableFailureRetryAfter(now, disableCooling)
+		}
+		auth.Unavailable = !auth.NextRetryAfter.IsZero()
 	case 408, 500, 502, 503, 504:
 		auth.StatusMessage = "transient upstream error"
 		auth.NextRetryAfter = recoverableFailureRetryAfter(now, disableCooling)

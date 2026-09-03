@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/net/proxy"
 )
@@ -88,6 +89,13 @@ func NewDirectTransport() *http.Transport {
 
 // BuildHTTPTransport constructs an HTTP transport for the provided proxy setting.
 func BuildHTTPTransport(raw string) (*http.Transport, Mode, error) {
+	return BuildHTTPTransportWithBase(raw, nil)
+}
+
+// BuildHTTPTransportWithBase constructs an HTTP transport whose connections to
+// the destination or proxy server are established through base. A nil base uses
+// the cloned default transport dialer.
+func BuildHTTPTransportWithBase(raw string, base proxy.Dialer) (*http.Transport, Mode, error) {
 	setting, errParse := Parse(raw)
 	if errParse != nil {
 		return nil, setting.Mode, errParse
@@ -97,7 +105,9 @@ func BuildHTTPTransport(raw string) (*http.Transport, Mode, error) {
 	case ModeInherit:
 		return nil, setting.Mode, nil
 	case ModeDirect:
-		return NewDirectTransport(), setting.Mode, nil
+		transport := NewDirectTransport()
+		applyHTTPTransportBaseDialer(transport, base)
+		return transport, setting.Mode, nil
 	case ModeProxy:
 		if setting.URL.Scheme == "socks5" || setting.URL.Scheme == "socks5h" {
 			var proxyAuth *proxy.Auth
@@ -106,42 +116,132 @@ func BuildHTTPTransport(raw string) (*http.Transport, Mode, error) {
 				password, _ := setting.URL.User.Password()
 				proxyAuth = &proxy.Auth{User: username, Password: password}
 			}
-			dialer, errSOCKS5 := proxy.SOCKS5("tcp", setting.URL.Host, proxyAuth, proxy.Direct)
+			baseDialer := base
+			if baseDialer == nil {
+				baseDialer = proxy.Direct
+			}
+			dialer, errSOCKS5 := proxy.SOCKS5("tcp", setting.URL.Host, proxyAuth, baseDialer)
 			if errSOCKS5 != nil {
 				return nil, setting.Mode, fmt.Errorf("create SOCKS5 dialer failed: %w", errSOCKS5)
 			}
 			transport := cloneDefaultTransport()
 			transport.Proxy = nil
-			transport.DialContext = func(_ context.Context, network, addr string) (net.Conn, error) {
-				return dialer.Dial(network, addr)
-			}
+			applyHTTPTransportBaseDialer(transport, dialer)
 			return transport, setting.Mode, nil
 		}
 		transport := cloneDefaultTransport()
+		applyHTTPTransportBaseDialer(transport, base)
 		transport.Proxy = http.ProxyURL(setting.URL)
+		if setting.URL.Scheme == "https" {
+			transport.DialTLSContext = buildHTTPSProxyDialTLSContext(
+				setting.URL,
+				nil,
+				transport.TLSHandshakeTimeout,
+				transport.DialContext,
+			)
+		}
 		return transport, setting.Mode, nil
 	default:
 		return nil, setting.Mode, nil
 	}
 }
 
+func applyHTTPTransportBaseDialer(transport *http.Transport, dialer proxy.Dialer) {
+	if transport == nil || dialer == nil {
+		return
+	}
+	// DialTLSContext bypasses DialContext for direct TLS connections. Clear an
+	// inherited hook so an explicit base dialer cannot lose source-IP or proxy
+	// routing guarantees.
+	transport.DialTLSContext = nil
+	if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
+		transport.DialContext = contextDialer.DialContext
+		return
+	}
+	transport.DialContext = func(_ context.Context, network, addr string) (net.Conn, error) {
+		return dialer.Dial(network, addr)
+	}
+}
+
+func buildHTTPSProxyDialTLSContext(
+	proxyURL *url.URL,
+	baseTLS *tls.Config,
+	handshakeTimeout time.Duration,
+	baseDialContext func(context.Context, string, string) (net.Conn, error),
+) func(context.Context, string, string) (net.Conn, error) {
+	proxyHostname := proxyURL.Hostname()
+	var privateTLS *tls.Config
+	if baseTLS != nil {
+		privateTLS = baseTLS.Clone()
+	}
+	dialContext := baseDialContext
+	if dialContext == nil {
+		dialContext = (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		rawConn, errDial := dialContext(ctx, network, addr)
+		if errDial != nil {
+			return nil, errDial
+		}
+		var tlsConfig *tls.Config
+		if privateTLS != nil {
+			tlsConfig = privateTLS.Clone()
+		} else {
+			tlsConfig = &tls.Config{}
+		}
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = proxyHostname
+		}
+		tlsConfig.NextProtos = []string{"http/1.1"}
+
+		tlsConn := tls.Client(rawConn, tlsConfig)
+		handshakeCtx := ctx
+		if handshakeTimeout > 0 {
+			var cancelHandshake context.CancelFunc
+			handshakeCtx, cancelHandshake = context.WithTimeout(ctx, handshakeTimeout)
+			defer cancelHandshake()
+		}
+		if errHandshake := tlsConn.HandshakeContext(handshakeCtx); errHandshake != nil {
+			if errClose := rawConn.Close(); errClose != nil {
+				return nil, fmt.Errorf("HTTPS proxy TLS handshake failed: %w; close failed: %v", errHandshake, errClose)
+			}
+			return nil, fmt.Errorf("HTTPS proxy TLS handshake failed: %w", errHandshake)
+		}
+		return tlsConn, nil
+	}
+}
+
 // BuildDialer constructs a proxy dialer for settings that operate at the connection layer.
 func BuildDialer(raw string) (proxy.Dialer, Mode, error) {
+	return BuildDialerWithBase(raw, proxy.Direct)
+}
+
+// BuildDialerWithBase constructs a proxy dialer whose connection to the
+// destination or proxy server is established through base. This allows callers
+// to retain local-address binding while preserving HTTP CONNECT and SOCKS proxy
+// behavior.
+func BuildDialerWithBase(raw string, base proxy.Dialer) (proxy.Dialer, Mode, error) {
 	setting, errParse := Parse(raw)
 	if errParse != nil {
 		return nil, setting.Mode, errParse
+	}
+	if base == nil {
+		base = proxy.Direct
 	}
 
 	switch setting.Mode {
 	case ModeInherit:
 		return nil, setting.Mode, nil
 	case ModeDirect:
-		return proxy.Direct, setting.Mode, nil
+		return base, setting.Mode, nil
 	case ModeProxy:
 		if setting.URL.Scheme == "http" || setting.URL.Scheme == "https" {
-			return &httpConnectDialer{proxyURL: setting.URL, dialer: proxy.Direct}, setting.Mode, nil
+			return &httpConnectDialer{proxyURL: setting.URL, dialer: base}, setting.Mode, nil
 		}
-		dialer, errDialer := proxy.FromURL(setting.URL, proxy.Direct)
+		dialer, errDialer := proxy.FromURL(setting.URL, base)
 		if errDialer != nil {
 			return nil, setting.Mode, fmt.Errorf("create proxy dialer failed: %w", errDialer)
 		}
@@ -152,8 +252,9 @@ func BuildDialer(raw string) (proxy.Dialer, Mode, error) {
 }
 
 type httpConnectDialer struct {
-	proxyURL *url.URL
-	dialer   proxy.Dialer
+	proxyURL  *url.URL
+	dialer    proxy.Dialer
+	tlsConfig *tls.Config
 }
 
 func (d *httpConnectDialer) Dial(network, addr string) (net.Conn, error) {
@@ -185,7 +286,18 @@ func (d *httpConnectDialer) DialContext(ctx context.Context, network, addr strin
 		}
 	}()
 	if d.proxyURL.Scheme == "https" {
-		tlsConn := tls.Client(conn, &tls.Config{ServerName: d.proxyURL.Hostname()})
+		var tlsConfig *tls.Config
+		if d.tlsConfig != nil {
+			tlsConfig = d.tlsConfig.Clone()
+		} else {
+			tlsConfig = &tls.Config{}
+		}
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = d.proxyURL.Hostname()
+		}
+		tlsConfig.NextProtos = []string{"http/1.1"}
+
+		tlsConn := tls.Client(conn, tlsConfig)
 		if errHandshake := tlsConn.HandshakeContext(ctx); errHandshake != nil {
 			if errClose := conn.Close(); errClose != nil {
 				return nil, fmt.Errorf("HTTPS proxy TLS handshake failed: %w; close failed: %v", errHandshake, errClose)

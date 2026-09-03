@@ -18,13 +18,14 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// ClaudeExecutor is a stateless executor for Anthropic Claude over the messages API.
+// ClaudeExecutor handles Anthropic Claude over the messages API.
 // If api_key is unavailable on auth, it falls back to legacy via ClientAdapter.
 type ClaudeExecutor struct {
 	cfg                     *config.Config
 	requestLogProvider      string
 	upstreamModelNormalizer func(string) string
 	oauthProfileFetcher     claudeOAuthProfileFetcher
+	accountProfileCache     claudeAccountProfileCache
 }
 
 type claudeOAuthCancellationError struct {

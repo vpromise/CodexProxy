@@ -165,11 +165,12 @@ func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
 
 	// If streaming, initialize streaming log writer
 	if w.isStreaming && w.logger.IsEnabled() {
+		requestBody := w.extractRequestBody(nil)
 		streamWriter, err := w.logger.LogStreamingRequest(
 			w.requestInfo.URL,
 			w.requestInfo.Method,
 			w.requestInfo.Headers,
-			w.requestInfo.Body,
+			requestBody,
 			w.requestInfo.RequestID,
 		)
 		if err == nil {
@@ -490,7 +491,7 @@ func (w *ResponseWriterWrapper) extractRequestBody(c *gin.Context) []byte {
 	encoding := ""
 	for key, values := range w.requestInfo.Headers {
 		if strings.EqualFold(key, "Content-Encoding") && len(values) > 0 {
-			encoding = values[0]
+			encoding = strings.Join(values, ",")
 			break
 		}
 	}

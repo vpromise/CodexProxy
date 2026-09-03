@@ -197,6 +197,12 @@ func (b *Builder) Build() (*Service, error) {
 	if errValidate := b.cfg.ValidateCredentialWeights(); errValidate != nil {
 		return nil, fmt.Errorf("cliproxy: validate credential weights: %w", errValidate)
 	}
+	if errValidate := b.cfg.ValidateClaudeAdmission(); errValidate != nil {
+		return nil, fmt.Errorf("cliproxy: validate Claude admission: %w", errValidate)
+	}
+	if errValidate := b.cfg.ValidateClaudeBindIPs(); errValidate != nil {
+		return nil, fmt.Errorf("cliproxy: validate Claude bind IPs: %w", errValidate)
+	}
 	b.cfg.NormalizePluginsConfig()
 	if errResolvePluginsDir := b.cfg.ResolvePluginsDir(); errResolvePluginsDir != nil && b.cfg.Plugins.Enabled {
 		return nil, fmt.Errorf("cliproxy: %w", errResolvePluginsDir)
@@ -236,7 +242,7 @@ func (b *Builder) Build() (*Service, error) {
 		pluginHost.ApplyConfig(context.Background(), b.cfg)
 		pluginHost.RegisterFrontendAuthProviders()
 	}
-	accessManager.SetProviders(sdkaccess.RegisteredProviders())
+	accessManager.Configure(sdkaccess.RegisteredProviders(), b.cfg.AllowAnonymous)
 
 	coreManager := b.coreManager
 	cooldownStateStore := b.cooldownStateStore

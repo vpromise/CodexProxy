@@ -11,6 +11,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/safemode"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
+	claudehandlers "github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/claude"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,6 +26,7 @@ var corsExposedResponseHeaders = []string{
 	"X-SERVER-BUILD-DATE",
 	"Location",
 	"Retry-After",
+	"Request-Id",
 	"X-Request-Id",
 	"OpenAI-Request-Id",
 }
@@ -35,6 +37,55 @@ const (
 	exampleAPIKeyManagementPath = "/management.html"
 	exampleAPIKeyManagementURL  = "/management.html?safe-mode=configure"
 )
+
+func claudeRequestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c == nil || c.Request == nil || c.Request.URL == nil {
+			return
+		}
+		if isClaudeMessagesPath(c.Request.URL.Path) {
+			claudehandlers.EnsureRequestID(c)
+		}
+		c.Next()
+	}
+}
+
+func claudeRequestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c == nil {
+			return
+		}
+		if c.Request == nil || c.Request.Body == nil || c.Request.Method != http.MethodPost {
+			c.Next()
+			return
+		}
+		path := ""
+		if c.Request.URL != nil {
+			path = c.Request.URL.Path
+		}
+		if !isClaudeMessagesPath(path) {
+			c.Next()
+			return
+		}
+		// This outer bound protects middleware that may read the encoded body.
+		// The Claude handler independently enforces encoded and decoded limits so
+		// the embeddable SDK remains safe without this server middleware.
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
+func isClaudeMessagesPath(path string) bool {
+	return path == "/v1/messages" || path == "/v1/messages/count_tokens"
+}
+
+func abortClaudeProtocolError(c *gin.Context, status int, message string) {
+	if c == nil {
+		return
+	}
+	c.Abort()
+	claudehandlers.WriteProtocolError(c, status, message)
+}
 
 func (s *Server) homeHeartbeatMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -51,6 +102,10 @@ func (s *Server) homeHeartbeatMiddleware() gin.HandlerFunc {
 		}
 		client := home.Current()
 		if client == nil || !client.HeartbeatOK() {
+			if c != nil && c.Request != nil && c.Request.URL != nil && isClaudeMessagesPath(c.Request.URL.Path) {
+				abortClaudeProtocolError(c, http.StatusServiceUnavailable, "Service unavailable.")
+				return
+			}
 			c.AbortWithStatus(http.StatusServiceUnavailable)
 			return
 		}
@@ -84,9 +139,14 @@ func (s *Server) exampleAPIKeySafeModeMiddleware() gin.HandlerFunc {
 		}
 
 		c.Header("X-CPA-SAFE-MODE", "example-api-key")
+		message := "Proxy API endpoints are disabled because api-keys contains template values. Open /management.html?safe-mode=configure, update api-keys in Management, then retry."
+		if isClaudeMessagesPath(path) {
+			abortClaudeProtocolError(c, http.StatusForbidden, message)
+			return
+		}
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"error":   "unsafe_example_api_key",
-			"message": "Proxy API endpoints are disabled because api-keys contains template values. Open /management.html?safe-mode=configure, update api-keys in Management, then retry.",
+			"message": message,
 		})
 	}
 }
@@ -130,10 +190,7 @@ func isExampleAPIKeySafeModeProxyPath(path string) bool {
 //   - gin.HandlerFunc: The CORS middleware handler
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "*")
-		c.Header("Access-Control-Expose-Headers", corsExposedResponseHeadersJoined)
+		setCORSResponseHeaders(c)
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
@@ -144,9 +201,16 @@ func corsMiddleware() gin.HandlerFunc {
 	}
 }
 
+func setCORSResponseHeaders(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "*")
+	c.Header("Access-Control-Expose-Headers", corsExposedResponseHeadersJoined)
+}
+
 // AuthMiddleware returns a Gin middleware handler that authenticates requests
-// using the configured authentication providers. When no providers are available,
-// it allows all requests (legacy behaviour).
+// using the configured authentication providers. An empty provider list fails
+// closed unless anonymous access was explicitly enabled.
 func AuthMiddleware(manager *sdkaccess.Manager) gin.HandlerFunc {
 	return accessAuthMiddleware(manager, false)
 }
@@ -157,11 +221,6 @@ func realtimeStandardAuthMiddleware(manager *sdkaccess.Manager) gin.HandlerFunc 
 
 func accessAuthMiddleware(manager *sdkaccess.Manager, realtimeError bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if manager == nil {
-			c.Next()
-			return
-		}
-
 		result, err := manager.Authenticate(c.Request.Context(), c.Request)
 		if err == nil {
 			if result != nil {
@@ -192,6 +251,10 @@ func accessAuthMiddleware(manager *sdkaccess.Manager, realtimeError bool) gin.Ha
 				"param":   nil,
 				"code":    code,
 			}})
+			return
+		}
+		if c.Request != nil && c.Request.URL != nil && isClaudeMessagesPath(c.Request.URL.Path) {
+			abortClaudeProtocolError(c, statusCode, err.Message)
 			return
 		}
 		c.AbortWithStatusJSON(statusCode, gin.H{"error": err.Message})

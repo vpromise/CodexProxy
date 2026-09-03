@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
 )
@@ -98,7 +99,7 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err = fileperm.EnsurePrivateParent(path); err != nil {
 		return "", fmt.Errorf("auth filestore: create dir failed: %w", err)
 	}
 
@@ -129,7 +130,7 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 			if jsonEqual(existing, raw) {
 				break
 			}
-			file, errOpen := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0o600)
+			file, errOpen := fileperm.OpenPrivateFile(path, os.O_WRONLY|os.O_TRUNC)
 			if errOpen != nil {
 				return "", fmt.Errorf("auth filestore: open existing failed: %w", errOpen)
 			}
@@ -144,11 +145,14 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		} else if !os.IsNotExist(errRead) {
 			return "", fmt.Errorf("auth filestore: read existing failed: %w", errRead)
 		}
-		if errWrite := os.WriteFile(path, raw, 0o600); errWrite != nil {
+		if errWrite := fileperm.WritePrivateFile(path, raw); errWrite != nil {
 			return "", fmt.Errorf("auth filestore: write file failed: %w", errWrite)
 		}
 	default:
 		return "", fmt.Errorf("auth filestore: nothing to persist for %s", auth.ID)
+	}
+	if err = fileperm.RestrictPrivateFile(path); err != nil {
+		return "", fmt.Errorf("auth filestore: secure auth file: %w", err)
 	}
 
 	if auth.Attributes == nil {

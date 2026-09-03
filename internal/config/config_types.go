@@ -282,8 +282,8 @@ type PayloadModelRule struct {
 type CloakConfig struct {
 	// Mode controls cloaking behavior: "auto" (default), "always", or "never".
 	// Supplying this CloakConfig explicitly enables cloaking for an unprofiled API key.
-	// - "auto": cloak unless strong request signals identify a verified native entrypoint
-	// - "always": cloak every unconfirmed client; confirmed native Claude Code remains passthrough
+	// - "auto": preserve requests matching a measured native entrypoint; cloak other eligible clients
+	// - "always": cloak every client; request fingerprints cannot override operator policy
 	// - "never": never apply cloaking
 	Mode string `yaml:"mode,omitempty" json:"mode,omitempty"`
 
@@ -324,6 +324,19 @@ type ClaudeKey struct {
 
 	// ProxyURL overrides the global proxy setting for this API key if provided.
 	ProxyURL string `yaml:"proxy-url" json:"proxy-url"`
+
+	// BindIP optionally pins outbound Claude inference connections to a local IP address.
+	BindIP string `yaml:"bind-ip,omitempty" json:"bind-ip,omitempty"`
+
+	// MaxInFlight overrides claude-code.max-in-flight for this credential.
+	// Nil inherits the provider default; zero disables the limit for this credential.
+	MaxInFlight *int `yaml:"max-in-flight,omitempty" json:"max-in-flight,omitempty"`
+
+	// QueueCapacity overrides claude-code.queue-capacity for this credential.
+	QueueCapacity *int `yaml:"queue-capacity,omitempty" json:"queue-capacity,omitempty"`
+
+	// QueueTimeoutSeconds overrides claude-code.queue-timeout-seconds for this credential.
+	QueueTimeoutSeconds *int `yaml:"queue-timeout-seconds,omitempty" json:"queue-timeout-seconds,omitempty"`
 
 	// Models defines upstream model names and aliases for request routing.
 	Models []ClaudeModel `yaml:"models" json:"models"`

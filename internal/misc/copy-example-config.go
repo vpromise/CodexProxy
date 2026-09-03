@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,11 +20,11 @@ func CopyConfigTemplate(src, dst string) error {
 		}
 	}()
 
-	if err = os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+	if err = fileperm.EnsurePrivateDir(filepath.Dir(dst)); err != nil {
 		return err
 	}
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	out, err := fileperm.OpenPrivateFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
 		return err
 	}

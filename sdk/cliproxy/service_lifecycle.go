@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
@@ -326,7 +327,7 @@ func (s *Service) ensureAuthDir() error {
 	info, err := os.Stat(s.cfg.AuthDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if mkErr := os.MkdirAll(s.cfg.AuthDir, 0o755); mkErr != nil {
+			if mkErr := fileperm.EnsurePrivateDir(s.cfg.AuthDir); mkErr != nil {
 				return fmt.Errorf("cliproxy: failed to create auth directory %s: %w", s.cfg.AuthDir, mkErr)
 			}
 			log.Infof("created missing auth directory: %s", s.cfg.AuthDir)
@@ -336,6 +337,9 @@ func (s *Service) ensureAuthDir() error {
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("cliproxy: auth path exists but is not a directory: %s", s.cfg.AuthDir)
+	}
+	if errChmod := fileperm.EnsurePrivateDir(s.cfg.AuthDir); errChmod != nil {
+		return fmt.Errorf("cliproxy: failed to secure auth directory %s: %w", s.cfg.AuthDir, errChmod)
 	}
 	return nil
 }

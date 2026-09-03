@@ -1040,6 +1040,7 @@ func isCredentialRetryRoundStatus(status int) bool {
 	case http.StatusForbidden,
 		http.StatusRequestTimeout,
 		http.StatusTooManyRequests,
+		claudeUpstreamOverloadedStatus,
 		http.StatusInternalServerError,
 		http.StatusBadGateway,
 		http.StatusServiceUnavailable,

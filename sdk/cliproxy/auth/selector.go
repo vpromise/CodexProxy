@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -96,56 +95,23 @@ func newModelCooldownError(model, provider string, resetIn time.Duration) *model
 	}
 }
 
+// Error stays protocol-neutral. Protocol handlers may map the typed cooldown
+// to their native downstream error shape without leaking pool internals.
 func (e *modelCooldownError) Error() string {
-	modelName := e.model
-	if modelName == "" {
-		modelName = "requested model"
-	}
-	message := fmt.Sprintf("All credentials for model %s are cooling down", modelName)
-	if e.provider != "" {
-		message = fmt.Sprintf("%s via provider %s", message, e.provider)
-	}
-	resetSeconds := int(math.Ceil(e.resetIn.Seconds()))
-	if resetSeconds < 0 {
-		resetSeconds = 0
-	}
-	displayDuration := e.resetIn
-	if displayDuration > 0 && displayDuration < time.Second {
-		displayDuration = time.Second
-	} else {
-		displayDuration = displayDuration.Round(time.Second)
-	}
-	errorBody := map[string]any{
-		"code":          "model_cooldown",
-		"message":       message,
-		"model":         e.model,
-		"reset_time":    displayDuration.String(),
-		"reset_seconds": resetSeconds,
-	}
-	if e.provider != "" {
-		errorBody["provider"] = e.provider
-	}
-	payload := map[string]any{"error": errorBody}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Sprintf(`{"error":{"code":"model_cooldown","message":"%s"}}`, message)
-	}
-	return string(data)
+	return "model temporarily unavailable"
 }
 
 func (e *modelCooldownError) StatusCode() int {
 	return http.StatusTooManyRequests
 }
 
-func (e *modelCooldownError) Headers() http.Header {
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/json")
-	resetSeconds := int(math.Ceil(e.resetIn.Seconds()))
-	if resetSeconds < 0 {
-		resetSeconds = 0
+// RetryAfter exposes the pool's remaining cooldown window. Protocol handlers
+// decide whether their downstream contract requires a smaller visible value.
+func (e *modelCooldownError) RetryAfter() *time.Duration {
+	if e == nil || e.resetIn <= 0 {
+		return nil
 	}
-	headers.Set("Retry-After", strconv.Itoa(resetSeconds))
-	return headers
+	return &e.resetIn
 }
 
 func authPriority(auth *Auth) int {
@@ -606,7 +572,7 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 				if state.Status == StatusDisabled {
 					return true, blockReasonDisabled, time.Time{}
 				}
-				stateBlocked, reason, next := availabilityBlock(state.Unavailable, state.Quota.Exceeded, state.NextRetryAfter, state.Quota.NextRecoverAt, now)
+				stateBlocked, reason, next := modelAvailabilityBlock(state, now)
 				if !stateBlocked {
 					continue
 				}
@@ -624,9 +590,54 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 			}
 			return false, blockReasonNone, time.Time{}
 		}
-		return availabilityBlock(auth.Unavailable, auth.Quota.Exceeded, auth.NextRetryAfter, auth.Quota.NextRecoverAt, now)
+		return authAvailabilityBlock(auth, now)
 	}
-	return availabilityBlock(auth.Unavailable, auth.Quota.Exceeded, auth.NextRetryAfter, auth.Quota.NextRecoverAt, now)
+	return authAvailabilityBlock(auth, now)
+}
+
+func modelAvailabilityBlock(state *ModelState, now time.Time) (bool, blockReason, time.Time) {
+	if state == nil {
+		return true, blockReasonOther, time.Time{}
+	}
+	blocked, reason, next := availabilityBlock(state.Unavailable, state.Quota.Exceeded, state.NextRetryAfter, state.Quota.NextRecoverAt, now)
+	if blocked && reason == blockReasonOther && !next.IsZero() && timedBlockIsCooldown(state.StatusMessage, state.LastError) {
+		reason = blockReasonCooldown
+	}
+	return blocked, reason, next
+}
+
+func authAvailabilityBlock(auth *Auth, now time.Time) (bool, blockReason, time.Time) {
+	if auth == nil {
+		return true, blockReasonOther, time.Time{}
+	}
+	blocked, reason, next := availabilityBlock(auth.Unavailable, auth.Quota.Exceeded, auth.NextRetryAfter, auth.Quota.NextRecoverAt, now)
+	if blocked && reason == blockReasonOther && !next.IsZero() && timedBlockIsCooldown(auth.StatusMessage, auth.LastError) {
+		reason = blockReasonCooldown
+	}
+	return blocked, reason, next
+}
+
+func timedBlockIsCooldown(statusMessage string, lastErr *Error) bool {
+	message := strings.ToLower(strings.TrimSpace(statusMessage))
+	if lastErr != nil && (lastErr.Code == ErrorCodeForceCooldown || strings.EqualFold(strings.TrimSpace(lastErr.Code), "model_cooldown")) {
+		return true
+	}
+	if lastErr != nil {
+		switch lastErr.StatusCode() {
+		case http.StatusBadRequest,
+			http.StatusUnauthorized,
+			http.StatusPaymentRequired,
+			http.StatusForbidden,
+			http.StatusNotFound,
+			http.StatusUnprocessableEntity:
+			return false
+		}
+	}
+	switch message {
+	case "invalid_grant", "unauthorized", "payment_required", "not_found", "model_not_supported":
+		return false
+	}
+	return true
 }
 
 func availabilityBlock(unavailable, quotaExceeded bool, nextRetryAfter, nextRecoverAt, now time.Time) (bool, blockReason, time.Time) {

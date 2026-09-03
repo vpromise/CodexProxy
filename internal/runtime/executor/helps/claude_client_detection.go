@@ -60,7 +60,7 @@ var claudeCodeSubclientByEntrypoint = map[string]string{
 	"claude-coworker-terminal":  "claude-coworker-terminal",
 }
 
-// Only product surfaces with verified 2.1.220 wire behavior are eligible for
+// Only product surfaces with verified native wire behavior are eligible for
 // pass-through. Other first-party-looking entrypoints are cloaked until their
 // CPA-reachable request shape has been captured and reviewed.
 var nativeClaudeEntrypoints = map[string]bool{
@@ -73,38 +73,12 @@ type claudeCodeHelperShape uint8
 
 const (
 	claudeCodeHelperShapeNone claudeCodeHelperShape = iota
-	claudeCodeHelperShapeMinimal
-	claudeCodeHelperShapeStructured
-
-	claudeCodeHelperModel = "claude-haiku-4-5-20251001"
+	claudeCodeHelperShapeTitle
 )
 
-// These are the six exact beta sequences observed across 14 markerless native
-// Claude Code 2.1.220 Haiku helper requests. Keeping the allowlist exact avoids
-// turning the helper exception into a generic no-claude-code-beta bypass.
-var measuredClaudeCodeHelperBetaProfiles = map[string]claudeCodeHelperShape{
-	claudeCodeHelperBetaProfile(true):  claudeCodeHelperShapeMinimal,
-	claudeCodeHelperBetaProfile(false): claudeCodeHelperShapeMinimal,
-	claudeCodeHelperBetaProfile(true,
-		"advisor-tool-2026-03-01",
-		"structured-outputs-2025-12-15",
-		"cache-diagnosis-2026-04-07",
-	): claudeCodeHelperShapeStructured,
-	claudeCodeHelperBetaProfile(true,
-		"structured-outputs-2025-12-15",
-		"fallback-credit-2026-06-01",
-	): claudeCodeHelperShapeStructured,
-	claudeCodeHelperBetaProfile(true,
-		"structured-outputs-2025-12-15",
-	): claudeCodeHelperShapeStructured,
-	claudeCodeHelperBetaProfile(false,
-		"structured-outputs-2025-12-15",
-	): claudeCodeHelperShapeStructured,
-}
-
-// ClaudeCodeRequestDetection records the strong signals and first-party
-// subclient identity used to distinguish an official Claude Code request from
-// a client that only copied its User-Agent.
+// ClaudeCodeRequestDetection records compatibility signals for a request that
+// matches a measured Claude Code shape. All inputs are caller-controlled; this
+// classification must never be treated as authentication or authorization.
 type ClaudeCodeRequestDetection struct {
 	Confirmed       bool
 	StrongSignals   bool
@@ -122,9 +96,11 @@ type ClaudeCodeRequestDetection struct {
 // DetectClaudeCodeRequest first mirrors CCH's strong-signal contract, then
 // applies CPA's native-client policy. Standard Messages requests require all
 // four strong signals; count_tokens omits metadata.user_id. A separate narrow
-// profile recognizes measured native Haiku helper requests that intentionally
-// omit claude-code-20250219. Generic sdk-ts/sdk-py Agent SDK entrypoints remain
-// unconfirmed and receive CLI cloaking.
+// profile recognizes measured native title-helper requests: since 2.1.252 the
+// helper rides the main cli beta baseline (plus structured-outputs), so the
+// exact beta allowlist and the title body shape, not a missing claude-code
+// beta, are the discriminator. Generic sdk-ts/sdk-py Agent SDK entrypoints
+// remain unconfirmed and receive CLI cloaking.
 func DetectClaudeCodeRequest(headers http.Header, payload []byte, countTokens bool, configs ...*config.Config) ClaudeCodeRequestDetection {
 	var cfg *config.Config
 	if len(configs) > 0 {
@@ -151,18 +127,35 @@ func DetectClaudeCodeRequest(headers http.Header, payload []byte, countTokens bo
 	return detection
 }
 
-func claudeCodeHelperBetaProfile(redactThinking bool, trailing ...string) string {
-	betas := []string{"oauth-2025-04-20", "interleaved-thinking-2025-05-14"}
-	if redactThinking {
-		betas = append(betas, "redact-thinking-2026-02-12")
+// claudeCodeHelperBetaProfile renders one of the exact beta sequences observed
+// in native Claude Code 2.1.252 title-helper requests: the main cli baseline
+// with structured-outputs-2025-12-15 spliced in before
+// fallback-credit-2026-06-01. The helper rides the session model's 1M-context
+// status, so context-1m-2025-08-07 is present or absent in the same position;
+// both placements are measured. Keeping the allowlist exact avoids turning the
+// helper exception into a generic no-claude-code-beta bypass.
+func claudeCodeHelperBetaProfile(context1M bool) string {
+	betas := []string{"claude-code-20250219"}
+	if context1M {
+		betas = append(betas, "context-1m-2025-08-07")
 	}
 	betas = append(betas,
+		"interleaved-thinking-2025-05-14",
+		"redact-thinking-2026-02-12",
 		"thinking-token-count-2026-05-13",
 		"context-management-2025-06-27",
 		"prompt-caching-scope-2026-01-05",
+		"mid-conversation-system-2026-04-07",
+		"effort-2025-11-24",
+		"structured-outputs-2025-12-15",
+		"fallback-credit-2026-06-01",
 	)
-	betas = append(betas, trailing...)
 	return strings.Join(betas, ",")
+}
+
+var measuredClaudeCodeHelperBetaProfiles = map[string]claudeCodeHelperShape{
+	claudeCodeHelperBetaProfile(true):  claudeCodeHelperShapeTitle,
+	claudeCodeHelperBetaProfile(false): claudeCodeHelperShapeTitle,
 }
 
 func matchesMeasuredClaudeCodeHelperProfile(
@@ -172,9 +165,11 @@ func matchesMeasuredClaudeCodeHelperProfile(
 	detection ClaudeCodeRequestDetection,
 	cfg *config.Config,
 ) bool {
+	// The 2.1.252 title helper sends claude-code-20250219 (it rides the main
+	// baseline), so BetasPresent is deliberately NOT part of the gate: the
+	// exact beta allowlist below plus the title body shape do the discriminating.
 	if countTokens ||
 		detection.Entrypoint != "cli" ||
-		detection.BetasPresent ||
 		!detection.XAppCLI ||
 		!detection.UserAgent ||
 		!detection.MetadataUserID {
@@ -185,7 +180,7 @@ func matchesMeasuredClaudeCodeHelperProfile(
 	if shape == claudeCodeHelperShapeNone || measuredClaudeCodeHelperBodyShape(payload) != shape {
 		return false
 	}
-	if !measuredClaudeCodeHelperHeadersMatch(headers, cfg, shape) {
+	if !measuredClaudeCodeHelperHeadersMatch(headers, cfg) {
 		return false
 	}
 	return measuredClaudeCodeHelperSessionMatches(headers, payload)
@@ -233,7 +228,7 @@ func normalizedClaudeBetaHeader(headers http.Header) string {
 // foreign client and cloak it. Values that carry real discriminating power - the
 // exact beta allowlist, the body shape, the billing CCH and the session binding -
 // stay strict.
-func measuredClaudeCodeHelperHeadersMatch(headers http.Header, cfg *config.Config, shape claudeCodeHelperShape) bool {
+func measuredClaudeCodeHelperHeadersMatch(headers http.Header, cfg *config.Config) bool {
 	profile := defaultClaudeDeviceProfile(cfg)
 	expected := map[string]string{
 		"Accept":                  "application/json",
@@ -273,18 +268,23 @@ func measuredClaudeCodeHelperHeadersMatch(headers http.Header, cfg *config.Confi
 	if !meetsClaudeDeviceProfileBaseline(candidate, profile) {
 		return false
 	}
-	if async := headerValue(headers, "X-Stainless-Async"); (shape == claudeCodeHelperShapeStructured && async != "async") ||
-		(shape == claudeCodeHelperShapeMinimal && async != "") {
+	// The 2.1.252 title helper sends no X-Stainless-Async; the 2.1.220
+	// structured Haiku helper sent "async".
+	if async := headerValue(headers, "X-Stainless-Async"); async != "" {
 		return false
 	}
-	compression := headerValue(headers, "Accept-Encoding")
-	if (shape == claudeCodeHelperShapeStructured && compression != "gzip, deflate, br, zstd") ||
-		(shape == claudeCodeHelperShapeMinimal && compression != "gzip") {
+	// Title helpers negotiate the full compression set, like the main request.
+	if compression := headerValue(headers, "Accept-Encoding"); compression != "gzip, deflate, br, zstd" {
 		return false
 	}
-	requestID := headerValue(headers, "X-Client-Request-Id")
-	_, errRequestID := uuid.Parse(requestID)
-	return errRequestID == nil
+	// Claude Code 2.1.252 sends no x-client-request-id; an
+	// older client that still sends one must at least send a valid UUID.
+	if requestID := headerValue(headers, "X-Client-Request-Id"); requestID != "" {
+		if _, errRequestID := uuid.Parse(requestID); errRequestID != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func measuredClaudeCodeHelperSessionMatches(headers http.Header, payload []byte) bool {
@@ -309,22 +309,33 @@ func measuredClaudeCodeHelperSessionMatches(headers http.Header, payload []byte)
 	return headerValue(headers, ClaudeCodeSessionHeader) == gjson.GetBytes(identityRaw, "session_id").String()
 }
 
+// measuredClaudeCodeHelperBodyShape validates the Claude Code 2.1.252
+// title-helper body. Unlike the 2.1.220 Haiku helper it runs on
+// the session's main model, pins max_tokens to the session value (64000 in the
+// capture), drops temperature and keeps stream. The exact top-level key order
+// doubles as the discriminator: any extra or reordered field (temperature,
+// context_management, a second user message) fails the match and the request
+// falls back to regular cloaking.
 func measuredClaudeCodeHelperBodyShape(payload []byte) claudeCodeHelperShape {
-	minimalKeys := []string{"model", "max_tokens", "messages", "metadata"}
-	structuredKeys := []string{"model", "messages", "system", "tools", "metadata", "max_tokens", "thinking", "temperature", "output_config", "stream"}
-	shape := claudeCodeHelperShapeNone
-	switch {
-	case claudeJSONObjectHasKeys(payload, minimalKeys):
-		shape = claudeCodeHelperShapeMinimal
-	case claudeJSONObjectHasKeys(payload, structuredKeys):
-		shape = claudeCodeHelperShapeStructured
-	default:
+	titleKeys := []string{"model", "messages", "system", "tools", "metadata", "max_tokens", "thinking", "output_config", "stream"}
+	if !claudeJSONObjectHasKeys(payload, titleKeys) {
 		return claudeCodeHelperShapeNone
 	}
-
-	maxTokens := gjson.GetBytes(payload, "max_tokens")
-	if gjson.GetBytes(payload, "model").String() != claudeCodeHelperModel ||
-		maxTokens.Type != gjson.Number {
+	if model := gjson.GetBytes(payload, "model").String(); model == "" {
+		return claudeCodeHelperShapeNone
+	}
+	if maxTokens := gjson.GetBytes(payload, "max_tokens"); maxTokens.Type != gjson.Number || maxTokens.Raw != "64000" {
+		return claudeCodeHelperShapeNone
+	}
+	if gjson.GetBytes(payload, "stream").Type != gjson.True {
+		return claudeCodeHelperShapeNone
+	}
+	if tools := gjson.GetBytes(payload, "tools"); !tools.IsArray() || len(tools.Array()) != 0 {
+		return claudeCodeHelperShapeNone
+	}
+	thinking := gjson.GetBytes(payload, "thinking")
+	if !claudeJSONObjectHasKeys([]byte(thinking.Raw), []string{"type"}) ||
+		thinking.Get("type").String() != "disabled" {
 		return claudeCodeHelperShapeNone
 	}
 	messages := gjson.GetBytes(payload, "messages")
@@ -336,42 +347,24 @@ func measuredClaudeCodeHelperBodyShape(payload []byte) claudeCodeHelperShape {
 		message.Get("role").String() != "user" {
 		return claudeCodeHelperShapeNone
 	}
-
-	if shape == claudeCodeHelperShapeMinimal {
-		if maxTokens.Raw != "1" || message.Get("content").Type != gjson.String {
-			return claudeCodeHelperShapeNone
-		}
-		return shape
-	}
-
 	content := message.Get("content")
 	if !content.IsArray() || len(content.Array()) != 1 {
 		return claudeCodeHelperShapeNone
 	}
 	contentBlock := content.Get("0")
 	if !claudeJSONObjectHasKeys([]byte(contentBlock.Raw), []string{"type", "text"}) ||
-		contentBlock.Get("type").String() != "text" {
+		contentBlock.Get("type").String() != "text" ||
+		!strings.HasPrefix(contentBlock.Get("text").String(), "<session>") {
 		return claudeCodeHelperShapeNone
 	}
-	if !measuredClaudeCodeHelperSystemMatches(gjson.GetBytes(payload, "system")) {
-		return claudeCodeHelperShapeNone
-	}
-	if tools := gjson.GetBytes(payload, "tools"); !tools.IsArray() || len(tools.Array()) != 0 {
-		return claudeCodeHelperShapeNone
-	}
-	thinking := gjson.GetBytes(payload, "thinking")
 	outputConfig := gjson.GetBytes(payload, "output_config")
-	if !claudeJSONObjectHasKeys([]byte(thinking.Raw), []string{"type"}) ||
-		thinking.Get("type").String() != "disabled" {
-		return claudeCodeHelperShapeNone
-	}
 	format := outputConfig.Get("format")
 	schema := format.Get("schema")
 	properties := schema.Get("properties")
 	titleProperty := properties.Get("title")
 	required := schema.Get("required")
 	additionalProperties := schema.Get("additionalProperties")
-	if !claudeJSONObjectHasKeys([]byte(outputConfig.Raw), []string{"format"}) ||
+	if !claudeJSONObjectHasKeys([]byte(outputConfig.Raw), []string{"effort", "format"}) ||
 		!claudeJSONObjectHasKeys([]byte(format.Raw), []string{"type", "schema"}) ||
 		format.Get("type").String() != "json_schema" ||
 		!claudeJSONObjectHasKeys([]byte(schema.Raw), []string{"type", "properties", "required", "additionalProperties"}) ||
@@ -383,13 +376,10 @@ func measuredClaudeCodeHelperBodyShape(payload []byte) claudeCodeHelperShape {
 		additionalProperties.Type != gjson.False {
 		return claudeCodeHelperShapeNone
 	}
-	temperature := gjson.GetBytes(payload, "temperature")
-	if maxTokens.Raw != "32000" ||
-		temperature.Raw != "1" ||
-		gjson.GetBytes(payload, "stream").Type != gjson.True {
+	if !measuredClaudeCodeHelperSystemMatches(gjson.GetBytes(payload, "system")) {
 		return claudeCodeHelperShapeNone
 	}
-	return shape
+	return claudeCodeHelperShapeTitle
 }
 
 func measuredClaudeCodeHelperSystemMatches(system gjson.Result) bool {
@@ -406,14 +396,16 @@ func measuredClaudeCodeHelperSystemMatches(system gjson.Result) bool {
 	return strings.HasPrefix(billing, "x-anthropic-billing-header:") && measuredClaudeBillingCCH(billing) && strings.HasPrefix(identity, "You are Claude Code")
 }
 
-// measuredClaudeBillingCCH validates the five lowercase hexadecimal characters the
-// native billing header carries. It duplicates isLowerHex in
-// internal/runtime/executor/claude_signing.go because the signing side lives in the
-// package that imports this one; keep the two definitions in step.
+// measuredClaudeBillingCCH validates the five lowercase hexadecimal characters
+// the native billing header carries after cch=. Claude Code 2.1.252 omits cch
+// entirely under Bearer credentials, so absence is valid; a
+// present value must be the fingerprint. The hex check duplicates isLowerHex in
+// internal/runtime/executor/claude_signing.go because the signing side lives in
+// the package that imports this one; keep the two definitions in step.
 func measuredClaudeBillingCCH(billing string) bool {
 	marker := strings.Index(billing, " cch=")
 	if marker < 0 {
-		return false
+		return true
 	}
 	valueStart := marker + len(" cch=")
 	valueEnd := valueStart + 5

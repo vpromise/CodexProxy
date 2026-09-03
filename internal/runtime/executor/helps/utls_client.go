@@ -2,16 +2,19 @@ package helps
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	tls "github.com/refraction-networking/utls"
+	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	internalcache "github.com/router-for-me/CLIProxyAPI/v7/internal/cache"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/httpwire"
@@ -54,12 +57,12 @@ func (b *closeConnectionBody) Close() error {
 	return b.err
 }
 
-func newUtlsRoundTripper(proxyURL string) *utlsRoundTripper {
+func newUtlsRoundTripper(proxyURL string) http.RoundTripper {
 	var dialer proxy.Dialer = proxy.Direct
 	if proxyURL != "" {
 		proxyDialer, mode, errBuild := proxyutil.BuildDialer(proxyURL)
 		if errBuild != nil {
-			log.Errorf("utls: failed to configure proxy dialer for %q: %v", proxyutil.Redact(proxyURL), errBuild)
+			return claudeTransportError{err: fmt.Errorf("utls: configure proxy dialer %q: %w", proxyutil.Redact(proxyURL), errBuild)}
 		} else if mode != proxyutil.ModeInherit && proxyDialer != nil {
 			dialer = proxyDialer
 		}
@@ -157,10 +160,37 @@ func newClaudeCodeTLSConfig(host string, sessionCache tls.ClientSessionCache) *t
 	}
 }
 
-// claudeCodeTLSClientHelloSpec reproduces the deterministic Node/OpenSSL
-// ClientHello emitted by Claude Code 2.1.220 on macOS arm64. Keep this spec in
-// sync with a fresh native capture whenever the advertised Claude Code version
-// changes.
+// claudeBunGREASEExt emits the fixed GREASE-style extension 0xff01 / len 1 /
+// body 0x00 that Bun 1.4.1 (Claude Code 2.1.252) sends in place of the old
+// renegotiation_info extension. The body byte is constant across 80 native
+// captures, so it is pinned rather than drawn from utls's greaseSeed.
+//
+// Embedding UtlsGREASEExtension borrows its unexported writeToUConn method
+// (required by the TLSExtension write path, unimplementable from another
+// package); the type switch `case *UtlsGREASEExtension` in utls's ApplyPreset
+// re-greasing loop does not match this wrapper type, so Value is never
+// rewritten. Len/Read are overridden to pin the exact bytes.
+type claudeBunGREASEExt struct {
+	tls.UtlsGREASEExtension
+}
+
+func (e *claudeBunGREASEExt) Len() int { return 5 }
+
+func (e *claudeBunGREASEExt) Read(p []byte) (int, error) {
+	if len(p) < 5 {
+		return 0, errors.New("claudeBunGREASEExt: short buffer")
+	}
+	copy(p, []byte{0xff, 0x01, 0x00, 0x01, 0x00})
+	return 5, io.EOF
+}
+
+// claudeCodeTLSClientHelloSpec reproduces the deterministic Bun/BoringSSL
+// ClientHello emitted by Claude Code 2.1.252. The template models Bun/BoringSSL,
+// not the host operating system. Keep it in sync with a fresh native capture
+// whenever the advertised Claude Code version changes. Target JA3:
+// d871d02cecbde59abbf8f4806134addf
+// (hostname, SNI-first, BoringSSL-padded record, includes padding ext 0x0015)
+// / e97f5146a7009cc2918b50e903b6ff8d (IP, no SNI, unpadded).
 func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 	return &tls.ClientHelloSpec{
 		CipherSuites: []uint16{
@@ -186,7 +216,9 @@ func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 		Extensions: []tls.TLSExtension{
 			&tls.SNIExtension{},
 			&tls.ExtendedMasterSecretExtension{},
-			&tls.RenegotiationInfoExtension{Renegotiation: tls.RenegotiateOnceAsClient},
+			// Bun sends a fixed GREASE-style 0xff01 extension here; 2.1.220's
+			// renegotiation_info lived at the same position.
+			&claudeBunGREASEExt{},
 			&tls.SupportedCurvesExtension{Curves: []tls.CurveID{tls.X25519, tls.CurveP256, tls.CurveP384}},
 			&tls.SupportedPointsExtension{SupportedPoints: []byte{0}},
 			&tls.SessionTicketExtension{},
@@ -207,9 +239,13 @@ func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 			&tls.KeyShareExtension{KeyShares: []tls.KeyShare{{Group: tls.X25519}}},
 			&tls.PSKKeyExchangeModesExtension{Modes: []uint8{tls.PskModeDHE}},
 			&tls.SupportedVersionsExtension{Versions: []uint16{tls.VersionTLS13, tls.VersionTLS12}},
+			// Bun (BoringSSL) pads the ClientHello record to 0x200 (512) when the
+			// unpadded length is above 0xff; the SNI extension pushes hostname
+			// connections over the threshold, IP connections (251B) stay under
+			// it and carry no padding extension in the measured captures.
 			&tls.UtlsPaddingExtension{GetPaddingLen: tls.BoringPaddingStyle},
-			// pre_shared_key MUST be the final extension (RFC 8446 4.2.11), after
-			// padding. It contributes zero bytes until a cached session exists.
+			// pre_shared_key MUST be the final extension (RFC 8446 4.2.11).
+			// It contributes zero bytes until a cached session exists.
 			&tls.UtlsPreSharedKeyExtension{},
 		},
 	}
@@ -217,9 +253,25 @@ func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 
 const claudeCodeRoundTripperCacheCapacity = 64
 
-var claudeCodeRoundTripperCache = internalcache.NewBoundedLRU[string, http.RoundTripper](
+type claudeCodeTransportKey struct {
+	Owner    string
+	ProxyURL string
+	BindIP   string
+	Origin   string
+}
+
+var claudeCodeRoundTripperCache = internalcache.NewBoundedLRU[claudeCodeTransportKey, http.RoundTripper](
 	claudeCodeRoundTripperCacheCapacity,
-	func(_ string, roundTripper http.RoundTripper) {
+	func(_ claudeCodeTransportKey, roundTripper http.RoundTripper) {
+		if transport, ok := roundTripper.(interface{ CloseIdleConnections() }); ok {
+			transport.CloseIdleConnections()
+		}
+	},
+)
+
+var claudeStandardRoundTripperCache = internalcache.NewBoundedLRU[claudeCodeTransportKey, http.RoundTripper](
+	claudeCodeRoundTripperCacheCapacity,
+	func(_ claudeCodeTransportKey, roundTripper http.RoundTripper) {
 		if transport, ok := roundTripper.(interface{ CloseIdleConnections() }); ok {
 			transport.CloseIdleConnections()
 		}
@@ -244,7 +296,6 @@ var claudeCodeMessagesHeaderOrder = []string{
 	"anthropic-dangerous-direct-browser-access",
 	"anthropic-version",
 	"x-app",
-	"x-client-request-id",
 	"Connection",
 	"Host",
 	"Accept-Encoding",
@@ -268,7 +319,6 @@ var claudeCodeCountTokensHeaderOrder = []string{
 	"anthropic-dangerous-direct-browser-access",
 	"anthropic-version",
 	"x-app",
-	"x-client-request-id",
 	"Connection",
 	"Host",
 	"Accept-Encoding",
@@ -282,21 +332,32 @@ func claudeCodeRequestHeaderOrder(_, requestTarget string) []string {
 	return claudeCodeMessagesHeaderOrder
 }
 
-func cachedClaudeCodeRoundTripper(proxyURL string) http.RoundTripper {
-	return claudeCodeRoundTripperCache.GetOrAdd(proxyURL, func() http.RoundTripper {
-		return newClaudeCodeRoundTripper(proxyURL)
+func cachedClaudeCodeRoundTripper(owner, proxyURL, bindIP, origin string, localIP net.IP) http.RoundTripper {
+	key := claudeCodeTransportKey{Owner: owner, ProxyURL: proxyURL, BindIP: bindIP, Origin: origin}
+	return claudeCodeRoundTripperCache.GetOrAdd(key, func() http.RoundTripper {
+		return newClaudeCodeRoundTripper(proxyURL, localIP)
 	})
 }
 
-func newClaudeCodeRoundTripper(proxyURL string) http.RoundTripper {
-	// The cache is scoped to this round tripper, which is already keyed by proxy,
-	// so resumption never crosses proxy boundaries.
+func cachedClaudeStandardRoundTripper(owner, proxyURL, bindIP, origin string, localIP net.IP) http.RoundTripper {
+	key := claudeCodeTransportKey{Owner: owner, ProxyURL: proxyURL, BindIP: bindIP, Origin: origin}
+	return claudeStandardRoundTripperCache.GetOrAdd(key, func() http.RoundTripper {
+		return newClaudeStandardRoundTripper(proxyURL, localIP)
+	})
+}
+
+func newClaudeCodeRoundTripper(proxyURL string, localIP net.IP) http.RoundTripper {
+	// The cache is scoped to this credential/proxy/bind/origin tuple, so neither
+	// idle connections nor TLS sessions cross credential or egress boundaries.
 	sessionCache := tls.NewLRUClientSessionCache(claudeCodeSessionCacheCapacity)
 	var dialer proxy.Dialer = proxy.Direct
+	if localIP != nil {
+		dialer = &net.Dialer{LocalAddr: &net.TCPAddr{IP: append(net.IP(nil), localIP...)}}
+	}
 	if proxyURL != "" {
-		proxyDialer, mode, errBuild := proxyutil.BuildDialer(proxyURL)
+		proxyDialer, mode, errBuild := proxyutil.BuildDialerWithBase(proxyURL, dialer)
 		if errBuild != nil {
-			log.Errorf("claude tls: failed to configure proxy dialer for %q: %v", proxyutil.Redact(proxyURL), errBuild)
+			return claudeTransportError{err: fmt.Errorf("claude tls: configure proxy dialer %q: %w", proxyutil.Redact(proxyURL), errBuild)}
 		} else if mode != proxyutil.ModeInherit && proxyDialer != nil {
 			dialer = proxyDialer
 		}
@@ -344,6 +405,120 @@ func newClaudeCodeRoundTripper(proxyURL string) http.RoundTripper {
 	return transport
 }
 
+func newClaudeStandardRoundTripper(proxyURL string, localIP net.IP) http.RoundTripper {
+	baseDialer := &net.Dialer{}
+	if localIP != nil {
+		baseDialer.LocalAddr = &net.TCPAddr{IP: append(net.IP(nil), localIP...)}
+	}
+	transport, mode, errBuild := proxyutil.BuildHTTPTransportWithBase(proxyURL, baseDialer)
+	if errBuild != nil {
+		return claudeTransportError{err: fmt.Errorf("claude transport: configure proxy %q: %w", proxyutil.Redact(proxyURL), errBuild)}
+	}
+	if mode != proxyutil.ModeInherit && transport != nil {
+		return transport
+	}
+
+	// Inherit keeps the default environment proxy behavior while retaining the
+	// credential's local source address for direct and proxy connections.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || defaultTransport == nil {
+		transport = &http.Transport{}
+	} else {
+		transport = defaultTransport.Clone()
+	}
+	transport.DialContext = baseDialer.DialContext
+	return transport
+}
+
+type claudeTransportError struct{ err error }
+
+func (e claudeTransportError) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, e.err
+}
+
+func claudeTransportOwner(auth *cliproxyauth.Auth) string {
+	if auth == nil {
+		return "anonymous"
+	}
+	identity := strings.TrimSpace(auth.Index)
+	if identity == "" {
+		identity = strings.TrimSpace(auth.ID)
+	}
+	if identity == "" {
+		identity = strings.TrimSpace(auth.FileName)
+	}
+	if identity == "" && auth.Attributes != nil {
+		identity = strings.TrimSpace(auth.Attributes[cliproxyauth.AttributeSource])
+	}
+	if identity == "" {
+		identity = strings.TrimSpace(auth.Clone().EnsureIndex())
+	}
+	if identity == "" {
+		return "anonymous"
+	}
+	sum := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("%x", sum[:16])
+}
+
+func claudeBindIP(auth *cliproxyauth.Auth) (string, net.IP, error) {
+	if auth == nil || !strings.EqualFold(strings.TrimSpace(auth.Provider), "claude") {
+		return "", nil, nil
+	}
+	var raw string
+	for _, key := range []string{"bind_ip", "bind-ip"} {
+		if auth.Attributes != nil {
+			raw = strings.TrimSpace(auth.Attributes[key])
+		}
+		if raw == "" {
+			raw = strings.TrimSpace(claudeauth.ReadMetadataString(&auth.Metadata, key))
+		}
+		if raw != "" {
+			break
+		}
+	}
+	if raw == "" {
+		return "", nil, nil
+	}
+	parsed := net.ParseIP(raw)
+	if parsed == nil || parsed.IsUnspecified() {
+		return "", nil, fmt.Errorf("claude transport: invalid bind IP %q", raw)
+	}
+	canonical := parsed.String()
+	return canonical, parsed, nil
+}
+
+func claudeTransportOrigin(auth *cliproxyauth.Auth) string {
+	raw := ""
+	if auth != nil {
+		if auth.Attributes != nil {
+			raw = strings.TrimSpace(auth.Attributes["base_url"])
+		}
+		if raw == "" {
+			raw = strings.TrimSpace(claudeauth.ReadMetadataString(&auth.Metadata, "base_url"))
+		}
+	}
+	if raw == "" {
+		raw = "https://api.anthropic.com"
+	}
+	parsed, errParse := url.Parse(raw)
+	if errParse != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		sum := sha256.Sum256([]byte(raw))
+		return fmt.Sprintf("invalid:%x", sum[:8])
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	port := parsed.Port()
+	if (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		port = ""
+	}
+	if port != "" {
+		host = net.JoinHostPort(host, port)
+	} else if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	return scheme + "://" + host
+}
+
 // fallbackRoundTripper uses provider-specific TLS fingerprints for protected
 // HTTPS hosts and falls back to the standard transport for all other requests.
 type fallbackRoundTripper struct {
@@ -380,14 +555,20 @@ func NewUtlsHTTPClient(ctx context.Context, cfg *config.Config, auth *cliproxyau
 		ctxRoundTripper, _ = ctx.Value("cliproxy.roundtripper").(http.RoundTripper)
 	}
 
-	var chromeRT http.RoundTripper = newUtlsRoundTripper(proxyURL)
-	var anthropicRT http.RoundTripper = cachedClaudeCodeRoundTripper(proxyURL)
-	var standardTransport http.RoundTripper = http.DefaultTransport
-	if proxyURL != "" {
-		if transport := buildProxyTransport(proxyURL); transport != nil {
-			standardTransport = transport
+	bindIP, localIP, errBindIP := claudeBindIP(auth)
+	if errBindIP != nil {
+		client := &http.Client{Transport: claudeTransportError{err: errBindIP}}
+		if timeout > 0 {
+			client.Timeout = timeout
 		}
-	} else if ctxRoundTripper != nil {
+		return client
+	}
+	owner := claudeTransportOwner(auth)
+	origin := claudeTransportOrigin(auth)
+	var chromeRT http.RoundTripper = newUtlsRoundTripper(proxyURL)
+	var anthropicRT http.RoundTripper = cachedClaudeCodeRoundTripper(owner, proxyURL, bindIP, origin, localIP)
+	var standardTransport http.RoundTripper = cachedClaudeStandardRoundTripper(owner, proxyURL, bindIP, origin, localIP)
+	if proxyURL == "" && ctxRoundTripper != nil && bindIP == "" {
 		chromeRT = ctxRoundTripper
 		anthropicRT = ctxRoundTripper
 		standardTransport = ctxRoundTripper
