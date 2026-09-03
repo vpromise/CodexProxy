@@ -845,7 +845,7 @@ func (r *ModelRegistry) GetAvailableModels(handlerType string) []map[string]any 
 		expiresAt: expiresAt,
 	}
 
-	return models
+	return cloneModelMaps(models)
 }
 
 func modelRegistrationAvailability(registration *ModelRegistration, now time.Time) (bool, time.Time) {

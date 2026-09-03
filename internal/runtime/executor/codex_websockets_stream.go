@@ -129,7 +129,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL)
 		if conn == nil {
 			if sess != nil {
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 			}
 			return nil, cliproxyexecutor.NewUpstreamWebsocketReplayRequiredError()
 		}
@@ -147,7 +147,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 		}
 		if respHS != nil && respHS.StatusCode == http.StatusUpgradeRequired {
 			if sess != nil {
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 			}
 			if opts.ExecutionLifecycle != nil || cliproxyexecutor.DownstreamWebsocket(ctx) {
 				return nil, statusErr{code: respHS.StatusCode, msg: string(bodyErr)}
@@ -156,19 +156,19 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 		}
 		if respHS != nil && respHS.StatusCode > 0 {
 			if sess != nil {
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 			}
 			return nil, newCodexStatusErr(respHS.StatusCode, bodyErr)
 		}
 		helps.RecordAPIWebsocketError(ctx, e.cfg, "dial", errDial)
 		if sess != nil {
-			sess.reqMu.Unlock()
+			unlockStreamSession()
 		}
 		return nil, errDial
 	}
 	if errBind := sess.bindExecutionLifecycle(opts, conn, closer, req.Model); errBind != nil {
 		if sess != nil {
-			sess.reqMu.Unlock()
+			unlockStreamSession()
 		}
 		closeWebsocketAfterBindFailure(sess, conn, closer)
 		return nil, errBind
@@ -193,7 +193,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			if cliproxyexecutor.RequiredUpstreamWebsocket(ctx) {
 				e.invalidateUpstreamConnWithoutDisconnectNotify(sess, conn, "send_error", errSend)
 				sess.clearActive(conn, readCh)
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 				if !shouldRetryCodexWebsocketSend(errSend) {
 					return nil, errSend
 				}
@@ -202,7 +202,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			e.invalidateUpstreamConn(sess, conn, "send_error", errSend)
 			if !shouldRetryCodexWebsocketSend(errSend) {
 				sess.clearActive(conn, readCh)
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 				return nil, errSend
 			}
 
@@ -212,7 +212,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 				closeHTTPResponseBody(respHSRetry, "codex websockets executor: close handshake response body error")
 				helps.RecordAPIWebsocketError(ctx, e.cfg, "dial_retry", errDialRetry)
 				sess.clearActive(conn, readCh)
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 				return nil, errDialRetry
 			}
 			previousConn, previousReadCh := conn, readCh
@@ -220,7 +220,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			closer = closerRetry
 			if errBind := sess.bindExecutionLifecycle(opts, conn, closer, req.Model); errBind != nil {
 				clearRetryActiveState(sess, previousConn, previousReadCh)
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 				closeWebsocketAfterBindFailure(sess, conn, closer)
 				return nil, errBind
 			}
@@ -245,7 +245,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 				helps.RecordAPIWebsocketError(ctx, e.cfg, "send_retry", errSendRetry)
 				e.invalidateUpstreamConn(sess, conn, "send_error", errSendRetry)
 				sess.clearActive(conn, readCh)
-				sess.reqMu.Unlock()
+				unlockStreamSession()
 				return nil, errSendRetry
 			}
 			wsReqBody = wsReqBodyRetry
@@ -519,15 +519,15 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			}
 			if msgType != websocket.TextMessage {
 				if msgType == websocket.BinaryMessage {
-					err = fmt.Errorf("codex websockets executor: unexpected binary message")
+					errBinary := fmt.Errorf("codex websockets executor: unexpected binary message")
 					terminateReason = "unexpected_binary"
-					terminateErr = err
-					helps.RecordAPIWebsocketError(ctx, e.cfg, "unexpected_binary", err)
-					reporter.PublishFailure(ctx, err)
+					terminateErr = errBinary
+					helps.RecordAPIWebsocketError(ctx, e.cfg, "unexpected_binary", errBinary)
+					reporter.PublishFailure(ctx, errBinary)
 					if sess != nil {
-						e.invalidateUpstreamConn(sess, conn, "unexpected_binary", err)
+						e.invalidateUpstreamConn(sess, conn, "unexpected_binary", errBinary)
 					}
-					_ = send(cliproxyexecutor.StreamChunk{Err: err})
+					_ = send(cliproxyexecutor.StreamChunk{Err: errBinary})
 					return
 				}
 				continue

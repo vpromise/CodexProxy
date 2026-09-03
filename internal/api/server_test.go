@@ -488,6 +488,20 @@ func TestHealthz(t *testing.T) {
 	})
 }
 
+func TestClaudeCodeHelloProbe(t *testing.T) {
+	server := newTestServer(t)
+	req := httptest.NewRequest(http.MethodHead, "/api/hello", nil)
+	rr := httptest.NewRecorder()
+	server.engine.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusNoContent, rr.Body.String())
+	}
+	if rr.Body.Len() != 0 {
+		t.Fatalf("expected empty body, got %q", rr.Body.String())
+	}
+}
+
 func TestCodexLiveRoutesRequireAuthAndAreRegistered(t *testing.T) {
 	server := newTestServer(t)
 
@@ -1789,6 +1803,47 @@ func TestClaudeModelListCloakingConfigHotReload(t *testing.T) {
 	server.UpdateClients(&updatedCfg)
 
 	assertModelID(modelID)
+}
+
+func TestCodexDirectModelsReturnsClientCatalog(t *testing.T) {
+	modelRegistry := registry.GetGlobalRegistry()
+	clientID := "test-codex-direct-models"
+	modelRegistry.RegisterClient(clientID, "openai", []*registry.ModelInfo{
+		{ID: "gpt-5.5", Object: "model", OwnedBy: "openai", Type: "openai"},
+	})
+	t.Cleanup(func() {
+		modelRegistry.UnregisterClient(clientID)
+	})
+
+	server := newTestServer(t)
+	for _, tt := range []struct {
+		name string
+		path string
+	}{
+		{name: "without client version", path: "/backend-api/codex/models"},
+		{name: "with client version", path: "/backend-api/codex/models?client_version=0.149.1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Authorization", "Bearer test-key")
+			rr := httptest.NewRecorder()
+			server.engine.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+			var response struct {
+				Models []map[string]any `json:"models"`
+				Data   []any            `json:"data"`
+			}
+			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode response: %v; body=%s", err, rr.Body.String())
+			}
+			if len(response.Models) == 0 || response.Data != nil {
+				t.Fatalf("expected Codex client catalog, got %s", rr.Body.String())
+			}
+		})
+	}
 }
 
 func TestModelsWithClientVersionReturnsCodexCatalog(t *testing.T) {

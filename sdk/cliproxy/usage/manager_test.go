@@ -2,8 +2,58 @@ package usage
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 )
+
+func TestNewManagerUsesInitialQueueCapacity(t *testing.T) {
+	manager := NewManager(16)
+	if got := cap(manager.queue); got != 16 {
+		t.Fatalf("queue capacity = %d, want 16", got)
+	}
+}
+
+func TestManagerStopsWhenStartContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	manager := NewManager(1)
+	manager.Start(ctx)
+	cancel()
+
+	select {
+	case <-manager.stopCh:
+	case <-time.After(time.Second):
+		t.Fatal("manager did not stop after context cancellation")
+	}
+
+	manager.mu.Lock()
+	closed := manager.closed
+	manager.mu.Unlock()
+	if !closed {
+		t.Fatal("manager remained open after context cancellation")
+	}
+}
+
+func TestManagerStartAndStopAreConcurrentSafe(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		manager := NewManager(1)
+		start := make(chan struct{})
+		var workers sync.WaitGroup
+		workers.Add(2)
+		go func() {
+			defer workers.Done()
+			<-start
+			manager.Start(context.Background())
+		}()
+		go func() {
+			defer workers.Done()
+			<-start
+			manager.Stop()
+		}()
+		close(start)
+		workers.Wait()
+	}
+}
 
 func TestGenerateEnabledDefaultsNilToTrue(t *testing.T) {
 	if !GenerateEnabled(nil) {

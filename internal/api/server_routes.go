@@ -102,6 +102,14 @@ func (s *Server) setupRoutes() {
 	codexDirect := s.engine.Group("/backend-api/codex")
 	codexDirect.Use(AuthMiddleware(s.accessManager))
 	{
+		codexDirect.GET("/models", func(c *gin.Context) {
+			clientVersion := c.Query("client_version")
+			if s != nil && s.cfg != nil && s.cfg.Home.Enabled {
+				s.handleHomeCodexClientModels(c, clientVersion)
+				return
+			}
+			openaiHandlers.CodexModels(c)
+		})
 		codexDirect.GET("/responses", openaiResponsesHandlers.ResponsesWebsocket)
 		codexDirect.POST("/responses", openaiResponsesHandlers.Responses)
 		codexDirect.POST("/responses/compact", openaiResponsesHandlers.Compact)

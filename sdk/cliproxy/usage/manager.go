@@ -223,7 +223,7 @@ type queueItem struct {
 type Manager struct {
 	once     sync.Once
 	stopOnce sync.Once
-	cancel   context.CancelFunc
+	stopCh   chan struct{}
 
 	mu     sync.Mutex
 	cond   *sync.Cond
@@ -235,9 +235,12 @@ type Manager struct {
 	named     map[string]int
 }
 
-// NewManager constructs a manager with a buffered queue.
+// NewManager constructs a manager with the requested initial queue capacity.
 func NewManager(buffer int) *Manager {
-	m := &Manager{}
+	m := &Manager{
+		queue:  make([]queueItem, 0, max(buffer, 0)),
+		stopCh: make(chan struct{}),
+	}
 	m.cond = sync.NewCond(&m.mu)
 	return m
 }
@@ -251,24 +254,29 @@ func (m *Manager) Start(ctx context.Context) {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		var workerCtx context.Context
-		workerCtx, m.cancel = context.WithCancel(ctx)
-		go m.run(workerCtx)
+		go m.run()
+		if done := ctx.Done(); done != nil {
+			go func() {
+				select {
+				case <-done:
+					m.Stop()
+				case <-m.stopCh:
+				}
+			}()
+		}
 	})
 }
 
-// Stop stops the dispatcher and drains the queue.
+// Stop prevents new records and signals the dispatcher to drain the queue and exit.
 func (m *Manager) Stop() {
 	if m == nil {
 		return
 	}
 	m.stopOnce.Do(func() {
-		if m.cancel != nil {
-			m.cancel()
-		}
 		m.mu.Lock()
 		m.closed = true
 		m.mu.Unlock()
+		close(m.stopCh)
 		m.cond.Broadcast()
 	})
 }
@@ -325,7 +333,7 @@ func (m *Manager) Publish(ctx context.Context, record Record) {
 	m.cond.Signal()
 }
 
-func (m *Manager) run(ctx context.Context) {
+func (m *Manager) run() {
 	for {
 		m.mu.Lock()
 		for !m.closed && len(m.queue) == 0 {
