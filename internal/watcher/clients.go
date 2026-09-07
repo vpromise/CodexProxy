@@ -166,6 +166,7 @@ func (w *Watcher) addOrUpdateClient(path string) {
 }
 
 func (w *Watcher) addOrUpdateClientLocked(path string) {
+	w.observeAuthFile(path)
 	data, errRead := os.ReadFile(path)
 	if errRead != nil {
 		log.Errorf("failed to read auth file %s: %v", filepath.Base(path), errRead)
@@ -279,6 +280,7 @@ func (w *Watcher) removeClient(path string) {
 }
 
 func (w *Watcher) removeClientLocked(path string) {
+	w.observeAuthFile(path)
 	normalized := w.normalizeAuthPath(path)
 	w.clientsMutex.Lock()
 	oldByID := make(map[string]*coreauth.Auth, len(w.fileAuthsByPath[normalized]))
@@ -321,6 +323,7 @@ func (w *Watcher) computePerPathUpdatesLocked(oldByID, newByID map[string]*corea
 		delete(w.currentAuths, id)
 		updates = append(updates, AuthUpdate{Action: AuthUpdateActionDelete, ID: id})
 	}
+	w.stampAuthUpdatesLocked(updates)
 	return updates
 }
 
