@@ -812,6 +812,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 					state.Unavailable = true
 					state.Status = StatusError
 					state.UpdatedAt = now
+					prevModelRetryAfter := state.NextRetryAfter
 					if result.Error != nil {
 						state.LastError = cloneError(result.Error)
 						state.StatusMessage = result.Error.Message
@@ -880,7 +881,11 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 							backoffLevel := state.Quota.BackoffLevel
 							if !disableCooling {
 								if result.RetryAfter != nil {
-									next = now.Add(*result.RetryAfter)
+									cooldown := *result.RetryAfter
+									if cooldown < minQuotaCooldownFloor {
+										cooldown = minQuotaCooldownFloor
+									}
+									next = now.Add(cooldown)
 								} else {
 									next, backoffLevel = quotaCooldownAfterFailure(state.Quota, now)
 								}
@@ -905,15 +910,21 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 									if otherState != nil && otherState != state {
 										otherState.Unavailable = true
 										otherState.Status = StatusError
-										otherNext := next
-										if otherState.Quota.Exceeded && otherState.Quota.NextRecoverAt.After(otherNext) {
-											otherNext = otherState.Quota.NextRecoverAt
+										otherQuotaNext := next
+										if otherState.Quota.Exceeded && otherState.Quota.NextRecoverAt.After(otherQuotaNext) {
+											otherQuotaNext = otherState.Quota.NextRecoverAt
 										}
-										otherState.NextRetryAfter = otherNext
+										otherRetryAfter := otherQuotaNext
+										// Propagation only extends a sibling's still-live
+										// per-model deadline; it never shortens one.
+										if !otherState.NextRetryAfter.IsZero() && otherState.NextRetryAfter.After(otherRetryAfter) {
+											otherRetryAfter = otherState.NextRetryAfter
+										}
+										otherState.NextRetryAfter = otherRetryAfter
 										applyCooldownFields(&otherState.Quota, QuotaState{
 											Exceeded:      true,
 											Reason:        "credential_quota",
-											NextRecoverAt: otherNext,
+											NextRecoverAt: otherQuotaNext,
 											BackoffLevel:  backoffLevel,
 										})
 									}
@@ -955,6 +966,11 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 					if result.Error != nil && result.Error.Code == ErrorCodeForceCooldown && state.NextRetryAfter.IsZero() {
 						state.NextRetryAfter = now.Add(transientErrorCooldown)
 						state.Unavailable = true
+					}
+					// Later failures may extend active cooldowns but must not shorten them.
+					// A zero deadline still permits an explicit cooling override.
+					if !state.NextRetryAfter.IsZero() && prevModelRetryAfter.After(state.NextRetryAfter) && prevModelRetryAfter.After(now) {
+						state.NextRetryAfter = prevModelRetryAfter
 					}
 					auth.Status = StatusError
 					auth.UpdatedAt = now
@@ -2085,10 +2101,15 @@ func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Durati
 	if auth == nil {
 		return
 	}
+	prevAuthRetryAfter := auth.NextRetryAfter
 	if shouldSkipCredentialCooldown(resultErr) {
 		return
 	}
 	defer func() {
+		// Preserve live deadlines on every failure path, including early returns.
+		if !auth.NextRetryAfter.IsZero() && prevAuthRetryAfter.After(auth.NextRetryAfter) && prevAuthRetryAfter.After(now) {
+			auth.NextRetryAfter = prevAuthRetryAfter
+		}
 		if disableCooling && auth.NextRetryAfter.IsZero() && auth.Quota.NextRecoverAt.IsZero() {
 			auth.Unavailable = false
 			auth.Quota.Exceeded = false
@@ -2154,7 +2175,11 @@ func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Durati
 		var next time.Time
 		if !disableCooling {
 			if retryAfter != nil {
-				next = now.Add(*retryAfter)
+				cooldown := *retryAfter
+				if cooldown < minQuotaCooldownFloor {
+					cooldown = minQuotaCooldownFloor
+				}
+				next = now.Add(cooldown)
 			} else {
 				next, auth.Quota.BackoffLevel = quotaCooldownAfterFailure(auth.Quota, now)
 			}

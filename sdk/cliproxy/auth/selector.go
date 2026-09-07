@@ -243,6 +243,32 @@ func getAvailableAuths(auths []*Auth, provider, model string, now time.Time) ([]
 	return getAvailableAuthsWithPriorityMode(auths, provider, model, now, false)
 }
 
+type prevalidatedAuthCandidatesKey struct{}
+
+func getSelectorAvailableAuths(ctx context.Context, auths []*Auth, provider, model string, now time.Time) ([]*Auth, error) {
+	return getSelectorAvailableAuthsWithPriorityMode(ctx, auths, provider, model, now, false)
+}
+
+func getSelectorAvailableAuthsAcrossPriorities(ctx context.Context, auths []*Auth, provider, model string, now time.Time) ([]*Auth, error) {
+	return getSelectorAvailableAuthsWithPriorityMode(ctx, auths, provider, model, now, true)
+}
+
+func getSelectorAvailableAuthsWithPriorityMode(ctx context.Context, auths []*Auth, provider, model string, now time.Time, allPriorities bool) ([]*Auth, error) {
+	if ctx != nil {
+		if validated, _ := ctx.Value(prevalidatedAuthCandidatesKey{}).(bool); validated && len(auths) > 0 {
+			// The manager already resolved each credential's upstream model and supplied
+			// ID-sorted candidates. Rechecking the alias or an empty model would apply
+			// unrelated cooldowns. Affinity bindings may span all priority tiers, but
+			// fallback selection must still use the highest available tier.
+			if !allPriorities {
+				return highestPriorityAuths(auths), nil
+			}
+			return auths, nil
+		}
+	}
+	return getAvailableAuthsWithPriorityMode(auths, provider, model, now, allPriorities)
+}
+
 func getAvailableAuthsAcrossPriorities(auths []*Auth, provider, model string, now time.Time) ([]*Auth, error) {
 	return getAvailableAuthsWithPriorityMode(auths, provider, model, now, true)
 }
@@ -341,7 +367,7 @@ func highestPriorityAuths(auths []*Auth) []*Auth {
 func (s *RoundRobinSelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
 	_ = opts
 	now := time.Now()
-	available, err := getAvailableAuths(auths, provider, model, now)
+	available, err := getSelectorAvailableAuths(ctx, auths, provider, model, now)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +425,7 @@ func positiveWeightAuths(auths []*Auth) []*Auth {
 // Pick selects the next available auth using smooth weighted round-robin.
 func (s *WeightedRoundRobinSelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
 	_ = opts
-	available, errAvailable := getAvailableAuths(positiveWeightAuths(auths), provider, model, time.Now())
+	available, errAvailable := getSelectorAvailableAuths(ctx, positiveWeightAuths(auths), provider, model, time.Now())
 	if errAvailable != nil {
 		return nil, errAvailable
 	}
@@ -539,7 +565,7 @@ func saturatingAddInt64(value, delta int64) int64 {
 func (s *FillFirstSelector) Pick(ctx context.Context, provider, model string, opts cliproxyexecutor.Options, auths []*Auth) (*Auth, error) {
 	_ = opts
 	now := time.Now()
-	available, err := getAvailableAuths(auths, provider, model, now)
+	available, err := getSelectorAvailableAuths(ctx, auths, provider, model, now)
 	if err != nil {
 		return nil, err
 	}
@@ -610,7 +636,12 @@ func authAvailabilityBlock(auth *Auth, now time.Time) (bool, blockReason, time.T
 	if auth == nil {
 		return true, blockReasonOther, time.Time{}
 	}
-	blocked, reason, next := availabilityBlock(auth.Unavailable, auth.Quota.Exceeded, auth.NextRetryAfter, auth.Quota.NextRecoverAt, now)
+	quotaExceeded := auth.Quota.Exceeded
+	// Aggregated model quotas must not block an otherwise available credential.
+	if len(auth.ModelStates) > 0 && auth.Quota.Reason != "credential_quota" && !auth.Unavailable {
+		quotaExceeded = false
+	}
+	blocked, reason, next := availabilityBlock(auth.Unavailable, quotaExceeded, auth.NextRetryAfter, auth.Quota.NextRecoverAt, now)
 	if blocked && reason == blockReasonOther && !next.IsZero() && timedBlockIsCooldown(auth.StatusMessage, auth.LastError) {
 		reason = blockReasonCooldown
 	}
@@ -726,7 +757,7 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 		availabilityCandidates = positiveWeightAuths(auths)
 	}
 	if primaryID == "" {
-		fallbackAuths, errAvailable := getAvailableAuths(availabilityCandidates, provider, model, now)
+		fallbackAuths, errAvailable := getSelectorAvailableAuths(ctx, availabilityCandidates, provider, model, now)
 		if errAvailable != nil {
 			return nil, errAvailable
 		}
@@ -736,7 +767,7 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 
 	// A single availability pass serves both lookups: the bound credential is validated against
 	// every priority tier, while the fallback selector keeps seeing only the highest tier.
-	available, err := getAvailableAuthsAcrossPriorities(availabilityCandidates, provider, model, now)
+	available, err := getSelectorAvailableAuthsAcrossPriorities(ctx, availabilityCandidates, provider, model, now)
 	if err != nil {
 		return nil, err
 	}

@@ -59,7 +59,9 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 	var lastErr error
 	retryModel := authSelectionModelFromOptions(opts, req.Model)
 	for attempt := 0; ; attempt++ {
-		resp, errExec := m.executeMixedOnce(ctx, normalized, req, opts, maxRetryCredentials, attempt, defaultRequestRetry, admissionWaitState)
+		roundAttempted := make(map[string]struct{})
+		roundOpts := withAttemptedAuthTracker(opts, roundAttempted)
+		resp, errExec := m.executeMixedOnce(ctx, normalized, req, roundOpts, maxRetryCredentials, attempt, defaultRequestRetry, admissionWaitState)
 		if errExec == nil {
 			return resp, nil
 		}
@@ -67,7 +69,7 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 			return cliproxyexecutor.Response{}, unwrapRequestStopError(errExec)
 		}
 		lastErr = errExec
-		wait, shouldRetry := m.shouldRetryAfterErrorWithHomeRetryLimit(ctx, opts, errExec, attempt, normalized, retryModel, maxWait, -1, defaultRequestRetry)
+		wait, shouldRetry := m.shouldRetryAfterErrorWithAttempted(ctx, opts, errExec, attempt, normalized, retryModel, maxWait, -1, defaultRequestRetry, roundAttempted)
 		if !shouldRetry {
 			break
 		}
@@ -100,7 +102,9 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 	var lastErr error
 	retryModel := authSelectionModelFromOptions(opts, req.Model)
 	for attempt := 0; ; attempt++ {
-		resp, errExec := m.executeCountMixedOnce(ctx, normalized, req, opts, maxRetryCredentials, attempt, defaultRequestRetry, admissionWaitState)
+		roundAttempted := make(map[string]struct{})
+		roundOpts := withAttemptedAuthTracker(opts, roundAttempted)
+		resp, errExec := m.executeCountMixedOnce(ctx, normalized, req, roundOpts, maxRetryCredentials, attempt, defaultRequestRetry, admissionWaitState)
 		if errExec == nil {
 			return resp, nil
 		}
@@ -108,7 +112,7 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 			return cliproxyexecutor.Response{}, unwrapRequestStopError(errExec)
 		}
 		lastErr = errExec
-		wait, shouldRetry := m.shouldRetryAfterErrorWithHomeRetryLimit(ctx, opts, errExec, attempt, normalized, retryModel, maxWait, -1, defaultRequestRetry)
+		wait, shouldRetry := m.shouldRetryAfterErrorWithAttempted(ctx, opts, errExec, attempt, normalized, retryModel, maxWait, -1, defaultRequestRetry, roundAttempted)
 		if !shouldRetry {
 			break
 		}
@@ -146,7 +150,9 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 	retryRoundPending := false
 	retryRoundWaited := false
 	for {
-		result, errStream := m.executeStreamMixedOnce(ctx, normalized, req, opts, maxRetryCredentials, &homeRetryLimit, attempt, defaultRequestRetry, admissionWaitState)
+		roundAttempted := make(map[string]struct{})
+		roundOpts := withAttemptedAuthTracker(opts, roundAttempted)
+		result, errStream := m.executeStreamMixedOnce(ctx, normalized, req, roundOpts, maxRetryCredentials, &homeRetryLimit, attempt, defaultRequestRetry, admissionWaitState)
 		if errStream == nil {
 			return result, nil
 		}
@@ -168,7 +174,7 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 			return nil, unwrapRequestStopError(errStream)
 		}
 		lastErr = errStream
-		wait, shouldRetry := m.shouldRetryAfterErrorWithHomeRetryLimit(ctx, opts, errStream, attempt, normalized, retryModel, maxWait, homeRetryLimit, defaultRequestRetry)
+		wait, shouldRetry := m.shouldRetryAfterErrorWithAttempted(ctx, opts, errStream, attempt, normalized, retryModel, maxWait, homeRetryLimit, defaultRequestRetry, roundAttempted)
 		if !shouldRetry {
 			break
 		}
@@ -1032,6 +1038,24 @@ func shouldExcludeHomeAuthAfterStreamError(ctx context.Context, auth *Auth, err 
 		return false
 	}
 	return !isUnauthorizedError(err) || auth == nil || auth.AuthKind() != AuthKindOAuth
+}
+
+func withAttemptedAuthTracker(opts cliproxyexecutor.Options, attempted map[string]struct{}) cliproxyexecutor.Options {
+	if attempted == nil {
+		return opts
+	}
+	meta := cloneRequestMetadata(opts.Metadata)
+	prevCallback, _ := meta[cliproxyexecutor.SelectedAuthCallbackMetadataKey].(func(string))
+	meta[cliproxyexecutor.SelectedAuthCallbackMetadataKey] = func(authID string) {
+		if strings.TrimSpace(authID) != "" {
+			attempted[authID] = struct{}{}
+		}
+		if prevCallback != nil {
+			prevCallback(authID)
+		}
+	}
+	opts.Metadata = meta
+	return opts
 }
 
 func cloneRequestMetadata(src map[string]any) map[string]any {
