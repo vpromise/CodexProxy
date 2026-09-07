@@ -4,10 +4,26 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
+
+func TestHeaderValuesCaseInsensitiveKeepsDeterministicBetaOrder(t *testing.T) {
+	headers := http.Header{
+		"Anthropic-Beta": {" claude-code-20250219 ", " "},
+		"anthropic-beta": {"oauth-2025-04-20", "thinking-display-updates-2026-08-18"},
+		"X-App":          {"cli"},
+	}
+	want := []string{"claude-code-20250219", "oauth-2025-04-20", "thinking-display-updates-2026-08-18"}
+	if got := HeaderValuesCaseInsensitive(headers, "ANTHROPIC-BETA"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("beta values = %v, want %v", got, want)
+	}
+	if got := HeaderValuesCaseInsensitive(nil, "Anthropic-Beta"); got != nil {
+		t.Fatalf("nil headers returned %v", got)
+	}
+}
 
 func TestExtractClaudeCodeSessionIDFromPayloadJSON(t *testing.T) {
 	payload := []byte(`{"metadata":{"user_id":"{\"device_id\":\"d\",\"session_id\":\"cache-session-1\"}"}}`)

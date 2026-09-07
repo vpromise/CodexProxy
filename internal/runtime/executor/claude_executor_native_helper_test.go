@@ -20,14 +20,9 @@ import (
 const (
 	claudeNativeHelperSessionID = "11111111-2222-4333-8444-555555555555"
 	claudeNativeHelperUserID    = `{"device_id":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","account_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","session_id":"11111111-2222-4333-8444-555555555555"}`
-	// The 2.1.252 cli baseline without context-1m: 2.1.252 sends claude-code,
-	// mid-conversation-system and fallback-credit on every request and no longer
-	// sends x-client-request-id (research/23§3).
-	claudeNativeHelperCoreBetas = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24,fallback-credit-2026-06-01"
-	// Measured 2.1.252 title helper: the cli baseline for the main model
-	// (claude-opus-5, hence context-1m) plus structured-outputs spliced between
-	// effort and fallback-credit (research/23§4).
-	claudeNativeTitleHelperBetas = "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24,structured-outputs-2025-12-15,fallback-credit-2026-06-01"
+	// Claude Code 2.1.258 omits effort for Haiku and title-helper requests.
+	claudeNativeHelperCoreBetas  = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,fallback-credit-2026-06-01"
+	claudeNativeTitleHelperBetas = "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,fallback-credit-2026-06-01,structured-outputs-2025-12-15"
 )
 
 // claudeNativeHelperHeaders builds the 2.1.252 Claude Code header set: the
@@ -40,7 +35,7 @@ func claudeNativeHelperHeaders(betas string) http.Header {
 		"Accept":            {"application/json"},
 		"Accept-Encoding":   {"gzip, deflate, br, zstd"},
 		"Content-Type":      {"application/json"},
-		"User-Agent":        {"claude-cli/2.1.252 (external, cli)"},
+		"User-Agent":        {"claude-cli/2.1.258 (external, cli)"},
 		"X-App":             {"cli"},
 		"Anthropic-Beta":    {betas},
 		"Anthropic-Version": {"2023-06-01"},
@@ -190,7 +185,7 @@ func TestClaudeExecutorStructuredNativeHelperPreservesStreamProfile(t *testing.T
 	// claude-opus-5, max_tokens 64000, no temperature, output_config carries
 	// effort, and the billing block keeps its signed cch. The cch=00000 placeholder
 	// exercises the re-sign path: on an OAuth credential the executor replaces it.
-	payload := []byte(`{"model":"claude-opus-5","messages":[{"role":"user","content":[{"type":"text","text":"<session>\nand hello again\n</session>\n\nWrite the title for this session."}]}],"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.252; cc_entrypoint=cli; cch=00000;"},{"type":"text","text":"You are Claude Code, Anthropic's official CLI for Claude."},{"type":"text","text":"Return a short title."}],"tools":[],"metadata":{"user_id":"` + strings.ReplaceAll(claudeNativeHelperUserID, `"`, `\"`) + `"},"max_tokens":64000,"thinking":{"type":"disabled"},"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}}},"stream":true}`)
+	payload := []byte(`{"model":"claude-opus-5","messages":[{"role":"user","content":[{"type":"text","text":"<session>\nand hello again\n</session>\n\nWrite the title for this session."}]}],"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.258; cc_entrypoint=cli; cch=00000;"},{"type":"text","text":"You are Claude Code, Anthropic's official CLI for Claude."},{"type":"text","text":"Return a short title."}],"tools":[],"metadata":{"user_id":"` + strings.ReplaceAll(claudeNativeHelperUserID, `"`, `\"`) + `"},"max_tokens":64000,"thinking":{"type":"disabled"},"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}}},"stream":true}`)
 	headers := claudeNativeHelperHeaders(claudeNativeTitleHelperBetas)
 	executor := NewClaudeExecutor(&config.Config{})
 	result, errStream := executor.ExecuteStream(context.Background(), claudeNativeHelperOAuthAuth(server.URL), cliproxyexecutor.Request{

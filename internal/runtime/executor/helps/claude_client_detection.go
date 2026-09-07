@@ -153,9 +153,26 @@ func claudeCodeHelperBetaProfile(context1M bool) string {
 	return strings.Join(betas, ",")
 }
 
+// claudeCode258HelperBetaProfile applies the 2.1.258 title-helper beta policy
+// without relaxing the exact header and body checks used for native helpers.
+func claudeCode258HelperBetaProfile(context1M, oauth bool) string {
+	profile := strings.ReplaceAll(claudeCodeHelperBetaProfile(context1M), ",effort-2025-11-24", "")
+	profile = strings.ReplaceAll(profile,
+		"structured-outputs-2025-12-15,fallback-credit-2026-06-01",
+		"fallback-credit-2026-06-01,structured-outputs-2025-12-15")
+	if oauth {
+		profile = strings.Replace(profile, "claude-code-20250219,", "claude-code-20250219,oauth-2025-04-20,", 1)
+	}
+	return profile
+}
+
 var measuredClaudeCodeHelperBetaProfiles = map[string]claudeCodeHelperShape{
-	claudeCodeHelperBetaProfile(true):  claudeCodeHelperShapeTitle,
-	claudeCodeHelperBetaProfile(false): claudeCodeHelperShapeTitle,
+	claudeCodeHelperBetaProfile(true):            claudeCodeHelperShapeTitle,
+	claudeCodeHelperBetaProfile(false):           claudeCodeHelperShapeTitle,
+	claudeCode258HelperBetaProfile(true, false):  claudeCodeHelperShapeTitle,
+	claudeCode258HelperBetaProfile(false, false): claudeCodeHelperShapeTitle,
+	claudeCode258HelperBetaProfile(true, true):   claudeCodeHelperShapeTitle,
+	claudeCode258HelperBetaProfile(false, true):  claudeCodeHelperShapeTitle,
 }
 
 func matchesMeasuredClaudeCodeHelperProfile(
