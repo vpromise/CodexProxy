@@ -13,15 +13,14 @@ import (
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
-// claudeCode2_1_252WireHeaderOrder is the header name sequence captured from a
-// real Claude Code 2.1.252 OAuth POST /v1/messages over HTTP/1.1, minus the four
-// names the Bun HTTP layer appends after the sorted block (Connection, Host,
-// Accept-Encoding, Content-Length) and minus User-Agent. 2.1.252 no longer sends
-// x-client-request-id, so the block is one name shorter than the 2.1.220 capture.
+// claudeCode2_1_258WireHeaderOrder extends the local 2.1.252 HTTP/1.1 capture
+// with the first-party request ID reported by upstream for 2.1.258. It omits
+// transport-owned names (Connection, Host, Accept-Encoding, Content-Length)
+// and User-Agent. Custom upstreams need not include x-client-request-id.
 // Go hardcodes Host, User-Agent and Content-Length ahead of the sorted block, so
 // those positions cannot be matched without replacing the request serialiser;
 // the real client carries User-Agent inside the sorted block at index 3.
-var claudeCode2_1_252WireHeaderOrder = []string{
+var claudeCode2_1_258WireHeaderOrder = []string{
 	"Accept",
 	"Authorization",
 	"Content-Type",
@@ -38,6 +37,7 @@ var claudeCode2_1_252WireHeaderOrder = []string{
 	"anthropic-dangerous-direct-browser-access",
 	"anthropic-version",
 	"x-app",
+	"x-client-request-id",
 }
 
 func newClaudeWireProbeRequest(t *testing.T, rawURL string) *http.Request {
@@ -117,7 +117,7 @@ func TestApplyClaudeHeaders_WireCasingMatchesRealClient(t *testing.T) {
 		}
 	}
 
-	want := claudeCode2_1_252WireHeaderOrder
+	want := claudeCode2_1_258WireHeaderOrder
 	if len(sdkNames) != len(want) {
 		t.Fatalf("header count = %d, want %d\n got %v", len(sdkNames), len(want), sdkNames)
 	}
@@ -130,7 +130,7 @@ func TestApplyClaudeHeaders_WireCasingMatchesRealClient(t *testing.T) {
 
 // Documents the one ordering gap the casing fix cannot close. If Go ever stops
 // hoisting User-Agent, or the serialiser is replaced, this test fails and the
-// name can move back into claudeCode2_1_252WireHeaderOrder.
+// name can move back into claudeCode2_1_258WireHeaderOrder.
 func TestApplyClaudeHeaders_UserAgentStillHoistedByGo(t *testing.T) {
 	req := newClaudeWireProbeRequest(t, "https://api.anthropic.com/v1/messages?beta=true")
 	names := serializedHeaderNames(t, req)
@@ -157,11 +157,11 @@ func TestApplyClaudeHeaders_UserAgentStillHoistedByGo(t *testing.T) {
 // Guards the property that makes the casing fix sufficient: the real client's
 // order is a plain bytewise sort, which is also what Go emits.
 func TestClaudeWireHeaderOrderIsBytewiseSorted(t *testing.T) {
-	sorted := append([]string(nil), claudeCode2_1_252WireHeaderOrder...)
+	sorted := append([]string(nil), claudeCode2_1_258WireHeaderOrder...)
 	sort.Strings(sorted)
 	for i := range sorted {
-		if sorted[i] != claudeCode2_1_252WireHeaderOrder[i] {
-			t.Fatalf("captured order is not a bytewise sort at %d: %q vs %q", i, claudeCode2_1_252WireHeaderOrder[i], sorted[i])
+		if sorted[i] != claudeCode2_1_258WireHeaderOrder[i] {
+			t.Fatalf("captured order is not a bytewise sort at %d: %q vs %q", i, claudeCode2_1_258WireHeaderOrder[i], sorted[i])
 		}
 	}
 }

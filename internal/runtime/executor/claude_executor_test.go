@@ -862,11 +862,9 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode258CLIFingerprint(t *testi
 	}
 }
 
-// Claude Code 2.1.252 stopped sending x-client-request-id (research/21§4,
-// baseline-2.1.252 header capture: 22 headers, none of them). The proxy must
-// neither inject it for cloaked requests nor resurrect it when a confirmed
-// 2.1.252 client omits it.
-func TestClaudeExecutor_252WireCarriesNoClientRequestID(t *testing.T) {
+// Claude Code 2.1.258 omits request IDs on a custom base when the caller
+// provided none. The proxy must preserve that distinction from first-party traffic.
+func TestClaudeExecutor_CustomBaseOmitsClientRequestID(t *testing.T) {
 	type capture struct {
 		server  *httptest.Server
 		headers http.Header
@@ -900,7 +898,7 @@ func TestClaudeExecutor_252WireCarriesNoClientRequestID(t *testing.T) {
 		}
 		assertNoClientRequestID(t, c.headers)
 	})
-	t.Run("confirmed 2.1.252 client omitting it", func(t *testing.T) {
+	t.Run("confirmed 2.1.258 client omitting it", func(t *testing.T) {
 		c := newCapture(t)
 		server := c.server
 		executor := NewClaudeExecutor(&config.Config{})
@@ -2105,6 +2103,75 @@ func TestClaudeExecutor_ExecuteStreamDirectPassthroughEmitsCompleteSSEEvents(t *
 		if payloads[i] != want[i] {
 			t.Fatalf("payload[%d] = %q, want %q", i, payloads[i], want[i])
 		}
+	}
+}
+
+func TestClaudeExecutor_ExecuteStreamOpenAIResponseTranslatesCacheAndTrailingUsageChunk(t *testing.T) {
+	upstreamStream := "event: message_start\n" +
+		`data: {"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","content":[],"model":"claude-opus-5","stop_reason":null,"usage":{"input_tokens":2095,"cache_creation_input_tokens":7185,"cache_read_input_tokens":355598,"output_tokens":1}}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}` + "\n\n" +
+		"event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":15}}` + "\n\n" +
+		"event: message_stop\n" +
+		`data: {"type":"message_stop"}` + "\n\n"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(upstreamStream))
+	}))
+	defer server.Close()
+
+	executor := NewClaudeExecutor(&config.Config{})
+	auth := &cliproxyauth.Auth{Attributes: map[string]string{
+		"api_key":  "key-123",
+		"base_url": server.URL,
+	}}
+	payload := []byte(`{"model":"claude-opus-5","messages":[{"role":"user","content":"hello"}],"stream":true}`)
+
+	result, err := executor.ExecuteStream(context.Background(), auth, cliproxyexecutor.Request{
+		Model:   "claude-opus-5",
+		Payload: payload,
+	}, cliproxyexecutor.Options{
+		SourceFormat:   sdktranslator.FormatOpenAI,
+		ResponseFormat: sdktranslator.FormatOpenAI,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteStream() error = %v", err)
+	}
+
+	var allChunks [][]byte
+	for chunk := range result.Chunks {
+		if chunk.Err != nil {
+			t.Fatalf("unexpected chunk error: %v", chunk.Err)
+		}
+		allChunks = append(allChunks, chunk.Payload)
+	}
+
+	var trailingUsageChunk []byte
+	for _, chunk := range allChunks {
+		choices := gjson.GetBytes(chunk, "choices")
+		if choices.Exists() && len(choices.Array()) == 0 && gjson.GetBytes(chunk, "usage").Exists() {
+			trailingUsageChunk = chunk
+			break
+		}
+	}
+
+	if trailingUsageChunk == nil {
+		t.Fatalf("expected trailing usage chunk with choices: [], got: %s", string(bytes.Join(allChunks, []byte("\n"))))
+	}
+
+	if gotCached := gjson.GetBytes(trailingUsageChunk, "usage.prompt_tokens_details.cached_tokens").Int(); gotCached != 355598 {
+		t.Errorf("cached_tokens = %d, want 355598", gotCached)
+	}
+	if gotWrite := gjson.GetBytes(trailingUsageChunk, "usage.prompt_tokens_details.cache_write_tokens").Int(); gotWrite != 7185 {
+		t.Errorf("cache_write_tokens = %d, want 7185", gotWrite)
+	}
+	if gotCreation := gjson.GetBytes(trailingUsageChunk, "usage.prompt_tokens_details.cached_creation_tokens").Int(); gotCreation != 7185 {
+		t.Errorf("cached_creation_tokens = %d, want 7185", gotCreation)
+	}
+	if gotOutput := gjson.GetBytes(trailingUsageChunk, "usage.completion_tokens").Int(); gotOutput != 15 {
+		t.Errorf("completion_tokens = %d, want 15", gotOutput)
 	}
 }
 
@@ -7896,10 +7963,10 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want:      constants,
 		},
 		{
-			name:      "requested advanced tool use is no longer emitted in 2.1.252",
+			name:      "requested advanced tool use is honored for inline tools",
 			body:      `{"model":"claude-sonnet-4-6","tools":[{"name":"Read"}]}`,
 			requested: map[string]bool{claudeAdvancedToolUseBeta: true},
-			want:      constants,
+			want:      strings.Replace(constants, ",effort-2025-11-24", ",advanced-tool-use-2025-11-20,effort-2025-11-24", 1),
 		},
 		{
 			name: "claude-sonnet-5 carries the constant baseline",
@@ -9231,5 +9298,42 @@ func TestClaudeExecutor_CloakModePrefersStoredPrevReqOverCallerFake(t *testing.T
 	}
 	if strings.Contains(turn2System, "req_fake_caller_999") {
 		t.Fatalf("CPA must not use fake caller cc_prev_req, got: %s", turn2System)
+	}
+}
+
+func TestWithClaudeAdvisorToolBeta_InsertsBeforeTrailingBetas(t *testing.T) {
+	const head = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,mid-conversation-system-2026-04-07"
+	tests := []struct {
+		name  string
+		betas string
+		want  string
+	}{
+		{
+			name:  "afk-mode only trailer",
+			betas: head + ",afk-mode-2026-01-31,extended-cache-ttl-2025-04-11",
+			want:  head + ",advisor-tool-2026-03-01,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11",
+		},
+		{
+			name:  "effort ahead of afk-mode",
+			betas: head + ",effort-2025-11-24,fallback-credit-2026-06-01,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11",
+			want:  head + ",advisor-tool-2026-03-01,effort-2025-11-24,fallback-credit-2026-06-01,afk-mode-2026-01-31,extended-cache-ttl-2025-04-11",
+		},
+		{
+			name:  "already present stays put",
+			betas: head + ",advisor-tool-2026-03-01,effort-2025-11-24,afk-mode-2026-01-31",
+			want:  head + ",advisor-tool-2026-03-01,effort-2025-11-24,afk-mode-2026-01-31",
+		},
+		{
+			name:  "no trailer appends",
+			betas: head,
+			want:  head + ",advisor-tool-2026-03-01",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := withClaudeAdvisorToolBeta(tt.betas); got != tt.want {
+				t.Fatalf("withClaudeAdvisorToolBeta() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

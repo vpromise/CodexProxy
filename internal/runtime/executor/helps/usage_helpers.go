@@ -504,6 +504,37 @@ func (b *StreamUsageBuffer) ObserveOpenAIStream(line []byte) {
 	b.Observe(detail, usageOK || detail.ResponseServiceTier != "")
 }
 
+// ObserveClaudeStream merges cumulative counters from sparse Claude SSE usage
+// snapshots. Missing fields retain their previous value; explicit zeroes replace
+// it. Recompute the independent breakdown after merging, including thinking.
+func (b *StreamUsageBuffer) ObserveClaudeStream(line []byte) {
+	if b == nil {
+		return
+	}
+	node := claudeStreamUsageNode(line)
+	if !node.Exists() {
+		return
+	}
+	detail := b.detail
+	for _, field := range []struct {
+		path string
+		dest *int64
+	}{
+		{"input_tokens", &detail.InputTokens},
+		{"output_tokens", &detail.OutputTokens},
+		{"cache_read_input_tokens", &detail.CacheReadTokens},
+		{"cache_creation_input_tokens", &detail.CacheCreationTokens},
+	} {
+		if value := node.Get(field.path); value.Exists() {
+			*field.dest = value.Int()
+		}
+	}
+	if reasoning := firstExistingUsageNode(node, "output_tokens_details.thinking_tokens", "output_tokens_details.reasoning_tokens", "thinking_tokens"); reasoning.Exists() {
+		detail.ReasoningTokens = reasoning.Int()
+	}
+	b.Observe(claudeUsageDetail(detail.InputTokens, detail.OutputTokens, detail.CacheReadTokens, detail.CacheCreationTokens, detail.ReasoningTokens), true)
+}
+
 // Publish emits the latest observed usage detail, if any.
 func (b *StreamUsageBuffer) Publish(ctx context.Context, reporter *UsageReporter) bool {
 	if b == nil || !b.ok || reporter == nil {
@@ -690,15 +721,26 @@ func ParseClaudeUsage(data []byte) usage.Detail {
 }
 
 func ParseClaudeStreamUsage(line []byte) (usage.Detail, bool) {
-	payload := jsonPayload(line)
-	if len(payload) == 0 || !gjson.ValidBytes(payload) {
-		return usage.Detail{}, false
-	}
-	usageNode := gjson.GetBytes(payload, "usage")
+	usageNode := claudeStreamUsageNode(line)
 	if !usageNode.Exists() {
 		return usage.Detail{}, false
 	}
 	return parseClaudeUsageNode(usageNode), true
+}
+
+func claudeStreamUsageNode(line []byte) gjson.Result {
+	payload := jsonPayload(line)
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return gjson.Result{}
+	}
+	usageNode := gjson.GetBytes(payload, "usage")
+	if !usageNode.Exists() {
+		usageNode = gjson.GetBytes(payload, "message.usage")
+	}
+	if !usageNode.IsObject() {
+		return gjson.Result{}
+	}
+	return usageNode
 }
 
 func parseClaudeUsageNode(usageNode gjson.Result) usage.Detail {
@@ -713,7 +755,10 @@ func parseClaudeUsageNode(usageNode gjson.Result) usage.Detail {
 		"output_tokens_details.reasoning_tokens",
 		"thinking_tokens",
 	)
-	reasoningTokens := reasoningNode.Int()
+	return claudeUsageDetail(usageNode.Get("input_tokens").Int(), rawOutputTokens, cacheReadTokens, cacheCreationTokens, reasoningNode.Int())
+}
+
+func claudeUsageDetail(inputTokens, rawOutputTokens, cacheReadTokens, cacheCreationTokens, reasoningTokens int64) usage.Detail {
 	if reasoningTokens < 0 {
 		reasoningTokens = 0
 	}
@@ -727,7 +772,7 @@ func parseClaudeUsageNode(usageNode gjson.Result) usage.Detail {
 		nonReasoningOutput = 0
 	}
 	detail := usage.Detail{
-		InputTokens:         usageNode.Get("input_tokens").Int(),
+		InputTokens:         inputTokens,
 		OutputTokens:        rawOutputTokens,
 		ReasoningTokens:     reasoningTokens,
 		CachedTokens:        cacheReadTokens,

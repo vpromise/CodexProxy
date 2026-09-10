@@ -372,6 +372,26 @@ func TestParseClaudeStreamUsagePreservesThinkingTokensAsReasoningSubset(t *testi
 	}
 }
 
+func TestParseClaudeStreamUsage_MessageStart(t *testing.T) {
+	line := []byte(`data: {"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","content":[],"model":"claude-opus-5","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":2095,"cache_creation_input_tokens":7185,"cache_read_input_tokens":355598,"output_tokens":1}}}`)
+	detail, ok := ParseClaudeStreamUsage(line)
+	if !ok {
+		t.Fatal("expected stream usage to parse from message_start")
+	}
+	if detail.InputTokens != 2095 {
+		t.Errorf("input tokens = %d, want 2095", detail.InputTokens)
+	}
+	if detail.CacheReadTokens != 355598 {
+		t.Errorf("cache read tokens = %d, want 355598", detail.CacheReadTokens)
+	}
+	if detail.CacheCreationTokens != 7185 {
+		t.Errorf("cache creation tokens = %d, want 7185", detail.CacheCreationTokens)
+	}
+	if detail.CachedTokens != 355598 {
+		t.Errorf("cached tokens = %d, want 355598", detail.CachedTokens)
+	}
+}
+
 func TestParseClaudeUsageFallsBackToTopLevelThinkingTokens(t *testing.T) {
 	data := []byte(`{"usage":{"input_tokens":3,"output_tokens":10,"thinking_tokens":4}}`)
 	detail := ParseClaudeUsage(data)
@@ -596,6 +616,94 @@ func TestStreamUsageBufferPublishFailure(t *testing.T) {
 	}
 	if record.Detail.TotalTokens != 15 {
 		t.Fatalf("Detail.TotalTokens = %d, want 15", record.Detail.TotalTokens)
+	}
+}
+
+func TestStreamUsageBufferObserveClaudeStream_MergesStartAndDelta(t *testing.T) {
+	var buffer StreamUsageBuffer
+
+	lineStart := []byte(`data: {"type":"message_start","message":{"id":"msg_123","model":"claude-opus-5","usage":{"input_tokens":2095,"cache_creation_input_tokens":7185,"cache_read_input_tokens":355598,"output_tokens":1}}}`)
+	buffer.ObserveClaudeStream(lineStart)
+
+	lineDelta := []byte(`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":15}}`)
+	buffer.ObserveClaudeStream(lineDelta)
+
+	detail, ok := buffer.Detail()
+	if !ok {
+		t.Fatal("expected buffer to contain usage detail")
+	}
+	if detail.InputTokens != 2095 {
+		t.Errorf("InputTokens = %d, want 2095", detail.InputTokens)
+	}
+	if detail.OutputTokens != 15 {
+		t.Errorf("OutputTokens = %d, want 15", detail.OutputTokens)
+	}
+	if detail.CacheReadTokens != 355598 {
+		t.Errorf("CacheReadTokens = %d, want 355598", detail.CacheReadTokens)
+	}
+	if detail.CacheCreationTokens != 7185 {
+		t.Errorf("CacheCreationTokens = %d, want 7185", detail.CacheCreationTokens)
+	}
+	if detail.CachedTokens != 355598 {
+		t.Errorf("CachedTokens = %d, want 355598", detail.CachedTokens)
+	}
+	wantTotal := int64(2095 + 15 + 355598 + 7185)
+	if detail.TotalTokens != wantTotal {
+		t.Errorf("TotalTokens = %d, want %d", detail.TotalTokens, wantTotal)
+	}
+}
+
+func TestStreamUsageBufferObserveClaudeStream_FailurePreservesUsage(t *testing.T) {
+	var buffer StreamUsageBuffer
+
+	lineStart := []byte(`data: {"type":"message_start","message":{"id":"msg_123","model":"claude-opus-5","usage":{"input_tokens":2095,"cache_creation_input_tokens":7185,"cache_read_input_tokens":355598,"output_tokens":1}}}`)
+	buffer.ObserveClaudeStream(lineStart)
+
+	reporter := &UsageReporter{
+		provider: "claude",
+		model:    "claude-opus-5",
+	}
+
+	record := reporter.buildRecord(buffer.detail, true, failFromErrors(context.Canceled))
+	if !record.Failed {
+		t.Fatal("expected record to be marked failed")
+	}
+	if record.Detail.InputTokens != 2095 {
+		t.Errorf("InputTokens = %d, want 2095", record.Detail.InputTokens)
+	}
+	if record.Detail.CacheReadTokens != 355598 {
+		t.Errorf("CacheReadTokens = %d, want 355598", record.Detail.CacheReadTokens)
+	}
+	if record.Detail.CacheCreationTokens != 7185 {
+		t.Errorf("CacheCreationTokens = %d, want 7185", record.Detail.CacheCreationTokens)
+	}
+
+	// Verify buffer.PublishFailure succeeds with the accumulated usage detail
+	if !buffer.PublishFailure(context.Background(), reporter, context.Canceled) {
+		t.Fatal("expected PublishFailure to return true")
+	}
+}
+
+func TestStreamUsageBufferClaudeSparseThinkingAndExplicitZero(t *testing.T) {
+	var buffer StreamUsageBuffer
+	buffer.ObserveClaudeStream([]byte(`data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":30,"output_tokens":1}}}`))
+	buffer.ObserveClaudeStream([]byte(`data: {"type":"message_delta","usage":{"output_tokens":8,"output_tokens_details":{"thinking_tokens":5}}}`))
+	buffer.ObserveClaudeStream([]byte(`data: {"type":"message_delta","usage":{"output_tokens":12}}`))
+	detail, ok := buffer.Detail()
+	if !ok || detail.InputTokens != 10 || detail.ReasoningTokens != 5 || detail.OutputTokens != 12 || detail.TotalTokens != 72 {
+		t.Fatalf("sparse thinking usage = %+v, present = %v", detail, ok)
+	}
+	buffer.ObserveClaudeStream([]byte(`data: {"type":"message_delta","usage":{"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0,"output_tokens_details":{"thinking_tokens":0}}}`))
+	detail, _ = buffer.Detail()
+	if detail.InputTokens != 10 || detail.OutputTokens != 0 || detail.ReasoningTokens != 0 || detail.CachedTokens != 0 || detail.TotalTokens != 10 {
+		t.Fatalf("explicit zero must replace previous counters: %+v", detail)
+	}
+	for _, line := range []string{`event: message_stop`, `data: {"type":"message_stop"}`, `data: {"usage":null}`, `data: {"usage":[]}`, `data: malformed`} {
+		buffer.ObserveClaudeStream([]byte(line))
+	}
+	after, _ := buffer.Detail()
+	if after != detail {
+		t.Fatalf("non-usage events changed accumulated counters: %+v -> %+v", detail, after)
 	}
 }
 

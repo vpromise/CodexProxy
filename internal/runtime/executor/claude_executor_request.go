@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/buildinfo"
@@ -37,6 +38,7 @@ import (
 const (
 	claudeTokenCountingBeta          = "token-counting-2024-11-01"
 	claudeFastModeBeta               = "fast-mode-2026-02-01"
+	claudeAFKModeBeta                = "afk-mode-2026-01-31"
 	claudeOAuthBeta                  = "oauth-2025-04-20"
 	claudeCodeBeta                   = "claude-code-20250219"
 	claudeContext1MBeta              = "context-1m-2025-08-07"
@@ -252,6 +254,9 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 	if requested[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body) {
 		betas = append(betas, claudeAdvisorToolBeta)
 	}
+	if requested[claudeAdvancedToolUseBeta] || helps.ClaudeBodyUsesAdvancedToolUse(body) {
+		betas = append(betas, claudeAdvancedToolUseBeta)
+	}
 	if claudeRequestSupportsEffort(body, requested) {
 		betas = append(betas, claudeEffortBeta)
 	}
@@ -271,6 +276,9 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 	}
 	if claudeRequestUsesFastMode(body, requested) {
 		betas = append(betas, claudeFastModeBeta)
+	}
+	if requested[claudeAFKModeBeta] {
+		betas = append(betas, claudeAFKModeBeta)
 	}
 	if oauthToken && !helps.IsClaudeSubagentRequest(nil, body) && !isProbeOrHelper {
 		betas = append(betas, claudeExtendedCacheTTLBeta)
@@ -487,6 +495,7 @@ func withClaudeAdvisorToolBeta(betas string) string {
 			claudeServerSideFallbackBeta,
 			claudeFallbackCreditBeta,
 			claudeFastModeBeta,
+			claudeAFKModeBeta,
 			claudeExtendedCacheTTLBeta,
 			claudeCacheDiagnosisBeta:
 			insertAt = index
@@ -1273,19 +1282,19 @@ func applyClaudeHeadersWithNativeProfile(
 			r.Header.Set(hdr, val)
 		}
 	}
-	// Claude Code 2.1.252 sends no x-client-request-id; callers
-	// that still do (older CLIs) have the header stripped by
-	// copyClaudeCallerFingerprintHeaders, so nothing needs to be injected.
+	// Claude Code 2.1.258 attaches request IDs for the first-party base.
+	// Custom-base helpers preserve a caller ID without synthesizing one.
+	if isAnthropicBase || (helperProfile && helps.HeaderValueCaseInsensitive(incomingHeaders, "x-client-request-id") != "") {
+		identityHeader("x-client-request-id", uuid.New().String())
+	}
 	r.Header.Set("Connection", "keep-alive")
 	// Regular Claude Code requests negotiate transport identically for streaming
-	// and non-streaming requests. Measured Haiku helpers are the exception: their
-	// minimal non-stream request offers gzip only, while the structured streaming
-	// helper offers the full compression set. Confirmed helpers preserve the
-	// incoming native values.
+	// and non-streaming requests. Haiku helpers also offer the full compression
+	// set. Confirmed helpers preserve the incoming native values.
 	applyTransportNegotiation := func() {
 		if helperProfile {
 			identityHeader("Accept", "application/json")
-			identityHeader("Accept-Encoding", "gzip")
+			identityHeader("Accept-Encoding", "gzip, deflate, br, zstd")
 			return
 		}
 		if stream && !isAnthropicBase {
@@ -1344,13 +1353,14 @@ func doClaudeUpstreamRequest(client *http.Client, req *http.Request) (*http.Resp
 }
 
 // claudeWireHeaderCasing maps Go's canonical header name to the exact casing
-// Claude Code 2.1.252 puts on the wire. Only the names that differ are listed;
+// Claude Code 2.1.258 puts on the wire. Only the names that differ are listed;
 // the other headers already survive canonicalisation unchanged.
 var claudeWireHeaderCasing = map[string]string{
-	"X-Stainless-Os":    "X-Stainless-OS",
-	"Anthropic-Beta":    "anthropic-beta",
-	"Anthropic-Version": "anthropic-version",
-	"X-App":             "x-app",
+	"X-Client-Request-Id": "x-client-request-id",
+	"X-Stainless-Os":      "X-Stainless-OS",
+	"Anthropic-Beta":      "anthropic-beta",
+	"Anthropic-Version":   "anthropic-version",
+	"X-App":               "x-app",
 
 	"Anthropic-Dangerous-Direct-Browser-Access": "anthropic-dangerous-direct-browser-access",
 }

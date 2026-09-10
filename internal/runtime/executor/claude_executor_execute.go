@@ -431,24 +431,30 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	}
 	helps.AppendAPIResponseChunk(ctx, e.cfg, data)
 	if upstreamStream {
+		var streamUsage helps.StreamUsageBuffer
+		lines := bytes.Split(data, []byte("\n"))
+		for _, line := range lines {
+			streamUsage.ObserveClaudeStream(line)
+		}
 		if errValidate := validateClaudeStreamingResponse(data); errValidate != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, errValidate)
-			return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errValidate, httpResp.Header))
+			errValidate = wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errValidate, httpResp.Header))
+			streamUsage.PublishFailure(ctx, reporter, errValidate)
+			return resp, errValidate
 		}
 		commitClaudeContinuity(diagnosticsState, claudeMessageIDFromSSE(data), helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
-		lines := bytes.Split(data, []byte("\n"))
 		for i, line := range lines {
-			if detail, ok := helps.ParseClaudeStreamUsage(line); ok {
-				reporter.Publish(ctx, detail)
-			}
 			restoredLine, errRestore := restoreClaudeOAuthToolNamesFromStreamLine(line, oauthToolNamesReverseMap)
 			if errRestore != nil {
 				errRestore = fmt.Errorf("restore Claude OAuth tool name from streaming response: %w", errRestore)
 				helps.RecordAPIResponseError(ctx, e.cfg, errRestore)
-				return resp, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errRestore, httpResp.Header))
+				errRestore = wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(errRestore, httpResp.Header))
+				streamUsage.PublishFailure(ctx, reporter, errRestore)
+				return resp, errRestore
 			}
 			lines[i] = restoredLine
 		}
+		streamUsage.Publish(ctx, reporter)
 		data = bytes.Join(lines, []byte("\n"))
 	} else {
 		commitClaudeContinuity(diagnosticsState, claudeMessageIDFromResponse(data), helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
