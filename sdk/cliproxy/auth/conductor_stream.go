@@ -320,7 +320,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 		}
 		allowedWarningObserved := false
 		if !ephemeralResult {
-			allowedWarningObserved = m.observeClaudeStreamAllowedWarning(ctx, auth.ID, resultModel, streamResult.Headers, time.Now())
+			allowedWarningObserved = logClaudeAllowedWarning(ctx, auth.Provider, resultModel, auth.Index, streamResult.Headers)
 		}
 
 		buffered, closed, bootstrapErr := readStreamBootstrap(ctx, streamResult.Chunks)
@@ -367,7 +367,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 						streamResult = retryStream
 						allowedWarningObserved = false
 						if !ephemeralResult {
-							allowedWarningObserved = m.observeClaudeStreamAllowedWarning(ctx, auth.ID, resultModel, streamResult.Headers, time.Now())
+							allowedWarningObserved = logClaudeAllowedWarning(ctx, auth.Provider, resultModel, auth.Index, streamResult.Headers)
 						}
 						buffered, closed, bootstrapErr = readStreamBootstrap(ctx, streamResult.Chunks)
 						if bootstrapErr != nil {

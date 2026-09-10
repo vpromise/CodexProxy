@@ -213,11 +213,6 @@ type ModelState struct {
 	Quota QuotaState `json:"quota"`
 	// UpdatedAt tracks the last update timestamp for this model state.
 	UpdatedAt time.Time `json:"updated_at"`
-
-	// allowedWarningAt is the first allowed_warning observation in the current
-	// soft-cooldown window. It belongs to the model runtime state and is never
-	// persisted or exposed through management APIs.
-	allowedWarningAt time.Time
 }
 
 func recentRequestBucketID(now time.Time) int64 {

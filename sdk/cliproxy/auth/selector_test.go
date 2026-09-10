@@ -713,12 +713,12 @@ func TestIsAuthBlockedForModel_CooldownEligibleFailuresRemainCooldowns(t *testin
 			},
 		},
 		{
-			name: "allowed warning",
+			name: "legacy allowed warning cooldown",
 			state: &ModelState{
 				Status:         StatusError,
 				StatusMessage:  "allowed_warning",
 				Unavailable:    true,
-				NextRetryAfter: now.Add(claudeAllowedWarnPause),
+				NextRetryAfter: now.Add(30 * time.Second),
 			},
 		},
 		{

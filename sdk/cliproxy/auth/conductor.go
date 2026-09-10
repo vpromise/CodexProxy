@@ -70,8 +70,8 @@ type Result struct {
 	// reuse the credential but are not generation traffic; their successful
 	// responses are not evidence that a messages cooldown has recovered.
 	SkipQuotaObservation bool
-	// SkipAllowedWarningObservation reports that streaming response headers were
-	// already observed when the upstream stream was established.
+	// SkipAllowedWarningObservation suppresses duplicate warning logs when
+	// response headers were already logged at stream establishment.
 	SkipAllowedWarningObservation bool
 }
 
