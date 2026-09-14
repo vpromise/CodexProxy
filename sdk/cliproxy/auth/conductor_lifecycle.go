@@ -482,7 +482,12 @@ func (m *Manager) persistAuthLocked(ctx context.Context, auth *Auth, pLock *auth
 	}
 	m.mu.RLock()
 	current := m.auths[auth.ID]
-	stale := auth.RegistrationEpoch != 0 && (current == nil || current.RegistrationEpoch != auth.RegistrationEpoch || current.Generation > auth.Generation)
+	stale := auth.RegistrationEpoch != 0 && (current == nil || current.RegistrationEpoch != auth.RegistrationEpoch)
+	if !stale && auth.RegistrationEpoch != 0 && current.Generation > auth.Generation {
+		// Refresh bookkeeping can advance the generation without saving. Persist
+		// the latest state of this registration instead of losing a durable update.
+		auth = current.Clone()
+	}
 	store := m.store
 	m.mu.RUnlock()
 	if stale || auth.RegistrationEpoch < pLock.lastEpoch || (auth.RegistrationEpoch == pLock.lastEpoch && auth.Generation < pLock.lastGeneration) {

@@ -234,6 +234,53 @@ func TestLifecycle_FailedPersistenceCanRetryCurrentGeneration(t *testing.T) {
 	}
 }
 
+func TestLifecycle_PersistenceRetryAfterRefreshBookkeeping(t *testing.T) {
+	ctx := context.Background()
+	store := &lifecycleFailOnceStore{memoryAuthTestStore: newMemoryAuthTestStore()}
+	m := NewManager(store, nil, nil)
+	base, err := m.Register(ctx, &Auth{ID: t.Name(), Provider: "claude", Status: StatusActive,
+		Metadata: map[string]any{"access_token": "original", "notes": "original"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.fail = true
+	updated := base.Clone()
+	updated.Metadata["access_token"] = "replacement"
+	updated.Metadata["notes"] = "user edit"
+	pending, errUpdate := m.Update(ctx, updated)
+	if errUpdate == nil || pending == nil {
+		t.Fatal("expected the injected save failure with the update retained in memory")
+	}
+	if !m.markRefreshPending(base.ID, time.Now()) {
+		t.Fatal("expected refresh bookkeeping to advance the runtime generation")
+	}
+	if errPersist := m.persist(ctx, pending); errPersist != nil {
+		t.Fatal(errPersist)
+	}
+	current, _ := m.GetByID(base.ID)
+	saved, errList := store.List(ctx)
+	if errList != nil || len(saved) != 1 {
+		t.Fatalf("stored auths: %v, %v", saved, errList)
+	}
+	if authAccessToken(saved[0]) != "replacement" || saved[0].Metadata["notes"] != "user edit" || saved[0].Generation != current.Generation {
+		t.Fatal("refresh bookkeeping silently discarded the pending durable update")
+	}
+	if !saved[0].NextRefreshAfter.Equal(current.NextRefreshAfter) {
+		t.Fatal("persistence did not use the latest registration state")
+	}
+
+	// A delayed older writer may flush current state, but must not restore its
+	// old token or overwrite the user's newer configuration.
+	base.Metadata["notes"] = "stale writer"
+	if errPersist := m.persist(ctx, base); errPersist != nil {
+		t.Fatal(errPersist)
+	}
+	saved, _ = store.List(ctx)
+	if authAccessToken(saved[0]) != "replacement" || saved[0].Metadata["notes"] != "user edit" {
+		t.Fatal("an older writer restored stale credential state")
+	}
+}
+
 func TestLifecycle_ManagementPatchRetainsNewerToken(t *testing.T) {
 	ctx := context.Background()
 	m := NewManager(newMemoryAuthTestStore(), nil, nil)

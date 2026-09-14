@@ -123,6 +123,9 @@ type ModelRegistration struct {
 	Providers map[string]int
 	// SuspendedClients tracks temporarily disabled clients keyed by client ID
 	SuspendedClients map[string]string
+	// Explicit projection deadlines override legacy, manually resumed state.
+	suspensionDeadlines map[string]time.Time
+	quotaDeadlines      map[string]time.Time
 }
 
 // ModelRegistryHook provides optional callbacks for external integrations to track model list changes.
@@ -193,8 +196,9 @@ func (r *ModelRegistry) invalidateAvailableModelsCacheLocked() {
 
 // GetGeneration returns the current generation counter of model registrations.
 func (r *ModelRegistry) GetGeneration() uint64 {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.expireAvailableModelsCacheLocked(time.Now())
 	return r.generation
 }
 
@@ -470,6 +474,8 @@ func (r *ModelRegistry) RegisterClient(clientID, clientProvider string, models [
 			if reg.SuspendedClients != nil {
 				delete(reg.SuspendedClients, clientID)
 			}
+			delete(reg.suspensionDeadlines, clientID)
+			delete(reg.quotaDeadlines, clientID)
 			if providerChanged && provider != "" {
 				if _, newlyAdded := addedSet[id]; newlyAdded {
 					continue
@@ -570,6 +576,8 @@ func (r *ModelRegistry) removeModelRegistration(clientID, modelID, provider stri
 	if registration.SuspendedClients != nil {
 		delete(registration.SuspendedClients, clientID)
 	}
+	delete(registration.suspensionDeadlines, clientID)
+	delete(registration.quotaDeadlines, clientID)
 	if registration.Count < 0 {
 		registration.Count = 0
 	}
@@ -689,6 +697,8 @@ func (r *ModelRegistry) unregisterClientInternal(clientID string) {
 			if registration.SuspendedClients != nil {
 				delete(registration.SuspendedClients, clientID)
 			}
+			delete(registration.suspensionDeadlines, clientID)
+			delete(registration.quotaDeadlines, clientID)
 
 			if hasProvider && registration.Providers != nil {
 				if count, ok := registration.Providers[provider]; ok {
@@ -736,6 +746,7 @@ func (r *ModelRegistry) SetModelQuotaExceeded(clientID, modelID string) {
 	if registration, exists := r.models[modelID]; exists {
 		now := time.Now()
 		registration.QuotaExceededClients[clientID] = &now
+		delete(registration.quotaDeadlines, clientID)
 		r.invalidateAvailableModelsCacheLocked()
 		log.Debugf("Marked model %s as quota exceeded for client %s", modelID, clientID)
 	}
@@ -752,6 +763,7 @@ func (r *ModelRegistry) ClearModelQuotaExceeded(clientID, modelID string) {
 
 	if registration, exists := r.models[modelID]; exists {
 		delete(registration.QuotaExceededClients, clientID)
+		delete(registration.quotaDeadlines, clientID)
 		r.invalidateAvailableModelsCacheLocked()
 		// log.Debugf("Cleared quota exceeded status for model %s and client %s", modelID, clientID)
 	}
@@ -762,7 +774,11 @@ type ClientModelProjection struct {
 	ModelID       string
 	Suspended     bool
 	SuspendReason string
+	// SuspendUntil leaves a zero deadline for suspensions requiring explicit resume.
+	SuspendUntil  time.Time
 	QuotaExceeded bool
+	// QuotaRecoverAt overrides the legacy quota window when a deadline is known.
+	QuotaRecoverAt time.Time
 }
 
 // ApplyClientModelProjections atomically applies model suspension and quota exceeded state for clientID
@@ -854,6 +870,10 @@ func (r *ModelRegistry) ApplyClientModelProjections(clientID string, epoch uint6
 				registration.LastUpdated = now
 				changed = true
 			}
+			if setClientDeadline(&registration.suspensionDeadlines, clientID, proj.SuspendUntil) {
+				registration.LastUpdated = now
+				changed = true
+			}
 		} else {
 			if registration.SuspendedClients != nil {
 				if _, ok := registration.SuspendedClients[clientID]; ok {
@@ -862,6 +882,7 @@ func (r *ModelRegistry) ApplyClientModelProjections(clientID string, epoch uint6
 					changed = true
 				}
 			}
+			delete(registration.suspensionDeadlines, clientID)
 		}
 
 		// Update quota exceeded state
@@ -874,6 +895,10 @@ func (r *ModelRegistry) ApplyClientModelProjections(clientID string, epoch uint6
 				registration.LastUpdated = now
 				changed = true
 			}
+			if setClientDeadline(&registration.quotaDeadlines, clientID, proj.QuotaRecoverAt) {
+				registration.LastUpdated = now
+				changed = true
+			}
 		} else {
 			if registration.QuotaExceededClients != nil {
 				if _, ok := registration.QuotaExceededClients[clientID]; ok {
@@ -882,6 +907,7 @@ func (r *ModelRegistry) ApplyClientModelProjections(clientID string, epoch uint6
 					changed = true
 				}
 			}
+			delete(registration.quotaDeadlines, clientID)
 		}
 	}
 
@@ -911,10 +937,11 @@ func (r *ModelRegistry) SuspendClientModel(clientID, modelID, reason string) {
 	if registration.SuspendedClients == nil {
 		registration.SuspendedClients = make(map[string]string)
 	}
-	if _, already := registration.SuspendedClients[clientID]; already {
+	if _, active := clientModelSuspension(registration, clientID, time.Now()); active {
 		return
 	}
 	registration.SuspendedClients[clientID] = reason
+	delete(registration.suspensionDeadlines, clientID)
 	registration.LastUpdated = time.Now()
 	r.invalidateAvailableModelsCacheLocked()
 	if reason != "" {
@@ -944,6 +971,7 @@ func (r *ModelRegistry) ResumeClientModel(clientID, modelID string) {
 		return
 	}
 	delete(registration.SuspendedClients, clientID)
+	delete(registration.suspensionDeadlines, clientID)
 	registration.LastUpdated = time.Now()
 	r.invalidateAvailableModelsCacheLocked()
 	log.Debugf("Resumed client %s for model %s", clientID, modelID)
@@ -989,7 +1017,7 @@ func (r *ModelRegistry) IsModelSuspendedForClient(clientID, modelID string) bool
 	if !exists || registration == nil || registration.SuspendedClients == nil {
 		return false
 	}
-	_, suspended := registration.SuspendedClients[clientID]
+	_, suspended := clientModelSuspension(registration, clientID, time.Now())
 	return suspended
 }
 
@@ -1008,8 +1036,8 @@ func (r *ModelRegistry) IsModelQuotaExceededForClient(clientID, modelID string) 
 	if !exists || registration == nil || registration.QuotaExceededClients == nil {
 		return false
 	}
-	_, exceeded := registration.QuotaExceededClients[clientID]
-	return exceeded
+	quotaTime, exceeded := registration.QuotaExceededClients[clientID]
+	return exceeded && clientModelQuotaRecoveryAt(registration, clientID, quotaTime).After(time.Now())
 }
 
 // GetAvailableModels returns all models that have at least one available client
@@ -1019,7 +1047,10 @@ func (r *ModelRegistry) IsModelQuotaExceededForClient(clientID, modelID string) 
 // Returns:
 //   - []map[string]any: List of available models in the requested format
 func (r *ModelRegistry) GetAvailableModels(handlerType string) []map[string]any {
-	now := time.Now()
+	return r.availableModelsAt(handlerType, time.Now())
+}
+
+func (r *ModelRegistry) availableModelsAt(handlerType string, now time.Time) []map[string]any {
 
 	r.mutex.RLock()
 	if cache, ok := r.availableModelsCache[handlerType]; ok && (cache.expiresAt.IsZero() || now.Before(cache.expiresAt)) {
@@ -1033,6 +1064,7 @@ func (r *ModelRegistry) GetAvailableModels(handlerType string) []map[string]any 
 	defer r.mutex.Unlock()
 	r.ensureAvailableModelsCacheLocked()
 
+	r.expireAvailableModelsCacheLocked(now)
 	if cache, ok := r.availableModelsCache[handlerType]; ok && (cache.expiresAt.IsZero() || now.Before(cache.expiresAt)) {
 		return cloneModelMaps(cache.models)
 	}
@@ -1054,11 +1086,14 @@ func modelRegistrationAvailability(registration *ModelRegistration, now time.Tim
 	availableClients := registration.Count
 	expiredClients := 0
 	var expiresAt time.Time
-	for _, quotaTime := range registration.QuotaExceededClients {
+	for clientID, quotaTime := range registration.QuotaExceededClients {
 		if quotaTime == nil {
 			continue
 		}
-		recoveryAt := quotaTime.Add(modelQuotaExceededWindow)
+		if reason, active := clientModelSuspension(registration, clientID, now); active && !isQuotaSuspension(reason) {
+			continue
+		}
+		recoveryAt := clientModelQuotaRecoveryAt(registration, clientID, quotaTime)
 		if now.Before(recoveryAt) {
 			expiredClients++
 			if expiresAt.IsZero() || recoveryAt.Before(expiresAt) {
@@ -1070,8 +1105,15 @@ func modelRegistrationAvailability(registration *ModelRegistration, now time.Tim
 	cooldownSuspended := 0
 	otherSuspended := 0
 	if registration.SuspendedClients != nil {
-		for _, reason := range registration.SuspendedClients {
-			if strings.EqualFold(reason, "quota") {
+		for clientID := range registration.SuspendedClients {
+			reason, active := clientModelSuspension(registration, clientID, now)
+			if !active {
+				continue
+			}
+			if deadline := registration.suspensionDeadlines[clientID]; !deadline.IsZero() && (expiresAt.IsZero() || deadline.Before(expiresAt)) {
+				expiresAt = deadline
+			}
+			if isQuotaSuspension(reason) {
 				cooldownSuspended++
 				continue
 			}
@@ -1249,20 +1291,27 @@ func (r *ModelRegistry) GetAvailableModelsByProvider(provider string) []*ModelIn
 					if p, okProvider := r.clientProviders[clientID]; !okProvider || p != provider {
 						continue
 					}
-					if quotaTime != nil && now.Sub(*quotaTime) < modelQuotaExceededWindow {
+					if reason, active := clientModelSuspension(registration, clientID, now); active && !isQuotaSuspension(reason) {
+						continue
+					}
+					if clientModelQuotaRecoveryAt(registration, clientID, quotaTime).After(now) {
 						expiredClients++
 					}
 				}
 			}
 			if registration.SuspendedClients != nil {
-				for clientID, reason := range registration.SuspendedClients {
+				for clientID := range registration.SuspendedClients {
 					if clientID == "" {
 						continue
 					}
 					if p, okProvider := r.clientProviders[clientID]; !okProvider || p != provider {
 						continue
 					}
-					if strings.EqualFold(reason, "quota") {
+					reason, active := clientModelSuspension(registration, clientID, now)
+					if !active {
+						continue
+					}
+					if isQuotaSuspension(reason) {
 						cooldownSuspended++
 						continue
 					}
@@ -1304,18 +1353,19 @@ func (r *ModelRegistry) GetModelCount(modelID string) int {
 	if registration, exists := r.models[modelID]; exists {
 		now := time.Now()
 
-		// Count clients that have exceeded quota but haven't recovered yet
-		expiredClients := 0
-		for _, quotaTime := range registration.QuotaExceededClients {
-			if quotaTime != nil && now.Sub(*quotaTime) < modelQuotaExceededWindow {
-				expiredClients++
+		// A client with both quota and suspension state is unavailable only once.
+		blockedClients := make(map[string]struct{})
+		for clientID, quotaTime := range registration.QuotaExceededClients {
+			if clientModelQuotaRecoveryAt(registration, clientID, quotaTime).After(now) {
+				blockedClients[clientID] = struct{}{}
 			}
 		}
-		suspendedClients := 0
-		if registration.SuspendedClients != nil {
-			suspendedClients = len(registration.SuspendedClients)
+		for clientID := range registration.SuspendedClients {
+			if _, active := clientModelSuspension(registration, clientID, now); active {
+				blockedClients[clientID] = struct{}{}
+			}
 		}
-		result := registration.Count - expiredClients - suspendedClients
+		result := registration.Count - len(blockedClients)
 		if result < 0 {
 			return 0
 		}
@@ -1500,8 +1550,9 @@ func (r *ModelRegistry) CleanupExpiredQuotas() {
 
 	for modelID, registration := range r.models {
 		for clientID, quotaTime := range registration.QuotaExceededClients {
-			if quotaTime != nil && now.Sub(*quotaTime) >= modelQuotaExceededWindow {
+			if quotaTime != nil && !clientModelQuotaRecoveryAt(registration, clientID, quotaTime).After(now) {
 				delete(registration.QuotaExceededClients, clientID)
+				delete(registration.quotaDeadlines, clientID)
 				invalidated = true
 				log.Debugf("Cleaned up expired quota tracking for model %s, client %s", modelID, clientID)
 			}

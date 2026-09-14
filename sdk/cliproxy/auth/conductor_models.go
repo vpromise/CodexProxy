@@ -236,31 +236,47 @@ func (m *Manager) clientModelProjectionForAuth(auth *Auth, routeModel string, no
 
 	state := existingModelState(auth, targetKey)
 	isSuspended := auth.Disabled || auth.Status == StatusDisabled
+	var suspendUntil time.Time
+	var suspendReason string
 	if auth.Quota.Exceeded && auth.Quota.Reason == "credential_quota" && auth.Quota.NextRecoverAt.After(now) {
+		if !isSuspended {
+			suspendUntil = auth.Quota.NextRecoverAt
+			suspendReason = "credential_quota"
+		}
 		isSuspended = true
 	}
 	isQuotaExceeded := false
-	var suspendReason string
+	var quotaRecoverAt time.Time
 	if state != nil {
-		if state.Status == StatusDisabled || state.Unavailable || (!state.NextRetryAfter.IsZero() && state.NextRetryAfter.After(now)) {
+		if state.Status == StatusDisabled {
+			isSuspended = true
+			suspendUntil = time.Time{}
+		} else if blocked, _, next := modelAvailabilityBlock(state, now); blocked {
+			if !isSuspended || (!suspendUntil.IsZero() && (next.IsZero() || next.After(suspendUntil))) {
+				suspendUntil = next
+				suspendReason = cooldownReason(state.StatusMessage, state.Quota, state.LastError)
+			}
 			isSuspended = true
 		}
 		if state.Quota.Exceeded && (state.Quota.NextRecoverAt.IsZero() || state.Quota.NextRecoverAt.After(now)) {
 			isQuotaExceeded = true
-		}
-		if isSuspended {
-			suspendReason = cooldownReason(state.StatusMessage, state.Quota, state.LastError)
+			quotaRecoverAt = state.Quota.NextRecoverAt
 		}
 	}
 	if isSuspended && suspendReason == "" {
 		suspendReason = cooldownReason(auth.StatusMessage, auth.Quota, auth.LastError)
 	}
+	if auth.Disabled || auth.Status == StatusDisabled || (state != nil && state.Status == StatusDisabled) {
+		suspendReason = "disabled"
+	}
 
 	return registry.ClientModelProjection{
-		ModelID:       targetModel,
-		Suspended:     isSuspended,
-		SuspendReason: suspendReason,
-		QuotaExceeded: isQuotaExceeded,
+		ModelID:        targetModel,
+		Suspended:      isSuspended,
+		SuspendReason:  suspendReason,
+		SuspendUntil:   suspendUntil,
+		QuotaExceeded:  isQuotaExceeded,
+		QuotaRecoverAt: quotaRecoverAt,
 	}
 }
 
