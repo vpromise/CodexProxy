@@ -19,6 +19,30 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 )
 
+func TestCaptureRequestInfo_HeadersDeepCopy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/test", nil)
+	c.Request.Header["X-Audit"] = []string{"original", "second"}
+	info, err := captureRequestInfo(c, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Request.Header["X-Audit"][0] = "mutated"
+	if got := info.Headers["X-Audit"][0]; got != "original" {
+		t.Fatalf("captured headers changed after request mutation: %q", got)
+	}
+	info.Headers["X-Audit"][1] = "snapshot edit"
+	if got := c.Request.Header["X-Audit"][1]; got != "second" {
+		t.Fatalf("snapshot mutation changed the live request: %q", got)
+	}
+	c.Request.Header = nil
+	info, err = captureRequestInfo(c, false)
+	if err != nil || info.Headers == nil || len(info.Headers) != 0 {
+		t.Fatalf("nil-header capture = %#v, %v", info, err)
+	}
+}
+
 func TestShouldSkipMethodForRequestLogging(t *testing.T) {
 	tests := []struct {
 		name string
