@@ -329,6 +329,9 @@ func claudeErrorStatus(msg *interfaces.ErrorMessage) int {
 		status = msg.StatusCode
 	}
 	if msg != nil && !msg.DirectResponse && coreauth.IsModelCooldownError(msg.Error) {
+		if coreauth.IsQuotaCooldownError(msg.Error) {
+			return http.StatusTooManyRequests
+		}
 		return claudeOverloadedStatus
 	}
 	return status
@@ -338,6 +341,15 @@ func (h *ClaudeCodeAPIHandler) toClaudeError(msg *interfaces.ErrorMessage) claud
 	status := claudeErrorStatus(msg)
 	errText := http.StatusText(status)
 	if msg != nil && !msg.DirectResponse && coreauth.IsModelCooldownError(msg.Error) {
+		if coreauth.IsQuotaCooldownError(msg.Error) {
+			return claudeErrorResponse{
+				Type: "error",
+				Error: claudeErrorDetail{
+					Type:    "rate_limit_error",
+					Message: "Rate limit reached. Please try again later.",
+				},
+			}
+		}
 		return claudeErrorResponse{
 			Type: "error",
 			Error: claudeErrorDetail{

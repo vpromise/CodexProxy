@@ -32,6 +32,14 @@ func (w *Watcher) start(ctx context.Context) error {
 		return errAddConfig
 	}
 	log.Debugf("watching config file: %s", w.configPath)
+	// Editors and management updates may replace the file inode. The parent
+	// watch keeps observing the configured path after a rename or recreation.
+	// Retain the file watch for writes through a symlink outside this directory.
+	configDir := filepath.Dir(w.configPath)
+	if errAddConfigDir := w.watcher.Add(configDir); errAddConfigDir != nil {
+		log.Errorf("failed to watch config directory %s: %v", configDir, errAddConfigDir)
+		return errAddConfigDir
+	}
 
 	if errAddAuthDir := w.watcher.Add(w.authDir); errAddAuthDir != nil {
 		log.Errorf("failed to watch auth directory %s: %v", w.authDir, errAddAuthDir)

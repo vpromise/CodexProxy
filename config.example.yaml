@@ -68,6 +68,7 @@ max-retry-credentials: 0
 max-retry-interval: 30
 disable-cooling: false
 save-cooldown-status: false
+# Transient upstream errors (408/500/502/503/504/520-526): 0 uses 60 seconds; -1 disables cooldowns.
 transient-error-cooldown-seconds: 0
 
 routing:

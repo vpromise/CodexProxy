@@ -43,6 +43,8 @@ const (
 	claudeCodeBeta                   = "claude-code-20250219"
 	claudeContext1MBeta              = "context-1m-2025-08-07"
 	claudeMidConvSystemBeta          = "mid-conversation-system-2026-04-07"
+	claudePerTurnControlBeta         = "per-turn-control-2026-07-01"
+	claudeMidConvToolChangesBeta     = "mid-conversation-tool-changes-2026-07-01"
 	claudeAdvisorToolBeta            = "advisor-tool-2026-03-01"
 	claudeAdvancedToolUseBeta        = "advanced-tool-use-2025-11-20"
 	claudeEffortBeta                 = "effort-2025-11-24"
@@ -251,6 +253,12 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		betas = append(betas, beta)
 	}
 	betas = append(betas, claudeMidConvSystemBeta)
+	if requested[claudePerTurnControlBeta] {
+		betas = append(betas, claudePerTurnControlBeta)
+	}
+	if requested[claudeMidConvToolChangesBeta] {
+		betas = append(betas, claudeMidConvToolChangesBeta)
+	}
 	if requested[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body) {
 		betas = append(betas, claudeAdvisorToolBeta)
 	}
@@ -280,8 +288,12 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 	if requested[claudeAFKModeBeta] {
 		betas = append(betas, claudeAFKModeBeta)
 	}
-	if oauthToken && !helps.IsClaudeSubagentRequest(nil, body) && !isProbeOrHelper {
-		betas = append(betas, claudeExtendedCacheTTLBeta)
+	if !isProbeOrHelper {
+		includeExtended := (oauthToken && !helps.IsClaudeSubagentRequest(nil, body)) ||
+			requested[claudeExtendedCacheTTLBeta] || helps.ClaudePayloadHas1hTTL(body)
+		if includeExtended {
+			betas = append(betas, claudeExtendedCacheTTLBeta)
+		}
 	}
 	if diagnostics := gjson.GetBytes(body, "diagnostics"); diagnostics.IsObject() {
 		betas = append(betas, claudeCacheDiagnosisBeta)
@@ -454,6 +466,21 @@ func withClaudeOAuthCredentialBetas(betas string, includeExtendedCacheTTL bool) 
 		parts[insertAt] = claudeOAuthBeta
 	}
 	if includeExtendedCacheTTL && !seen[claudeExtendedCacheTTLBeta] {
+		parts = append(parts, claudeExtendedCacheTTLBeta)
+	}
+	return strings.Join(parts, ",")
+}
+
+func withClaudeExtendedCacheTTLBeta(betas string) string {
+	parts := make([]string, 0, 16)
+	seen := make(map[string]bool)
+	for _, beta := range strings.Split(betas, ",") {
+		if beta = strings.TrimSpace(beta); beta != "" && !seen[beta] {
+			parts = append(parts, beta)
+			seen[beta] = true
+		}
+	}
+	if !seen[claudeExtendedCacheTTLBeta] {
 		parts = append(parts, claudeExtendedCacheTTLBeta)
 	}
 	return strings.Join(parts, ",")
@@ -1089,7 +1116,8 @@ func applyClaudeHeadersWithNativeProfile(
 			} else {
 				isSubagent := helps.IsClaudeSubagentRequest(incomingHeaders, body)
 				isProbe := helps.IsClaudeProbeOrHelperRequest(body)
-				includeExtendedCacheTTL := !isSubagent && !isProbe
+				subagent1h := isSubagent && helps.ClaudeSubagentRequests1h(incomingHeaders, body)
+				includeExtendedCacheTTL := (!isSubagent || subagent1h) && !isProbe
 				baseBetas = withClaudeOAuthCredentialBetas(baseBetas, includeExtendedCacheTTL)
 			}
 		}
@@ -1118,6 +1146,15 @@ func applyClaudeHeadersWithNativeProfile(
 		}
 		existingSet[beta] = true
 	}
+	if !preserveCallerFingerprint {
+		// Count-token and native profiles can replace the assembled baseline.
+		// Keep requested schema betas paired with their message-level fields.
+		for _, beta := range []string{claudePerTurnControlBeta, claudeMidConvToolChangesBeta} {
+			if requestedBetas[beta] {
+				appendBeta(beta)
+			}
+		}
+	}
 	if preserveCallerFingerprint {
 		// Caller-owned mode preserves both header and body-lifted betas verbatim.
 		// The explicit speed=fast request still needs its protocol beta.
@@ -1128,9 +1165,8 @@ func applyClaudeHeadersWithNativeProfile(
 			appendBeta(beta)
 		}
 	} else {
-		// On direct Anthropic an unconfirmed CLI-profile caller's own betas are
-		// dropped: appending them to the measured baseline produces a shape real
-		// Claude Code never sends. Custom gateways keep caller extensions.
+		// Unconfirmed direct Anthropic CLI profiles only retain known requested
+		// betas. Custom gateways keep caller extensions.
 		if !confirmedClaudeCode && incomingBetas != "" && !isAnthropicBase {
 			for _, beta := range strings.Split(incomingBetas, ",") {
 				appendBeta(beta)
@@ -1157,8 +1193,11 @@ func applyClaudeHeadersWithNativeProfile(
 		if reqThinkingType == "disabled" {
 			baseBetas = withoutClaudeBeta(baseBetas, claudeThinkingDisplayUpdatesBeta)
 		}
-		if helps.IsClaudeSubagentRequest(incomingHeaders, body) {
+		if helps.IsClaudeSubagentRequest(incomingHeaders, body) && !helps.ClaudeSubagentRequests1h(incomingHeaders, body) {
 			baseBetas = withoutClaudeBeta(baseBetas, claudeExtendedCacheTTLBeta)
+		}
+		if !reqProbeOrHelper && !countTokens && helps.ClaudePayloadHas1hTTL(body) {
+			baseBetas = withClaudeExtendedCacheTTLBeta(baseBetas)
 		}
 		reqModel := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "model").String()))
 		if isClaudeHaikuModel(reqModel) && !gjson.GetBytes(body, "fallbacks").Exists() {

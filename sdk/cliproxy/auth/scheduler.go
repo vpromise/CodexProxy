@@ -453,6 +453,7 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 	now := time.Now()
 	total := 0
 	cooldownCount := 0
+	quotaCount := 0
 	earliest := time.Time{}
 	for _, providerKey := range providers {
 		providerState := s.providers[providerKey]
@@ -463,9 +464,10 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 		if shard == nil {
 			continue
 		}
-		localTotal, localCooldownCount, localEarliest := shard.availabilitySummaryLocked(predicate)
+		localTotal, localCooldownCount, localQuotaCount, localEarliest := shard.availabilitySummaryLocked(predicate, now)
 		total += localTotal
 		cooldownCount += localCooldownCount
+		quotaCount += localQuotaCount
 		if !localEarliest.IsZero() && (earliest.IsZero() || localEarliest.Before(earliest)) {
 			earliest = localEarliest
 		}
@@ -478,7 +480,9 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 		if resetIn < 0 {
 			resetIn = 0
 		}
-		return newModelCooldownError(model, "", resetIn)
+		cooldownErr := newModelCooldownError(model, "", resetIn)
+		cooldownErr.quotaLimited = quotaCount == cooldownCount
+		return cooldownErr
 	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
@@ -875,7 +879,7 @@ func (m *modelScheduler) readyCountAtPriorityLocked(preferWebsocket bool, priori
 // unavailableErrorLocked returns the correct unavailable or cooldown error for the shard.
 func (m *modelScheduler) unavailableErrorLocked(provider, model string, predicate func(*scheduledAuth) bool) error {
 	now := time.Now()
-	total, cooldownCount, earliest := m.availabilitySummaryLocked(predicate)
+	total, cooldownCount, quotaCount, earliest := m.availabilitySummaryLocked(predicate, now)
 	if total == 0 {
 		return &Error{Code: "auth_not_found", Message: "no auth available"}
 	}
@@ -888,18 +892,21 @@ func (m *modelScheduler) unavailableErrorLocked(provider, model string, predicat
 		if resetIn < 0 {
 			resetIn = 0
 		}
-		return newModelCooldownError(model, providerForError, resetIn)
+		cooldownErr := newModelCooldownError(model, providerForError, resetIn)
+		cooldownErr.quotaLimited = quotaCount == cooldownCount
+		return cooldownErr
 	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
 
-// availabilitySummaryLocked summarizes total candidates, cooldown count, and earliest retry time.
-func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth) bool) (int, int, time.Time) {
+// availabilitySummaryLocked summarizes candidates, cooldown causes, and earliest retry time.
+func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth) bool, now time.Time) (int, int, int, time.Time) {
 	if m == nil {
-		return 0, 0, time.Time{}
+		return 0, 0, 0, time.Time{}
 	}
 	total := 0
 	cooldownCount := 0
+	quotaCount := 0
 	earliest := time.Time{}
 	for _, entry := range m.entries {
 		if predicate != nil && !predicate(entry) {
@@ -913,11 +920,14 @@ func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth
 			continue
 		}
 		cooldownCount++
+		if quotaCooldownForModel(entry.auth, m.modelKey, now, entry.nextRetryAt) {
+			quotaCount++
+		}
 		if !entry.nextRetryAt.IsZero() && (earliest.IsZero() || entry.nextRetryAt.Before(earliest)) {
 			earliest = entry.nextRetryAt
 		}
 	}
-	return total, cooldownCount, earliest
+	return total, cooldownCount, quotaCount, earliest
 }
 
 // rebuildIndexesLocked reconstructs ready and blocked views from the current entry map.

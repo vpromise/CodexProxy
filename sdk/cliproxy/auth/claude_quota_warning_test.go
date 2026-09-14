@@ -14,6 +14,58 @@ import (
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 )
 
+func TestClaudeQuotaCooldownLogReportsScopeAndDeadline(t *testing.T) {
+	withQuotaCooldownEnabled(t)
+	for _, credentialScope := range []bool{false, true} {
+		t.Run(fmt.Sprint(credentialScope), func(t *testing.T) {
+			hook := setupTestLoggerHook(t)
+			manager, auth, model := newClaudeQuotaWarningManager(t)
+			headers := make(http.Header)
+			headers.Set("Anthropic-Ratelimit-Unified-5h-Status", "rejected")
+			headers.Set("Anthropic-Ratelimit-Unified-5h-Utilization", "1")
+			headers.Set("Anthropic-Ratelimit-Unified-7d-Utilization", "NaN")
+			headers.Set("Set-Cookie", "private-cookie")
+			ctx := internallogging.WithRequestID(context.Background(), "quota-request")
+			ctx = internallogging.WithResponseHeadersHolder(ctx)
+			internallogging.SetResponseHeaders(ctx, headers)
+			retryAfter := time.Hour
+			manager.MarkResult(ctx, Result{AuthID: auth.ID, Provider: "claude", Model: model, CredentialScope: credentialScope, Error: &Error{HTTPStatus: http.StatusTooManyRequests, Message: "private-error-body"}, RetryAfter: &retryAfter})
+			wantScope := "model"
+			if credentialScope {
+				wantScope = "credential"
+			}
+			count := 0
+			for _, entry := range hook.AllEntries() {
+				if entry.Message != "Claude rate limit activated quota cooldown" {
+					continue
+				}
+				count++
+				if entry.Data["auth_index"] != auth.Index || entry.Data["cooldown_scope"] != wantScope || entry.Data["rejected_windows"] != "5h" || entry.Data["five_hour_used_percent"] != float64(100) {
+					t.Fatalf("missing quota diagnostics: %+v", entry.Data)
+				}
+				if _, exists := entry.Data["seven_day_used_percent"]; exists {
+					t.Fatal("invalid utilization was logged")
+				}
+				formatted, errFormat := (&internallogging.LogFormatter{}).Format(entry)
+				if errFormat != nil {
+					t.Fatal(errFormat)
+				}
+				for _, want := range []string{`quota_status="rate_limited"`, `rejected_windows="5h"`, `cooldown_scope="` + wantScope + `"`, "cooldown_until=", "cooldown_seconds=3600", "[quota-request]"} {
+					if !strings.Contains(string(formatted), want) {
+						t.Errorf("missing %s in %s", want, formatted)
+					}
+				}
+				if strings.Contains(string(formatted), "private-") || strings.Contains(string(formatted), auth.ID) {
+					t.Fatalf("quota diagnostics leaked private data: %s", formatted)
+				}
+			}
+			if count != 1 {
+				t.Fatalf("quota diagnostic count = %d, want 1", count)
+			}
+		})
+	}
+}
+
 type claudeQuotaWarningExecutor struct {
 	mockStreamErrorExecutor
 	headers http.Header

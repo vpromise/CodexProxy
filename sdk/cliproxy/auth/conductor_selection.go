@@ -331,6 +331,7 @@ func (m *Manager) availableAuthsForRouteModelWithPriorityMode(auths []*Auth, pro
 
 	availableByPriority := make(map[int][]*Auth)
 	cooldownCount := 0
+	quotaCount := 0
 	var earliest time.Time
 	for _, candidate := range auths {
 		checkModel := m.selectionModelForAuth(candidate, routeModel)
@@ -342,6 +343,9 @@ func (m *Manager) availableAuthsForRouteModelWithPriorityMode(auths []*Auth, pro
 		}
 		if reason == blockReasonCooldown {
 			cooldownCount++
+			if quotaCooldownForModel(candidate, checkModel, now, next) {
+				quotaCount++
+			}
 			if !next.IsZero() && (earliest.IsZero() || next.Before(earliest)) {
 				earliest = next
 			}
@@ -358,7 +362,9 @@ func (m *Manager) availableAuthsForRouteModelWithPriorityMode(auths []*Auth, pro
 			if resetIn < 0 {
 				resetIn = 0
 			}
-			return nil, newModelCooldownError(routeModel, providerForError, resetIn)
+			cooldownErr := newModelCooldownError(routeModel, providerForError, resetIn)
+			cooldownErr.quotaLimited = quotaCount == cooldownCount
+			return nil, cooldownErr
 		}
 		return nil, &Error{Code: "auth_unavailable", Message: "no auth available"}
 	}
@@ -419,7 +425,9 @@ func restoreModelCooldownErrorModel(err error, requestedModel string) error {
 	if !errors.As(err, &cooldownErr) || cooldownErr == nil || cooldownErr.model != "" {
 		return err
 	}
-	return newModelCooldownError(requestedModel, cooldownErr.provider, cooldownErr.resetIn)
+	restored := *cooldownErr
+	restored.model = requestedModel
+	return &restored
 }
 
 func schedulerAttributeSensitive(key string) bool {
