@@ -401,6 +401,13 @@ func (m *Manager) refreshLocalCredentialAdmission(auth *Auth) {
 	if m == nil || auth == nil {
 		return
 	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	current := m.auths[auth.ID]
+	if current == nil || current.RegistrationEpoch != auth.RegistrationEpoch {
+		return
+	}
+	auth = current
 	key := strings.TrimSpace(auth.ID)
 	if key == "" {
 		return

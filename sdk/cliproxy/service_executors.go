@@ -392,7 +392,7 @@ func (s *Service) registerResolvedModelsForAuth(a *coreauth.Auth, providerKey st
 	}
 	providerKey = strings.ToLower(strings.TrimSpace(providerKey))
 	if providerKey == "" {
-		GlobalModelRegistry().UnregisterClient(a.ID)
+		s.unregisterModelsForAuth(a)
 		return
 	}
 	normalizedModels := make([]*ModelInfo, 0, len(models))
@@ -409,10 +409,12 @@ func (s *Service) registerResolvedModelsForAuth(a *coreauth.Auth, providerKey st
 		normalizedModels = append(normalizedModels, &clone)
 	}
 	if len(normalizedModels) == 0 {
-		GlobalModelRegistry().UnregisterClient(a.ID)
+		s.unregisterModelsForAuth(a)
 		return
 	}
-	GlobalModelRegistry().RegisterClient(a.ID, providerKey, normalizedModels)
+	s.applyAuthModelRegistration(a, func() {
+		GlobalModelRegistry().RegisterClient(a.ID, providerKey, normalizedModels)
+	})
 }
 
 func (s *Service) pluginModelsForProvider(providerKey string) []*ModelInfo {
@@ -526,6 +528,6 @@ func (s *Service) tryRegisterPluginModelsForAuth(ctx context.Context, a *coreaut
 		s.registerResolvedModelsForAuth(activeAuth, providerKey, applyModelPrefixes(models, activeAuth.Prefix, s.cfg != nil && s.cfg.ForceModelPrefix))
 		return true
 	}
-	GlobalModelRegistry().UnregisterClient(activeAuth.ID)
+	s.unregisterModelsForAuth(activeAuth)
 	return true
 }

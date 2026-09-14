@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	internalconfig "github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -332,6 +333,8 @@ func (m *Manager) markRefreshPending(id string, now time.Time) bool {
 		return false
 	}
 	auth.NextRefreshAfter = now.Add(refreshPendingBackoff)
+	auth.Generation++
+	auth.UpdatedAt = now
 	m.auths[id] = auth
 	m.mu.Unlock()
 
@@ -355,27 +358,6 @@ func authHasRefreshCredential(auth *Auth) bool {
 		return true
 	}
 	return authMetadataString(auth, "refreshToken") != ""
-}
-
-func clearUnauthorizedModelStates(auth *Auth, now time.Time) []string {
-	if auth == nil || len(auth.ModelStates) == 0 {
-		return nil
-	}
-	var resumed []string
-	for model, state := range auth.ModelStates {
-		if state == nil || state.LastError == nil {
-			continue
-		}
-		if state.LastError.StatusCode() != http.StatusUnauthorized && !strings.EqualFold(state.LastError.Code, "unauthorized") {
-			continue
-		}
-		resetModelState(state, now)
-		resumed = append(resumed, model)
-	}
-	if len(resumed) > 0 {
-		updateAggregatedAvailability(auth, now)
-	}
-	return resumed
 }
 
 // tryRefreshExecutionAuthAfterUnauthorized refreshes OAuth credentials once for
@@ -473,8 +455,8 @@ func (m *Manager) tryRefreshAfterUnauthorized(ctx context.Context, auth *Auth, e
 		return auth, false
 	}
 	log.Debugf("unauthorized response for %s (%s), refreshing credentials before fallback", auth.Provider, auth.ID)
-	refreshed, errRefresh := m.refreshAuthForRequest(ctx, auth.ID, authAccessToken(auth))
-	if errRefresh != nil || refreshed == nil {
+	refreshed, errRefresh := m.refreshAuthForRequest(ctx, auth.ID, authAccessToken(auth), auth.RegistrationEpoch)
+	if errRefresh != nil || refreshed == nil || refreshed.Disabled || refreshed.Status == StatusDisabled {
 		log.Debugf("credential refresh before fallback failed for %s (%s): %v", auth.Provider, auth.ID, errRefresh)
 		return auth, false
 	}
@@ -488,7 +470,7 @@ func (m *Manager) refreshAuth(ctx context.Context, id string) {
 // refreshAuthForRequest performs a synchronous credential refresh for the given auth.
 // failedAccessToken lets concurrent callers reuse a refresh that already replaced the
 // access token that produced the unauthorized response.
-func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessToken string) (*Auth, error) {
+func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessToken string, expectedEpoch ...uint64) (*Auth, error) {
 	if m == nil {
 		return nil, errors.New("auth manager is nil")
 	}
@@ -516,10 +498,15 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		// Use the same effective provider key as request execution so OpenAI-compat
 		// auths registered under namespaced keys still resolve for refresh.
 		exec = m.executors[executorKeyFromAuth(auth)]
+		auth = auth.Clone()
 	}
 	m.mu.RUnlock()
-	if auth == nil || exec == nil {
+	if auth == nil || exec == nil || auth.Disabled || auth.Status == StatusDisabled {
 		return nil, errors.New("auth or executor not found")
+	}
+
+	if len(expectedEpoch) > 0 && expectedEpoch[0] != 0 && auth.RegistrationEpoch != expectedEpoch[0] {
+		return nil, errors.New("credential registration changed before refresh")
 	}
 
 	// Another request may already have refreshed this credential.
@@ -529,8 +516,8 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		}
 	}
 
-	cloned := auth.Clone()
-	updated, err := exec.Refresh(ctx, cloned)
+	base := auth.Clone()
+	updated, err := exec.Refresh(ctx, base.Clone())
 	if err != nil && errors.Is(err, context.Canceled) {
 		log.Debugf("refresh canceled for %s, %s", auth.Provider, auth.ID)
 		return nil, err
@@ -542,14 +529,45 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		shouldReschedule := false
 		m.mu.Lock()
 		if current := m.auths[id]; current != nil {
-			current.LastError = refreshErrorFromError(err)
-			if unauthorized {
-				current.NextRefreshAfter = time.Time{}
-				current.Unavailable = true
-				current.Status = StatusError
-				current.StatusMessage = "unauthorized"
+			if current.RegistrationEpoch != base.RegistrationEpoch || CredentialsChanged(base, current) || current.Disabled || current.Status == StatusDisabled {
+				m.mu.Unlock()
+				return nil, err
+			}
+			current.Generation++
+			current.UpdatedAt = now
+			preserveAvailability := authAvailabilityChanged(base, current) || authHasActiveCooldown(current, now)
+			if !preserveAvailability {
+				current.LastError = refreshErrorFromError(err)
+			}
+
+			hasValidAccessToken := current.HasValidAccessToken(now)
+			if !hasValidAccessToken {
+				if !preserveAvailability {
+					current.Unavailable = true
+					current.Status = StatusError
+				}
+				if unauthorized {
+					current.NextRefreshAfter = time.Time{}
+					if !preserveAvailability {
+						current.StatusMessage = "unauthorized"
+					}
+				} else {
+					current.NextRefreshAfter = now.Add(refreshFailureBackoff)
+					if !preserveAvailability {
+						current.StatusMessage = "token expired"
+					}
+				}
 			} else {
-				current.NextRefreshAfter = now.Add(refreshFailureBackoff)
+				// Access token remains valid. Preserve current in-flight/cooldown status without overwrite.
+				nextRetry := now.Add(refreshFailureBackoff)
+				if exp, ok := current.AccessTokenExpirationTime(); ok && !exp.IsZero() && nextRetry.After(exp) {
+					nextRetry = exp
+				}
+				current.NextRefreshAfter = nextRetry
+
+				if !current.Unavailable {
+					log.WithFields(log.Fields{"provider": current.Provider, "auth_index": current.Index}).Warn("credential refresh failed; retaining unexpired access token")
+				}
 			}
 			m.auths[id] = current
 			shouldReschedule = true
@@ -564,7 +582,7 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		return nil, err
 	}
 	if updated == nil {
-		updated = cloned
+		updated = base.Clone()
 	}
 	// Preserve runtime created by the executor during Refresh.
 	// If executor didn't set one, fall back to the previous runtime.
@@ -576,23 +594,47 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 	updated.LastError = nil
 	updated.StatusMessage = ""
 	updated.Unavailable = false
-	if updated.Status == StatusError {
+	if updated.Status == StatusError || updated.Status == "" {
 		updated.Status = StatusActive
 	}
 	updated.UpdatedAt = now
-	modelsToResume := clearUnauthorizedModelStates(updated, now)
+	_ = clearUnauthorizedModelStates(updated, now)
 	if m.shouldRefresh(updated, now) {
 		updated.NextRefreshAfter = now.Add(refreshIneffectiveBackoff)
 	}
-	saved, errUpdate := m.Update(ctx, updated)
-	for _, model := range modelsToResume {
-		registry.GetGlobalRegistry().ResumeClientModel(id, model)
-	}
+	saved, errUpdate := m.UpdateRefreshedAuth(ctx, base, updated)
 	if errUpdate != nil {
 		log.Debugf("persist refreshed auth %s (%s) failed: %v", auth.Provider, auth.ID, errUpdate)
+		return nil, errUpdate
 	}
-	if saved != nil {
-		return saved, nil
+	if saved == nil {
+		return nil, fmt.Errorf("auth %s not found", id)
 	}
-	return updated.Clone(), nil
+	m.publishAuthModelStates(saved)
+	return saved.Clone(), nil
+}
+
+// authAvailabilityChanged detects concurrent failures even when their messages
+// are identical, and also detects explicit clearing of an older state.
+func authAvailabilityChanged(base, current *Auth) bool {
+	return base != nil && current != nil && (base.availabilityEpoch != current.availabilityEpoch || !reflect.DeepEqual(base.LastError, current.LastError) ||
+		base.Status != current.Status || base.StatusMessage != current.StatusMessage ||
+		base.Unavailable != current.Unavailable || !base.NextRetryAfter.Equal(current.NextRetryAfter) ||
+		!base.NonUnauthorizedRetryAfter.Equal(current.NonUnauthorizedRetryAfter) ||
+		!reflect.DeepEqual(base.Quota, current.Quota) || !reflect.DeepEqual(base.ModelStates, current.ModelStates))
+}
+
+func authHasActiveCooldown(auth *Auth, now time.Time) bool {
+	if auth == nil {
+		return false
+	}
+	if auth.NextRetryAfter.After(now) || auth.Quota.NextRecoverAt.After(now) || (auth.Quota.Exceeded && auth.Quota.NextRecoverAt.IsZero()) {
+		return true
+	}
+	for _, state := range auth.ModelStates {
+		if isModelStateActiveCooldown(state, now) {
+			return true
+		}
+	}
+	return false
 }

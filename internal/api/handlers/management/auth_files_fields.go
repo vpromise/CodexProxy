@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/auth/codex"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/credentialweight"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher/synthesizer"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	log "github.com/sirupsen/logrus"
 )
 
 // PatchAuthFileStatus toggles the disabled state of an auth file
@@ -49,6 +51,9 @@ func (h *Handler) PatchAuthFileStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "disabled is required"})
 		return
 	}
+
+	h.authStatusMu.Lock()
+	defer h.authStatusMu.Unlock()
 
 	ctx := c.Request.Context()
 
@@ -107,10 +112,24 @@ func (h *Handler) PatchAuthFileStatus(c *gin.Context) {
 		return
 	}
 
-	applyAuthDisabledState(targetAuth, *req.Disabled)
-	if _, err := h.authManager.Update(ctx, targetAuth); err != nil {
+	updatedAuth, err := h.authManager.PatchAuth(ctx, targetAuth.ID, targetAuth.RegistrationEpoch, func(latest *coreauth.Auth) error {
+		applyAuthDisabledState(latest, *req.Disabled)
+		return nil
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to update auth: %v", err)})
 		return
+	}
+	if updatedAuth == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "auth file not found"})
+		return
+	}
+	if h.postAuthPersistHook != nil {
+		if errHook := h.postAuthPersistHook(ctx, updatedAuth); errHook != nil {
+			log.Errorf("post-auth persist hook failed for status update on %s: %v", targetAuth.ID, errHook)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to synchronize auth runtime: %v", errHook)})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "disabled": *req.Disabled})
@@ -146,8 +165,19 @@ func (h *Handler) patchPluginVirtualSourceStatus(ctx context.Context, targetAuth
 		}
 		applyAuthDisabledState(auth, disabled)
 		auth.UpdatedAt = now
-		if _, errUpdate := h.authManager.Update(ctx, auth); errUpdate != nil {
+		updated, errUpdate := h.authManager.Update(ctx, auth)
+		if errUpdate != nil {
 			return fmt.Errorf("failed to update auth %s: %w", auth.ID, errUpdate)
+		}
+		if h.postAuthPersistHook != nil {
+			hookAuth := updated
+			if hookAuth == nil {
+				hookAuth = auth
+			}
+			if errHook := h.postAuthPersistHook(ctx, hookAuth); errHook != nil {
+				log.Errorf("post-auth persist hook failed for plugin virtual auth %s: %v", auth.ID, errHook)
+				return fmt.Errorf("failed to synchronize plugin virtual auth %s: %w", auth.ID, errHook)
+			}
 		}
 	}
 	return nil
@@ -250,6 +280,9 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 		}
 	}
 
+	h.authStatusMu.Lock()
+	defer h.authStatusMu.Unlock()
+
 	ctx := c.Request.Context()
 
 	// Find auth by name or ID
@@ -276,18 +309,41 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 	}
 	coreauth.NormalizeCredentialMetadata(targetAuth.Metadata)
 
+	if errPatch := applyAuthFileFieldsPatch(targetAuth, req, requestRetryPatch); errPatch != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errPatch.Error()})
+		return
+	}
+	updatedAuth, errUpdate := h.authManager.PatchAuth(ctx, targetAuth.ID, targetAuth.RegistrationEpoch, func(latest *coreauth.Auth) error {
+		return applyAuthFileFieldsPatch(latest, req, requestRetryPatch)
+	})
+	if errUpdate != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update auth"})
+		return
+	}
+	if updatedAuth == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "auth file not found"})
+		return
+	}
+	if h.postAuthPersistHook != nil {
+		if errHook := h.postAuthPersistHook(ctx, updatedAuth); errHook != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to synchronize auth runtime: %v", errHook)})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func applyAuthFileFieldsPatch(targetAuth *coreauth.Auth, req map[string]json.RawMessage, requestRetryPatch authFileRequestRetryPatch) error {
 	changed := false
 	touchedRoots := make(map[string]struct{}, len(req))
 	for key, rawValue := range req {
 		fieldPath := strings.TrimSpace(key)
 		if fieldPath == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "field name is required"})
-			return
+			return errors.New("field name is required")
 		}
 		value, errDecode := decodeAuthFileFieldValue(rawValue)
 		if errDecode != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid field %s", fieldPath)})
-			return
+			return fmt.Errorf("invalid field %s", fieldPath)
 		}
 		if targetAuth.Metadata == nil {
 			targetAuth.Metadata = make(map[string]any)
@@ -298,24 +354,20 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 				delete(targetAuth.Metadata, coreauth.AttributeWeight)
 			} else {
 				if _, okNumber := value.(json.Number); !okNumber {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "weight must be an integer"})
-					return
+					return errors.New("weight must be an integer")
 				}
 				weight, errWeight := credentialweight.ParseValue(value)
 				if errWeight != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": errWeight.Error()})
-					return
+					return errWeight
 				}
 				targetAuth.Metadata[coreauth.AttributeWeight] = weight
 			}
 		} else if rootAuthFileField(fieldPath) == coreauth.AttributeWeight {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "weight does not support nested fields"})
-			return
+			return errors.New("weight does not support nested fields")
 		} else if fieldPath == "headers" {
 			applyAuthFileHeadersPatch(targetAuth, value)
 		} else if errSet := setAuthFileMetadataValue(targetAuth.Metadata, fieldPath, value); errSet != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": errSet.Error()})
-			return
+			return errSet
 		}
 		if root := rootAuthFileField(fieldPath); root != "" {
 			touchedRoots[root] = struct{}{}
@@ -338,18 +390,11 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 	}
 
 	if !changed {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
-		return
+		return errors.New("no fields to update")
 	}
 
 	targetAuth.UpdatedAt = time.Now()
-
-	if _, err := h.authManager.Update(ctx, targetAuth); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to update auth: %v", err)})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	return nil
 }
 
 func decodeAuthFileFieldValue(raw json.RawMessage) (any, error) {
@@ -568,6 +613,40 @@ func syncAuthFileMetadataFields(auth *coreauth.Auth, touchedRoots map[string]str
 	}
 	if _, ok := touchedRoots["disabled"]; ok {
 		syncAuthFileDisabledState(auth)
+	}
+	if _, ok := touchedRoots["plan_type"]; ok {
+		syncAuthFilePlanTypeAttribute(auth)
+	} else if _, ok := touchedRoots["id_token"]; ok {
+		syncAuthFilePlanTypeAttribute(auth)
+	}
+}
+
+func syncAuthFilePlanTypeAttribute(auth *coreauth.Auth) {
+	if auth == nil {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(auth.Provider), "codex") {
+		return
+	}
+	if auth.Attributes == nil {
+		auth.Attributes = make(map[string]string)
+	}
+	newPlanType := ""
+	if auth.Metadata != nil {
+		if ptRaw, ok := auth.Metadata["plan_type"].(string); ok && strings.TrimSpace(ptRaw) != "" {
+			newPlanType = strings.TrimSpace(ptRaw)
+		} else if idTokenRaw, ok := auth.Metadata["id_token"].(string); ok && strings.TrimSpace(idTokenRaw) != "" {
+			if claims, errParse := codex.ParseJWTToken(idTokenRaw); errParse == nil && claims != nil {
+				if pt := strings.TrimSpace(claims.CodexAuthInfo.ChatgptPlanType); pt != "" {
+					newPlanType = pt
+				}
+			}
+		}
+	}
+	if newPlanType != "" {
+		auth.Attributes["plan_type"] = newPlanType
+	} else {
+		delete(auth.Attributes, "plan_type")
 	}
 }
 

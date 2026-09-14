@@ -54,6 +54,8 @@ func (h *Handler) UploadAuthFile(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core auth manager unavailable"})
 		return
 	}
+	h.authStatusMu.Lock()
+	defer h.authStatusMu.Unlock()
 	ctx := c.Request.Context()
 
 	fileHeaders, errMultipart := h.multipartAuthFileHeaders(c)
@@ -135,6 +137,8 @@ func (h *Handler) DeleteAuthFile(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core auth manager unavailable"})
 		return
 	}
+	h.authStatusMu.Lock()
+	defer h.authStatusMu.Unlock()
 	ctx := c.Request.Context()
 	if all := c.Query("all"); all == "true" || all == "1" || all == "*" {
 		entries, err := os.ReadDir(h.cfg.AuthDir)
@@ -151,19 +155,11 @@ func (h *Handler) DeleteAuthFile(c *gin.Context) {
 			if !strings.HasSuffix(strings.ToLower(name), ".json") {
 				continue
 			}
-			full := filepath.Join(h.cfg.AuthDir, name)
-			if !filepath.IsAbs(full) {
-				if abs, errAbs := filepath.Abs(full); errAbs == nil {
-					full = abs
-				}
-			}
-			if err = os.Remove(full); err == nil {
-				if errDel := h.deleteTokenRecord(ctx, full); errDel != nil {
-					c.JSON(500, gin.H{"error": errDel.Error()})
-					return
-				}
+			if _, status, errDelete := h.deleteAuthFileByName(ctx, name); errDelete == nil {
 				deleted++
-				h.removeAuth(ctx, full)
+			} else if status != http.StatusNotFound {
+				c.JSON(status, gin.H{"error": errDelete.Error()})
+				return
 			}
 		}
 		c.JSON(200, gin.H{"status": "ok", "deleted": deleted})
@@ -279,6 +275,11 @@ func (h *Handler) writeAuthFile(ctx context.Context, name string, data []byte) e
 	if err := h.upsertAuthRecord(ctx, auth); err != nil {
 		return err
 	}
+	if h.postAuthPersistHook != nil {
+		if errHook := h.postAuthPersistHook(ctx, auth); errHook != nil {
+			return fmt.Errorf("post-auth persist hook failed: %w", errHook)
+		}
+	}
 	return nil
 }
 
@@ -365,14 +366,23 @@ func (h *Handler) deleteAuthFileByName(ctx context.Context, name string) (string
 			targetPath = abs
 		}
 	}
-	if errRemove := os.Remove(targetPath); errRemove != nil {
-		if os.IsNotExist(errRemove) {
-			return filepath.Base(name), http.StatusNotFound, errAuthFileNotFound
-		}
-		return filepath.Base(name), http.StatusInternalServerError, fmt.Errorf("failed to remove file: %w", errRemove)
+	if targetID == "" {
+		targetID = h.authIDForPath(targetPath)
 	}
-	if errDeleteRecord := h.deleteTokenRecord(ctx, targetPath); errDeleteRecord != nil {
-		return filepath.Base(name), http.StatusInternalServerError, errDeleteRecord
+	errDelete := h.authManager.RemoveWithPersistence(ctx, targetID, func() error {
+		if errRemove := os.Remove(targetPath); errRemove != nil {
+			if os.IsNotExist(errRemove) {
+				return errAuthFileNotFound
+			}
+			return fmt.Errorf("failed to remove file: %w", errRemove)
+		}
+		return h.deleteTokenRecord(ctx, targetPath)
+	})
+	if errDelete != nil {
+		if errors.Is(errDelete, errAuthFileNotFound) {
+			return filepath.Base(name), http.StatusNotFound, errDelete
+		}
+		return filepath.Base(name), http.StatusInternalServerError, errDelete
 	}
 	h.removeAuthsForPath(ctx, targetPath, targetID)
 	return filepath.Base(name), http.StatusOK, nil

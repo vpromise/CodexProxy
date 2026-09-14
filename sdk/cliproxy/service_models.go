@@ -28,7 +28,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 		return
 	}
 	if a.Disabled {
-		GlobalModelRegistry().UnregisterClient(a.ID)
+		s.unregisterModelsForAuth(a)
 		return
 	}
 	authKind := a.AuthKind()
@@ -155,7 +155,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 					if len(ms) > 0 {
 						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
 					} else {
-						GlobalModelRegistry().UnregisterClient(a.ID)
+						s.unregisterModelsForAuth(a)
 					}
 				}
 				return true
@@ -177,7 +177,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 					if len(ms) > 0 {
 						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
 					} else {
-						GlobalModelRegistry().UnregisterClient(a.ID)
+						s.unregisterModelsForAuth(a)
 					}
 				}
 				return
@@ -197,7 +197,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(models, a.Prefix, s.cfg != nil && s.cfg.ForceModelPrefix))
 				} else {
 					// No matching provider found or models removed entirely; drop any prior registration.
-					GlobalModelRegistry().UnregisterClient(a.ID)
+					s.unregisterModelsForAuth(a)
 				}
 				return
 			}
@@ -220,7 +220,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 		return
 	}
 
-	GlobalModelRegistry().UnregisterClient(a.ID)
+	s.unregisterModelsForAuth(a)
 }
 
 // refreshModelRegistrationForAuth re-applies the latest model registration for
@@ -877,4 +877,18 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		}
 	}
 	return out
+}
+
+func (s *Service) applyAuthModelRegistration(auth *coreauth.Auth, apply func()) bool {
+	if s != nil && s.coreManager != nil {
+		return s.coreManager.ApplyModelRegistration(auth, apply)
+	}
+	apply()
+	return true
+}
+
+func (s *Service) unregisterModelsForAuth(auth *coreauth.Auth) {
+	if auth != nil {
+		s.applyAuthModelRegistration(auth, func() { GlobalModelRegistry().UnregisterClient(auth.ID) })
+	}
 }

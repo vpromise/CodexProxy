@@ -373,8 +373,12 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				releaseAdmission()
 				return cliproxyexecutor.Response{}, errCancel
 			}
-			result := Result{AuthID: auth.ID, Provider: provider, Model: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts}
-			m.MarkResult(execCtx, result)
+			stateModel := m.selectionModelKeyForAuth(auth, routeModel)
+			if stateModel == "" {
+				stateModel = canonicalModelKey(routeModel)
+			}
+			result := Result{AuthID: auth.ID, Provider: provider, Model: stateModel, RouteModel: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts}
+			m.MarkResult(execCtx, bindResultAuth(result, auth))
 			lastErr = errPrepare
 			releaseAdmission()
 			continue
@@ -432,7 +436,7 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				releaseAdmission()
 				return cliproxyexecutor.Response{}, errCancel
 			}
-			result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: errExec == nil, Options: execOpts, AttemptStartedAt: attemptStartedAt}
+			result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, RouteModel: routeModel, Success: errExec == nil, Options: execOpts, AttemptStartedAt: attemptStartedAt}
 			if errExec != nil {
 				result.Error = resultErrorFromError(errExec)
 				if ra := retryAfterFromError(errExec); ra != nil {
@@ -444,9 +448,9 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				action, okAction := matchRequestScopedErrorAction(auth, errExec, m.runtimeConfigSnapshot())
 				applyRequestScopedActionToResult(action, okAction, &result)
 				if isResponsesCompactAvailabilityNeutralError(execOpts, errExec, result.Error) {
-					m.recordAvailabilityNeutralResult(execCtx, result)
+					m.recordAvailabilityNeutralResult(execCtx, bindResultAuth(result, auth))
 				} else {
-					m.MarkResult(execCtx, result)
+					m.MarkResult(execCtx, bindResultAuth(result, auth))
 				}
 				if okAction {
 					if isRequestScopedStop(action, okAction) {
@@ -469,7 +473,7 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				}
 				continue
 			}
-			m.MarkResult(execCtx, result)
+			m.MarkResult(execCtx, bindResultAuth(result, auth))
 			attemptAliasResult := resolveAttemptAliasResult(routing, auth, routeModel, upstreamModel, aliasResult)
 			rewriteForceMappedResponse(&resp, attemptAliasResult)
 			releaseAdmission()
@@ -582,8 +586,12 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				releaseAdmission()
 				return cliproxyexecutor.Response{}, errCancel
 			}
-			result := Result{AuthID: auth.ID, Provider: provider, Model: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts, SkipQuotaObservation: true}
-			m.MarkResult(execCtx, result)
+			stateModel := m.selectionModelKeyForAuth(auth, routeModel)
+			if stateModel == "" {
+				stateModel = canonicalModelKey(routeModel)
+			}
+			result := Result{AuthID: auth.ID, Provider: provider, Model: stateModel, RouteModel: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts, SkipQuotaObservation: true}
+			m.MarkResult(execCtx, bindResultAuth(result, auth))
 			lastErr = errPrepare
 			releaseAdmission()
 			continue
@@ -641,7 +649,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				releaseAdmission()
 				return cliproxyexecutor.Response{}, errCancel
 			}
-			result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, Success: errExec == nil, Options: execOpts, AttemptStartedAt: attemptStartedAt, SkipQuotaObservation: true}
+			result := Result{AuthID: auth.ID, Provider: provider, Model: resultModel, RouteModel: routeModel, Success: errExec == nil, Options: execOpts, AttemptStartedAt: attemptStartedAt, SkipQuotaObservation: true}
 			if errExec != nil {
 				result.Error = resultErrorFromError(errExec)
 				if ra := retryAfterFromError(errExec); ra != nil {
@@ -654,12 +662,12 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				// the failure for hooks and metrics without suspending a model
 				// that remains usable through the messages endpoint.
 				if isCountTokensEndpointNotFoundError(errExec, execReq.Model) && (result.Error == nil || result.Error.Code != ErrorCodeForceCooldown) {
-					m.recordAvailabilityNeutralResult(execCtx, result)
+					m.recordAvailabilityNeutralResult(execCtx, bindResultAuth(result, auth))
 				} else {
 					if isCredentialScopedError(errExec) {
 						result.CredentialScope = true
 					}
-					m.MarkResult(execCtx, result)
+					m.MarkResult(execCtx, bindResultAuth(result, auth))
 				}
 				if okAction {
 					if isRequestScopedStop(action, okAction) {
@@ -682,7 +690,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				}
 				continue
 			}
-			m.MarkResult(execCtx, result)
+			m.MarkResult(execCtx, bindResultAuth(result, auth))
 			attemptAliasResult := resolveAttemptAliasResult(routing, auth, routeModel, upstreamModel, aliasResult)
 			rewriteForceMappedResponse(&resp, attemptAliasResult)
 			releaseAdmission()
@@ -931,12 +939,16 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 					return nil, errCancel
 				}
 			}
-			result := Result{AuthID: auth.ID, Provider: provider, Model: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts}
+			stateModel := m.selectionModelKeyForAuth(auth, routeModel)
+			if stateModel == "" {
+				stateModel = canonicalModelKey(routeModel)
+			}
+			result := Result{AuthID: auth.ID, Provider: provider, Model: stateModel, RouteModel: routeModel, Success: false, Error: resultErrorFromError(errPrepare), Options: pickOpts}
 			if selection != nil {
 				m.reportHomeResult(execCtx, result, auth)
 				releaseAttempt()
 			} else {
-				m.MarkResult(execCtx, result)
+				m.MarkResult(execCtx, bindResultAuth(result, auth))
 			}
 			releaseAdmission()
 			lastErr = errPrepare
@@ -1343,6 +1355,11 @@ func (m *Manager) prepareRequestAuth(ctx context.Context, executor ProviderExecu
 	if m == nil || executor == nil || auth == nil {
 		return auth, nil
 	}
+	current, errCurrent := m.currentRequestAuth(auth)
+	if errCurrent != nil {
+		return nil, errCurrent
+	}
+	auth = current
 	preparer, ok := executor.(RequestAuthPreparer)
 	if !ok || preparer == nil || !preparer.ShouldPrepareRequestAuth(auth) {
 		return auth, nil
@@ -1364,33 +1381,32 @@ func (m *Manager) prepareRequestAuth(ctx context.Context, executor ProviderExecu
 	}
 	defer lock.unlock()
 
-	target := auth.Clone()
-	m.mu.RLock()
-	if current := m.auths[id]; current != nil {
-		target = current.Clone()
+	target, errCurrent := m.currentRequestAuth(auth)
+	if errCurrent != nil {
+		return nil, errCurrent
 	}
-	m.mu.RUnlock()
 
 	if !preparer.ShouldPrepareRequestAuth(target) {
 		return target, nil
 	}
 
-	updated, errPrepare := preparer.PrepareRequestAuth(ctx, target)
+	base := target.Clone()
+	updated, errPrepare := preparer.PrepareRequestAuth(ctx, base.Clone())
 	if errPrepare != nil {
 		return auth, errPrepare
 	}
 	if updated == nil {
-		return target, nil
+		updated = base.Clone()
 	}
 
-	saved, errUpdate := m.Update(ctx, updated)
+	saved, errUpdate := m.UpdatePreparedAuth(ctx, base, updated)
 	if errUpdate != nil {
-		return updated, errUpdate
+		return nil, errUpdate
 	}
-	if saved != nil {
-		return saved, nil
+	if saved == nil {
+		return nil, &Error{Code: "auth_not_found", Message: "credential removed during preparation", HTTPStatus: http.StatusServiceUnavailable}
 	}
-	return updated, nil
+	return m.currentRequestAuth(saved)
 }
 
 func contextWithRequestedModelAlias(ctx context.Context, opts cliproxyexecutor.Options, fallback string) context.Context {

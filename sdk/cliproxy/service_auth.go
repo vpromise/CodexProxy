@@ -92,13 +92,41 @@ func (s *Service) handleAuthUpdates(ctx context.Context, updates []watcher.AuthU
 	if s == nil {
 		return
 	}
-	updates = coalesceAuthUpdates(updates)
+	s.authUpdateMu.Lock()
+	defer s.authUpdateMu.Unlock()
+
 	s.cfgMu.RLock()
 	cfg := s.cfg
 	s.cfgMu.RUnlock()
 	if cfg == nil || s.coreManager == nil {
 		return
 	}
+
+	if s.authRevisions == nil {
+		s.authRevisions = make(map[string]uint64)
+	}
+
+	filtered := make([]watcher.AuthUpdate, 0, len(updates))
+	for _, update := range updates {
+		id := authUpdateID(update)
+		if id == "" {
+			filtered = append(filtered, update)
+			continue
+		}
+		rev := update.Revision()
+		if rev > 0 {
+			if prevRev, exists := s.authRevisions[id]; exists && rev <= prevRev {
+				log.Debugf("skipping stale auth update for %s: rev %d <= processed %d", id, rev, prevRev)
+				continue
+			}
+			s.authRevisions[id] = rev
+		}
+		filtered = append(filtered, update)
+	}
+	if len(filtered) == 0 {
+		return
+	}
+	updates = coalesceAuthUpdates(filtered)
 
 	registrationCtx := coreauth.WithDeferredAPIKeyModelAliasRebuild(ctx)
 	tasks := make([]modelRegistrationTask, 0, len(updates))
@@ -132,7 +160,17 @@ func (s *Service) handleAuthUpdates(ctx context.Context, updates []watcher.AuthU
 			if id == "" {
 				continue
 			}
-			s.applyCoreAuthRemoval(registrationCtx, id)
+			if existing, ok := s.coreManager.GetByID(id); ok && existing != nil && update.Auth != nil {
+				if isStaleCoreAuth(existing, update.Auth) {
+					log.Debugf("skipping stale auth delete for %s: incoming gen=%d, existing gen=%d", id, update.Auth.Generation, existing.Generation)
+					continue
+				}
+			}
+			var expectedEpoch uint64
+			if update.Auth != nil {
+				expectedEpoch = update.Auth.RegistrationEpoch
+			}
+			s.applyCoreAuthRemoval(registrationCtx, id, expectedEpoch)
 			needsAliasRebuild = true
 		default:
 			log.Debugf("received unknown auth update action: %v", update.Action)
@@ -200,20 +238,36 @@ func (s *Service) prepareCoreAuthForModelRegistration(ctx context.Context, auth 
 	if s == nil || s.coreManager == nil || auth == nil || auth.ID == "" {
 		return nil
 	}
+	alreadyApplied := auth.RegistrationEpoch != 0
+	if current, exists := s.coreManager.GetByID(auth.ID); alreadyApplied {
+		if !exists || isStaleCoreAuth(current, auth) {
+			return nil
+		}
+		// Versioned notifications originate from an already installed runtime
+		// registration. Replaying their payload could roll back a newer refresh.
+		auth = current
+	}
 	if !s.supportsAuth(auth) {
-		GlobalModelRegistry().UnregisterClient(auth.ID)
-		s.coreManager.Remove(ctx, auth.ID)
+		s.applyCoreAuthRemoval(ctx, auth.ID, auth.RegistrationEpoch)
 		return nil
 	}
 	auth = auth.Clone()
 	s.ensureExecutorsForAuthWithContext(ctx, auth, false)
+	if alreadyApplied {
+		return auth
+	}
 
 	// IMPORTANT: Update coreManager FIRST, before model registration.
 	// This ensures that configuration changes (proxy_url, prefix, etc.) take effect
 	// immediately for API calls, rather than waiting for model registration to complete.
 	op := "register"
 	var err error
+	var saved *coreauth.Auth
 	if existing, ok := s.coreManager.GetByID(auth.ID); ok {
+		if isStaleCoreAuth(existing, auth) {
+			log.Debugf("skipping stale auth update for %s: incoming gen=%d, existing gen=%d", auth.ID, auth.Generation, existing.Generation)
+			return existing
+		}
 		auth.CreatedAt = existing.CreatedAt
 		if !existing.Disabled && existing.Status != coreauth.StatusDisabled && !auth.Disabled && auth.Status != coreauth.StatusDisabled {
 			auth.LastRefreshedAt = existing.LastRefreshedAt
@@ -223,9 +277,9 @@ func (s *Service) prepareCoreAuthForModelRegistration(ctx context.Context, auth 
 			}
 		}
 		op = "update"
-		_, err = s.coreManager.Update(ctx, auth)
+		saved, err = s.coreManager.Update(ctx, auth)
 	} else {
-		_, err = s.coreManager.Register(ctx, auth)
+		saved, err = s.coreManager.Register(ctx, auth)
 	}
 	if err != nil {
 		log.Errorf("failed to %s auth %s: %v", op, auth.ID, err)
@@ -236,7 +290,23 @@ func (s *Service) prepareCoreAuthForModelRegistration(ctx context.Context, auth 
 		}
 		auth = current
 	}
+	if saved != nil {
+		auth = saved
+	}
 	return auth
+}
+
+// isStaleCoreAuth reports whether an incoming auth update is older than the current
+// state in coreManager, based on registration epoch.
+func isStaleCoreAuth(existing, incoming *coreauth.Auth) bool {
+	if existing == nil || incoming == nil {
+		return false
+	}
+	// Explicit epochs must identify the current registration.
+	if incoming.RegistrationEpoch > 0 && incoming.RegistrationEpoch != existing.RegistrationEpoch {
+		return true
+	}
+	return false
 }
 
 func (s *Service) completeModelRegistrationForAuth(ctx context.Context, auth *coreauth.Auth) {
@@ -250,6 +320,11 @@ func (s *Service) completeModelRegistrationForAuthWithCache(ctx context.Context,
 	if ctx != nil && ctx.Err() != nil {
 		return
 	}
+	latest, exists := s.coreManager.GetByID(auth.ID)
+	if !exists || (auth.RegistrationEpoch != 0 && latest.RegistrationEpoch != auth.RegistrationEpoch) {
+		return
+	}
+	auth = latest
 	s.registerModelsForAuthWithCache(ctx, auth, compatCache)
 	if ctx != nil && ctx.Err() != nil {
 		return
@@ -263,7 +338,7 @@ func (s *Service) completeModelRegistrationForAuthWithCache(ctx context.Context,
 	s.coreManager.RefreshSchedulerEntry(auth.ID)
 }
 
-func (s *Service) applyCoreAuthRemoval(ctx context.Context, id string) {
+func (s *Service) applyCoreAuthRemoval(ctx context.Context, id string, expectedEpoch ...uint64) {
 	if s == nil || id == "" {
 		return
 	}
@@ -271,15 +346,19 @@ func (s *Service) applyCoreAuthRemoval(ctx context.Context, id string) {
 		return
 	}
 	id = strings.TrimSpace(id)
-	var provider string
-	if existing, ok := s.coreManager.GetByID(id); ok && existing != nil {
-		provider = strings.TrimSpace(existing.Provider)
+	existing, ok := s.coreManager.GetByID(id)
+	if !ok || existing == nil {
+		return
 	}
-	GlobalModelRegistry().UnregisterClient(id)
-	s.coreManager.Remove(ctx, id)
-	if strings.EqualFold(provider, "codex") {
-		executor.CloseCodexWebsocketSessionsForAuthID(id, "auth_removed")
+	if len(expectedEpoch) > 0 && expectedEpoch[0] != 0 && expectedEpoch[0] != existing.RegistrationEpoch {
+		return
 	}
+	_ = s.coreManager.RemoveWithPersistence(ctx, id, func() error {
+		if strings.EqualFold(existing.Provider, "codex") {
+			executor.CloseCodexWebsocketSessionsForAuthID(id, "auth_removed")
+		}
+		return nil
+	}, existing.RegistrationEpoch)
 	s.syncPluginRuntime(ctx)
 }
 

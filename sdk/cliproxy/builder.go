@@ -305,7 +305,16 @@ func (s *Service) runtimeAuthSyncHook() coreauth.PostAuthHook {
 		}
 		action := watcher.AuthUpdateActionAdd
 		if s.coreManager != nil {
-			if _, ok := s.coreManager.GetByID(auth.ID); ok {
+			current, ok := s.coreManager.GetByID(auth.ID)
+			if auth.RegistrationEpoch != 0 {
+				if !ok || current.RegistrationEpoch != auth.RegistrationEpoch {
+					return nil
+				}
+				// A delayed persistence callback must not stamp an old configuration
+				// with a new watcher revision after a newer management update.
+				auth = current
+			}
+			if ok {
 				action = watcher.AuthUpdateActionModify
 			}
 		}
@@ -314,10 +323,16 @@ func (s *Service) runtimeAuthSyncHook() coreauth.PostAuthHook {
 			ID:     auth.ID,
 			Auth:   auth,
 		}
-		if s.watcher != nil && s.watcher.DispatchPersistedAuthUpdate(update) {
-			return nil
+		if s.watcher != nil {
+			_, rev := s.watcher.DispatchPersistedAuthUpdateWithRevision(&update)
+			if rev > 0 {
+				update.SetRevision(rev)
+			}
 		}
-		s.handleAuthUpdate(coreauth.WithSkipPersist(ctx), update)
+		// Detach from request cancellation so runtime model registration always completes
+		// once the credential has been persisted to disk.
+		syncCtx := coreauth.WithSkipPersist(context.Background())
+		s.handleAuthUpdate(syncCtx, update)
 		return nil
 	}
 }
