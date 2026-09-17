@@ -175,7 +175,8 @@ streaming:
 #         display-name: "Example Model"
 #         input-modalities: [text, image]
 #         output-modalities: [text]
-#         thinking:
+#         thinking: # Optional; defaults to ["low", "medium", "high"].
+#           # Declare additional levels here if the upstream supports them.
 #           levels: ["low", "medium", "high"]
 
 # Optional aliases and exclusions for OAuth/file-backed native providers.

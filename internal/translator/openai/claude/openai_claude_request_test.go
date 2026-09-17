@@ -3,6 +3,7 @@ package claude
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/tidwall/gjson"
@@ -1015,5 +1016,155 @@ func TestConvertClaudeRequestToOpenAI_ToolWithoutInputSchemaDefaultsParameters(t
 		if got := params.Get("properties"); !got.Exists() || !got.IsObject() {
 			t.Fatalf("tool %d function.parameters.properties missing or not object: %s", i, params.Raw)
 		}
+	}
+}
+
+func TestConvertClaudeRequestToOpenAI_ToolResultPreservesFunctionName(t *testing.T) {
+	inputJSON := `{
+		"model": "compat-model",
+		"max_tokens": 64,
+		"tools": [
+			{
+				"name": "get_weather",
+				"description": "Get weather",
+				"input_schema": {
+					"type": "object",
+					"properties": {"city": {"type": "string"}},
+					"required": ["city"]
+				}
+			},
+			{
+				"name": "get_time",
+				"description": "Get time",
+				"input_schema": {
+					"type": "object",
+					"properties": {"city": {"type": "string"}},
+					"required": ["city"]
+				}
+			}
+		],
+		"messages": [
+			{"role": "user", "content": "What's the weather and time in Jakarta?"},
+			{
+				"role": "assistant",
+				"content": [
+					{"type": "tool_use", "id": "toolu_01ABC", "name": "get_weather", "input": {"city": "Jakarta"}},
+					{"type": "tool_use", "id": "toolu_02DEF", "name": "get_time", "input": {"city": "Jakarta"}}
+				]
+			},
+			{
+				"role": "user",
+				"content": [
+					{"type": "tool_result", "tool_use_id": "toolu_01ABC", "content": "32C, humid"},
+					{"type": "tool_result", "tool_use_id": "toolu_02DEF", "content": "12:00 PM"}
+				]
+			}
+		]
+	}`
+
+	result := ConvertClaudeRequestToOpenAI("compat-model", []byte(inputJSON), false)
+	resultJSON := gjson.ParseBytes(result)
+	messages := resultJSON.Get("messages").Array()
+
+	var toolMessages []gjson.Result
+	for _, msg := range messages {
+		if msg.Get("role").String() == "tool" {
+			toolMessages = append(toolMessages, msg)
+		}
+	}
+
+	if len(toolMessages) != 2 {
+		t.Fatalf("expected 2 tool messages, got %d. Output: %s", len(toolMessages), result)
+	}
+
+	if got := toolMessages[0].Get("tool_call_id").String(); got != "toolu_01ABC" {
+		t.Errorf("toolMessages[0].tool_call_id = %q, want %q", got, "toolu_01ABC")
+	}
+	if got := toolMessages[0].Get("name").String(); got != "get_weather" {
+		t.Errorf("toolMessages[0].name = %q, want %q", got, "get_weather")
+	}
+	if got := toolMessages[0].Get("content").String(); got != "32C, humid" {
+		t.Errorf("toolMessages[0].content = %q, want %q", got, "32C, humid")
+	}
+
+	if got := toolMessages[1].Get("tool_call_id").String(); got != "toolu_02DEF" {
+		t.Errorf("toolMessages[1].tool_call_id = %q, want %q", got, "toolu_02DEF")
+	}
+	if got := toolMessages[1].Get("name").String(); got != "get_time" {
+		t.Errorf("toolMessages[1].name = %q, want %q", got, "get_time")
+	}
+	if got := toolMessages[1].Get("content").String(); got != "12:00 PM" {
+		t.Errorf("toolMessages[1].content = %q, want %q", got, "12:00 PM")
+	}
+}
+
+func TestConvertClaudeRequestToOpenAI_ToolResultUnknownIDNoName(t *testing.T) {
+	inputJSON := `{
+		"model": "compat-model",
+		"messages": [
+			{
+				"role": "user",
+				"content": [
+					{"type": "tool_result", "tool_use_id": "orphan_call_1", "content": "result"}
+				]
+			}
+		]
+	}`
+
+	result := ConvertClaudeRequestToOpenAI("compat-model", []byte(inputJSON), false)
+	resultJSON := gjson.ParseBytes(result)
+	toolMsg := resultJSON.Get("messages.0")
+
+	if got := toolMsg.Get("role").String(); got != "tool" {
+		t.Fatalf("expected tool role, got %q", got)
+	}
+	if got := toolMsg.Get("tool_call_id").String(); got != "orphan_call_1" {
+		t.Errorf("tool_call_id = %q, want %q", got, "orphan_call_1")
+	}
+	if toolMsg.Get("name").Exists() {
+		t.Errorf("expected no name for unknown tool_use_id, got %q", toolMsg.Get("name").String())
+	}
+}
+
+func TestConvertClaudeRequestToOpenAI_ToolResultNamesAcrossTurns(t *testing.T) {
+	input := []byte(`{"messages":[
+		{"role":"assistant","content":[{"type":"tool_use","id":"call_old","name":"old_tool","input":{}}]},
+		{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_old","content":"old result"}]},
+		{"role":"assistant","content":[{"type":"tool_use","id":"call_new","name":"new_tool","input":{}},{"type":"tool_use","id":"call_unnamed","input":{}}]},
+		{"role":"user","content":[
+			{"type":"tool_result","tool_use_id":"call_unnamed","content":"unnamed result"},
+			{"type":"tool_result","tool_use_id":"call_new","content":[{"type":"text","text":"new result"},{"type":"image","source":{"type":"url","url":"https://example.invalid/tool.png"}}]},
+			{"type":"tool_result","tool_use_id":"orphan","name":"invented","content":"orphan result"}
+		]}
+	]}`)
+	for _, tc := range []struct {
+		name    string
+		convert func(string, []byte, bool) []byte
+	}{
+		{"standard", ConvertClaudeRequestToOpenAI},
+		{"compat", ConvertClaudeRequestToOpenAIWithCompat},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.convert("compat-model", input, false)
+			var callIDs []string
+			for _, message := range gjson.GetBytes(got, "messages").Array() {
+				if message.Get("role").String() != "tool" {
+					continue
+				}
+				id := message.Get("tool_call_id").String()
+				callIDs = append(callIDs, id)
+				want := map[string]string{"call_old": "old_tool", "call_new": "new_tool"}[id]
+				if name := message.Get("name"); name.String() != want || (want == "" && name.Exists()) {
+					t.Fatalf("tool result %q name = %s, want %q: %s", id, name.Raw, want, got)
+				}
+				if id == "call_new" && (message.Get("content.0.text").String() != "new result" || message.Get("content.1.image_url.url").String() != "https://example.invalid/tool.png") {
+					t.Fatalf("tool result media changed: %s", got)
+				}
+			}
+			// An unmatched result keeps the existing order instead of guessing a complete pairing.
+			if strings.Join(callIDs, ",") != "call_old,call_unnamed,call_new,orphan" {
+				t.Fatalf("tool result pairing/order changed: %v; output=%s", callIDs, got)
+			}
+		})
 	}
 }

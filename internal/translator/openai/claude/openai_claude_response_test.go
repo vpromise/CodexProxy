@@ -1150,3 +1150,142 @@ func TestStreamingTool_CompleteArgumentsDoNotOverrideLength(t *testing.T) {
 		t.Fatalf("stop_reason = %q, want max_tokens despite complete arguments", got)
 	}
 }
+
+func TestStreaming_ReasoningFieldEmitsThinkingDelta(t *testing.T) {
+	events := runStream(t, streamReq,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"reasoning":"I am thinking","reasoning_details":[{"type":"reasoning.text","text":"I am thinking"}]},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+	)
+
+	var thinkingDeltas []string
+	for _, e := range events {
+		if e.Type == "content_block_delta" && gjson.Get(e.Payload, "delta.type").String() == "thinking_delta" {
+			thinkingDeltas = append(thinkingDeltas, gjson.Get(e.Payload, "delta.thinking").String())
+		}
+	}
+	if len(thinkingDeltas) != 1 || thinkingDeltas[0] != "I am thinking" {
+		t.Fatalf("expected 1 thinking delta 'I am thinking', got %v", thinkingDeltas)
+	}
+}
+
+func TestStreaming_ReasoningContentStillPreferred(t *testing.T) {
+	events := runStream(t, streamReq,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"reasoning_content":"primary reasoning","reasoning":"fallback reasoning"},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+	)
+
+	var thinkingDeltas []string
+	for _, e := range events {
+		if e.Type == "content_block_delta" && gjson.Get(e.Payload, "delta.type").String() == "thinking_delta" {
+			thinkingDeltas = append(thinkingDeltas, gjson.Get(e.Payload, "delta.thinking").String())
+		}
+	}
+	if len(thinkingDeltas) != 1 || thinkingDeltas[0] != "primary reasoning" {
+		t.Fatalf("expected reasoning_content to take precedence, got %v", thinkingDeltas)
+	}
+}
+
+func TestStreaming_ReasoningDetailsOnlyEmitsThinkingDelta(t *testing.T) {
+	events := runStream(t, streamReq,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"reasoning_details":[{"type":"reasoning.text","text":"Only details thinking"}]},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"content":"Answer"},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+	)
+
+	var thinkingDeltas []string
+	for _, e := range events {
+		if e.Type == "content_block_delta" && gjson.Get(e.Payload, "delta.type").String() == "thinking_delta" {
+			thinkingDeltas = append(thinkingDeltas, gjson.Get(e.Payload, "delta.thinking").String())
+		}
+	}
+	if len(thinkingDeltas) != 1 || thinkingDeltas[0] != "Only details thinking" {
+		t.Fatalf("expected 1 thinking delta 'Only details thinking', got %v", thinkingDeltas)
+	}
+}
+
+func TestStreaming_EmptyReasoningContentFallsBackToReasoning(t *testing.T) {
+	events := runStream(t, streamReq,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"reasoning_content":"","reasoning":"fallback from empty"},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"reasoning_content":null,"reasoning":"fallback from null"},"finish_reason":null}]}`,
+		`{"id":"c1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+	)
+
+	var thinkingDeltas []string
+	for _, e := range events {
+		if e.Type == "content_block_delta" && gjson.Get(e.Payload, "delta.type").String() == "thinking_delta" {
+			thinkingDeltas = append(thinkingDeltas, gjson.Get(e.Payload, "delta.thinking").String())
+		}
+	}
+	if len(thinkingDeltas) != 2 || thinkingDeltas[0] != "fallback from empty" || thinkingDeltas[1] != "fallback from null" {
+		t.Fatalf("expected 2 thinking deltas from fallback, got %v", thinkingDeltas)
+	}
+}
+
+func TestNonStream_ReasoningFieldEmitsThinkingBlock(t *testing.T) {
+	rawJSON := []byte(`{"id":"chatcmpl-1","object":"chat.completion","model":"deepseek","choices":[{"index":0,"message":{"role":"assistant","content":"Done","reasoning":"Thought process"},"finish_reason":"stop"}]}`)
+
+	// Test ConvertOpenAIResponseToClaudeNonStream
+	out := ConvertOpenAIResponseToClaudeNonStream(context.Background(), "", nil, nil, rawJSON, nil)
+	content := gjson.GetBytes(out, "content").Array()
+	var thinkingTexts []string
+	for _, block := range content {
+		if block.Get("type").String() == "thinking" {
+			thinkingTexts = append(thinkingTexts, block.Get("thinking").String())
+		}
+	}
+	if len(thinkingTexts) != 1 || thinkingTexts[0] != "Thought process" {
+		t.Fatalf("expected non-stream content to contain thinking block 'Thought process', got %v (output: %s)", thinkingTexts, string(out))
+	}
+
+	// Test convertOpenAINonStreamingToAnthropic (via ConvertOpenAIResponseToClaude with non-stream payload)
+	var paramAny any
+	emitted := ConvertOpenAIResponseToClaude(context.Background(), "", []byte(`{"stream":false}`), nil, append([]byte("data: "), rawJSON...), &paramAny)
+	if len(emitted) == 0 {
+		t.Fatalf("expected non-empty emitted for non-chunk json")
+	}
+	thinkingTexts = nil
+	for _, block := range gjson.GetBytes(emitted[0], "content").Array() {
+		if block.Get("type").String() == "thinking" {
+			thinkingTexts = append(thinkingTexts, block.Get("thinking").String())
+		}
+	}
+	if len(thinkingTexts) != 1 || thinkingTexts[0] != "Thought process" {
+		t.Fatalf("expected convertOpenAINonStreamingToAnthropic to contain thinking block, got %v", thinkingTexts)
+	}
+}
+
+func TestStreaming_AlternateReasoningPreservesInterleavedToolTruncation(t *testing.T) {
+	events := runStream(t, streamReq,
+		`{"id":"c1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"write_file","arguments":"{\"content\":\"partial"}}]}}]}`,
+		`{"id":"c1","choices":[{"delta":{"reasoning_content":"","reasoning":"first thought","reasoning_details":[{"text":"duplicate thought"}]}}]}`,
+		`{"id":"c1","choices":[{"delta":{"content":"status"}}]}`,
+		`{"id":"c1","choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","text":"second thought"}]},"finish_reason":"length"}]}`,
+		`{"id":"c1","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":100}}`,
+	)
+	assertSequentialContentBlocks(t, events)
+	var blocks, thinkingTexts []string
+	for _, event := range events {
+		switch event.Type {
+		case "content_block_start":
+			blocks = append(blocks, gjson.Get(event.Payload, "content_block.type").String())
+		case "content_block_delta":
+			if gjson.Get(event.Payload, "delta.type").String() == "thinking_delta" {
+				thinkingTexts = append(thinkingTexts, gjson.Get(event.Payload, "delta.thinking").String())
+			}
+		case "message_delta":
+			if gjson.Get(event.Payload, "usage.output_tokens").Int() != 100 {
+				t.Fatalf("trailing usage was lost: %s", event.Payload)
+			}
+		}
+	}
+	if strings.Join(blocks, ",") != "tool_use,thinking,text,thinking" {
+		t.Fatalf("interleaved block order changed: %v", blocks)
+	}
+	if strings.Join(thinkingTexts, ",") != "first thought,second thought" {
+		t.Fatalf("reasoning was lost or duplicated: %v", thinkingTexts)
+	}
+	if lastStopReason(events) != "max_tokens" || countByType(events, "message_delta") != 1 || countByType(events, "message_stop") != 1 {
+		t.Fatalf("truncated tool lost terminal semantics: %+v", events)
+	}
+}
