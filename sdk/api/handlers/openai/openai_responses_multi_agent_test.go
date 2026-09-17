@@ -197,3 +197,34 @@ func TestPrepareCodexMultiAgentV2ToolsAtResponsesBoundarySkipsOtherClients(t *te
 		t.Fatal("other client unexpectedly received prepared marker")
 	}
 }
+
+func TestPrepareCodexExecMultiAgentV2ToolsRequiresOptIn(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			base := handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{CodexOptimizeMultiAgentV2: enabled}, nil)
+			handler := NewOpenAIResponsesAPIHandler(base)
+			request := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			request.Header.Set("User-Agent", "codex_exec/0.153.2")
+			ginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ginContext.Request = request
+
+			payload := []byte(`{"tools":[{"type":"function","name":"send_message","parameters":{"properties":{"message":{"encrypted":true}}}}]}`)
+			got := handler.prepareCodexMultiAgentV2Tools(ginContext, payload)
+			prepared, exists := ginContext.Get(multiagentv2.CodexMultiAgentV2ToolsPreparedContextKey)
+			if !enabled {
+				if !bytes.Equal(got, payload) || exists {
+					t.Fatalf("disabled optimization changed payload or prepared marker: %s, %#v", got, prepared)
+				}
+				return
+			}
+			if encrypted := gjson.GetBytes(got, "tools.0.parameters.properties.message.encrypted"); encrypted.Exists() {
+				t.Fatalf("message.encrypted was not removed for codex_exec: %s", got)
+			}
+			if !exists || prepared != true {
+				t.Fatalf("prepared marker = %#v, want true", prepared)
+			}
+		})
+	}
+}

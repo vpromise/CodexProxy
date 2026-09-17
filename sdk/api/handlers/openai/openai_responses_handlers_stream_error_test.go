@@ -531,37 +531,41 @@ func TestForwardResponsesStreamExposesTerminalErrors(t *testing.T) {
 func TestForwardResponsesStreamUsesResponseFailedForCodex(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	base := handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{}, nil)
-	h := NewOpenAIResponsesAPIHandler(base)
+	for _, userAgent := range []string{"Codex Desktop/26.803.41515", "codex_exec/0.153.2"} {
+		t.Run(userAgent, func(t *testing.T) {
+			base := handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{}, nil)
+			h := NewOpenAIResponsesAPIHandler(base)
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Request.Header.Set("User-Agent", "Codex Desktop/26.803.41515")
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			c.Request.Header.Set("User-Agent", userAgent)
 
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		t.Fatal("expected gin writer to implement http.Flusher")
-	}
+			flusher, ok := c.Writer.(http.Flusher)
+			if !ok {
+				t.Fatal("expected gin writer to implement http.Flusher")
+			}
 
-	data := make(chan []byte)
-	errs := make(chan *interfaces.ErrorMessage, 1)
-	errs <- &interfaces.ErrorMessage{
-		StatusCode: http.StatusBadRequest,
-		Error:      errors.New(`{"error":{"type":"invalid_request","code":"cyber_policy","message":"blocked"}}`),
-	}
-	close(errs)
+			data := make(chan []byte)
+			errs := make(chan *interfaces.ErrorMessage, 1)
+			errs <- &interfaces.ErrorMessage{
+				StatusCode: http.StatusBadRequest,
+				Error:      errors.New(`{"error":{"type":"invalid_request","code":"cyber_policy","message":"blocked"}}`),
+			}
+			close(errs)
 
-	h.forwardResponsesStream(c, flusher, func(error) {}, data, errs, nil)
-	body := recorder.Body.String()
-	if !strings.Contains(body, "event: response.failed") {
-		t.Fatalf("missing response.failed event: %q", body)
-	}
-	if strings.Contains(body, "event: error") {
-		t.Fatalf("unexpected legacy error event for Codex: %q", body)
-	}
-	if !strings.Contains(body, `"type":"invalid_request"`) || !strings.Contains(body, `"code":"cyber_policy"`) {
-		t.Fatalf("missing nested Codex error detail: %q", body)
+			h.forwardResponsesStream(c, flusher, func(error) {}, data, errs, nil)
+			body := recorder.Body.String()
+			if !strings.Contains(body, "event: response.failed") {
+				t.Fatalf("missing response.failed event: %q", body)
+			}
+			if strings.Contains(body, "event: error") {
+				t.Fatalf("unexpected legacy error event for Codex: %q", body)
+			}
+			if !strings.Contains(body, `"type":"invalid_request"`) || !strings.Contains(body, `"code":"cyber_policy"`) {
+				t.Fatalf("missing nested Codex error detail: %q", body)
+			}
+		})
 	}
 }
 
