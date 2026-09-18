@@ -412,27 +412,6 @@ func parseCodexRetryAfter(statusCode int, errorBody []byte, now time.Time) *time
 	return nil
 }
 
-// codexBootstrapMaxBufferedEvents bounds how many handshake metadata events may be held
-// back while probing for an upstream rejection embedded in an HTTP 200 stream. The websocket
-// transport prefixes response events with codex.response.metadata and codex.rate_limits frames,
-// so the limit must comfortably exceed the four handshake frames observed in practice. Once the
-// limit is reached the stream is released and the original unbuffered semantics apply.
-const codexBootstrapMaxBufferedEvents = 16
-
-// isCodexHandshakeMetadataEvent reports whether an event carries no generated output and is
-// therefore safe to hold back before the downstream response headers are committed. Keeping a type
-// allow-list rather than a fixed event count matters for the websocket transport, where the
-// handshake frames arrive before response.created and would otherwise exhaust a small counter
-// before the rejection event is seen.
-func isCodexHandshakeMetadataEvent(eventType string) bool {
-	switch eventType {
-	case "response.created", "response.in_progress", "codex.rate_limits", "codex.response.metadata":
-		return true
-	default:
-		return false
-	}
-}
-
 // newCodexBootstrapOverloadErr reports a buffered overload rejection with its real status.
 //
 // The status is deliberately produced here instead of in codexTerminalFailureStatus: that mapping

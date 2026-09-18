@@ -92,6 +92,10 @@ claude-code:
 codex:
   identity-confuse: false
   disable-codex-cloaking: false
+  # Buffer handshake metadata, keepalive and empty item/part announcements before generation.
+  # This preserves failover for early capacity rejections. Meaningful output releases the buffer.
+  # Limits: 48 SSE lines or WebSocket messages, and 1 MiB across upstream and translated data.
+  # These are size limits, not timeouts; holding heartbeats can delay response headers.
   stream-bootstrap-buffering: false
   optimize-multi-agent-v2: false
   live-media-relay:

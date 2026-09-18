@@ -60,6 +60,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	if e.cfg == nil || e.cfg.DisableImageGeneration == config.DisableImageGenerationOff {
 		body = ensureImageGenerationTool(body, baseModel, auth, opts.Headers)
 	}
+	body = helps.NormalizeCodexReasoningContent(body)
 	body = sanitizeOpenAIResponsesReasoningEncryptedContent(ctx, "codex websockets executor", body)
 	body = normalizeCodexWebsocketParallelToolCalls(body, opts.Headers)
 	multiAgentV2Conflict := helps.HasCodexMultiAgentV2NamespaceConflict(body)
@@ -283,6 +284,9 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	var outputItemsFallback [][]byte
 
 	var bufferedChunks [][]byte
+	// Count each read message, including empty messages skipped below.
+	bufferedFrames := 0
+	bufferedBytes := 0
 	var initialChunks [][]byte
 	immediateTerminal := false
 	// bootstrapTerminalErr holds a non-overload terminal failure seen while buffering. It is
@@ -322,6 +326,11 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 				reporter.PublishFailure(ctx, mappedErr)
 				return nil, mappedErr
 			}
+			bufferedFrames++
+			windowOpen := bufferedFrames <= helps.CodexBootstrapMaxBufferedFrames
+			if !windowOpen && bufferedFrames == helps.CodexBootstrapMaxBufferedFrames+1 {
+				helps.LogWithRequestID(ctx).Debugf("codex websockets executor: bootstrap frame budget exhausted after %d messages", bufferedFrames)
+			}
 			if msgType != websocket.TextMessage {
 				if msgType == websocket.BinaryMessage {
 					errBinary := fmt.Errorf("codex websockets executor: unexpected binary message")
@@ -345,6 +354,9 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 
 			payload = bytes.TrimSpace(payload)
 			if len(payload) == 0 {
+				if !windowOpen {
+					break
+				}
 				continue
 			}
 			reporter.MarkFirstResponseByte()
@@ -404,7 +416,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 					// Fail the attempt before the downstream headers are committed so the
 					// conductor can transparently retry on another credential, and report the
 					// status the upstream refused to put on the wire.
-					helps.LogWithRequestID(ctx).Debugf("codex websockets executor: bootstrap overload rejection after %d buffered handshake events, failing over", len(bufferedChunks))
+					helps.LogWithRequestID(ctx).Debugf("codex websockets executor: bootstrap overload rejection after %d messages, failing over", bufferedFrames)
 					return nil, newCodexBootstrapOverloadErr(terminalBody)
 				}
 				bootstrapTerminalErr = streamErr
@@ -443,12 +455,17 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 				currentChunks = helps.TranslateStreamWithClaudeInputTokens(ctx, to, responseFormat, req.Model, originalPayload, clientBody, line, &param, claudeInputTokens)
 			}
 
-			if isCodexHandshakeMetadataEvent(eventType) && !isTerminalEvent {
-				if len(bufferedChunks) < codexBootstrapMaxBufferedEvents {
+			if windowOpen && helps.IsCodexBootstrapBufferableEvent(eventType, payload) && !isTerminalEvent {
+				frameBytes := len(payload)
+				for _, chunk := range currentChunks {
+					frameBytes += len(chunk)
+				}
+				if bufferedBytes+frameBytes <= helps.CodexBootstrapMaxBufferedBytes {
+					bufferedBytes += frameBytes
 					bufferedChunks = append(bufferedChunks, currentChunks...)
 					continue
 				}
-				helps.LogWithRequestID(ctx).Debugf("codex websockets executor: bootstrap buffer limit %d reached, releasing stream without overload probing", codexBootstrapMaxBufferedEvents)
+				helps.LogWithRequestID(ctx).Debugf("codex websockets executor: bootstrap byte budget exhausted after %d messages / %d bytes", bufferedFrames, bufferedBytes)
 			}
 
 			initialChunks = currentChunks

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	_ "github.com/router-for-me/CLIProxyAPI/v7/internal/translator"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
@@ -176,8 +177,8 @@ func TestCodexExecutor_BootstrapBuffering_NonOverloadStaysInStream(t *testing.T)
 // Once the buffer limit is exceeded the stream is released and overload probing stops, which
 // bounds how long the downstream response headers can stay uncommitted.
 func TestCodexExecutor_BootstrapBuffering_BufferLimitReleasesStream(t *testing.T) {
-	events := make([]string, 0, codexBootstrapMaxBufferedEvents+2)
-	for i := 0; i < codexBootstrapMaxBufferedEvents+1; i++ {
+	events := make([]string, 0, helps.CodexBootstrapMaxBufferedFrames+2)
+	for i := 0; i < helps.CodexBootstrapMaxBufferedFrames+1; i++ {
 		events = append(events, fmt.Sprintf(`{"type":"response.in_progress","response":{"id":"resp_%d"}}`, i))
 	}
 	events = append(events, codexOverloadEvent)

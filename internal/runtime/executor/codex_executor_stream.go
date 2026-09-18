@@ -69,6 +69,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 	if e.cfg == nil || e.cfg.DisableImageGeneration == config.DisableImageGenerationOff {
 		body = ensureImageGenerationTool(body, baseModel, auth, opts.Headers)
 	}
+	body = helps.NormalizeCodexReasoningContent(body)
 	body = sanitizeOpenAIResponsesReasoningEncryptedContent(ctx, "codex executor", body)
 	body = normalizeCodexParallelToolCalls(body, opts.Headers)
 	body, optimizeMultiAgentV2 := helps.OptimizeCodexMultiAgentV2RequestForAuth(ctx, opts.Headers, body, e.cfg, auth, baseModel)
@@ -142,6 +143,10 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 	var outputItemsFallback [][]byte
 
 	var bufferedChunks [][]byte
+	// Count upstream lines, including metadata that translates to no chunks.
+	// The byte budget includes both the upstream line and translated payloads.
+	bufferedFrames := 0
+	bufferedBytes := 0
 	var initialChunks [][]byte
 	streamStarted := false
 	immediateTerminal := false
@@ -183,13 +188,13 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 						// attempt before the downstream headers are committed so the conductor can
 						// transparently retry on another credential, and report the status the
 						// upstream refused to put on the wire.
-						helps.LogWithRequestID(ctx).Debugf("codex executor: bootstrap overload rejection after %d buffered handshake events, failing over", len(bufferedChunks))
+						helps.LogWithRequestID(ctx).Debugf("codex executor: bootstrap overload rejection after %d buffered lines, failing over", bufferedFrames)
 						return nil, newCodexBootstrapOverloadErr(terminalBody)
 					}
 					bootstrapTerminalErr = streamErr
 					break
 				}
-				if isCodexHandshakeMetadataEvent(eventType) {
+				if helps.IsCodexBootstrapBufferableEvent(eventType, data) {
 					isHandshake = true
 				}
 				switch eventType {
@@ -216,11 +221,17 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 			translatedLine = applyCodexIdentityExposeResponsePayload(translatedLine, identityState)
 			chunks := helps.TranslateStreamWithClaudeInputTokens(ctx, to, responseFormat, req.Model, originalPayload, body, translatedLine, &param, claudeInputTokens)
 			if isHandshake && !terminalSuccess {
-				if len(bufferedChunks) < codexBootstrapMaxBufferedEvents {
+				frameBytes := len(line)
+				for _, chunk := range chunks {
+					frameBytes += len(chunk)
+				}
+				if bufferedFrames < helps.CodexBootstrapMaxBufferedFrames && bufferedBytes+frameBytes <= helps.CodexBootstrapMaxBufferedBytes {
+					bufferedFrames++
+					bufferedBytes += frameBytes
 					bufferedChunks = append(bufferedChunks, chunks...)
 					continue
 				}
-				helps.LogWithRequestID(ctx).Debugf("codex executor: bootstrap buffer limit %d reached, releasing stream without overload probing", codexBootstrapMaxBufferedEvents)
+				helps.LogWithRequestID(ctx).Debugf("codex executor: bootstrap budget exhausted after %d lines / %d bytes, releasing stream without overload probing", bufferedFrames, bufferedBytes)
 			}
 
 			initialChunks = chunks

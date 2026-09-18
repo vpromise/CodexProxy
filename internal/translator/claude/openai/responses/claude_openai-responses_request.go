@@ -269,6 +269,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 		})
 	}
 	emittedToolResults := map[string]struct{}{}
+	emittedRawToolUses := map[string]struct{}{}
 
 	if input := root.Get("input"); input.Exists() && input.IsArray() {
 		input.ForEach(func(_, item gjson.Result) bool {
@@ -412,7 +413,11 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 			case "function_call", "custom_tool_call":
 				// Map to assistant tool_use. Freeform custom input is wrapped in an
 				// object because Claude tool_use input must be a JSON object.
-				callID := item.Get("call_id").String()
+				rawCallID := item.Get("call_id").String()
+				callID := rawCallID
+				if rawCallID != "" {
+					emittedRawToolUses[rawCallID] = struct{}{}
+				}
 				if callID == "" {
 					callID = common.GenerateClaudeToolCallID()
 				}
@@ -444,7 +449,6 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 			case "function_call_output", "custom_tool_call_output":
 				// Map to user tool_result
 				rawID := item.Get("call_id").String()
-				callID := util.SanitizeClaudeToolID(rawID)
 				if rawID != "" {
 					if _, exists := emittedToolResults[rawID]; exists {
 						return true
@@ -457,6 +461,13 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 						output = lastItem.Get("output")
 					}
 				}
+				// Pair explicit raw IDs only. Standalone delegation context must not
+				// become an orphan result or consume another pending tool call.
+				if _, paired := emittedRawToolUses[rawID]; rawID == "" || !paired {
+					appendParts("user", convertResponsesStandaloneToolOutputToClaudeText(output)...)
+					return true
+				}
+				callID := util.SanitizeClaudeToolID(rawID)
 				toolResult := []byte(`{"type":"tool_result","tool_use_id":"","content":""}`)
 				toolResult, _ = sjson.SetBytes(toolResult, "tool_use_id", callID)
 				toolResult = applyResponsesToolResultContent(toolResult, output)
@@ -479,6 +490,10 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 	hadMessages := len(messageBlocks) > 0
 	if !preserveEmptyThinkingBlocks {
 		messageBlocks = stripTrailingClaudeThinkingBlocks(messageBlocks)
+	}
+	// Complete interrupted tool turns before checking assistant-prefill support.
+	messageBlocks = repairClaudeToolPairing(messageBlocks)
+	if !preserveEmptyThinkingBlocks {
 		messageBlocks = dropUnsupportedClaudeAssistantPrefill(modelName, messageBlocks)
 	}
 	// Preserve a minimal conversational turn for system-only inputs or when messages became empty
