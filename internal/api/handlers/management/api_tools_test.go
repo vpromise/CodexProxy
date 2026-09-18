@@ -3,9 +3,11 @@ package management
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +15,99 @@ import (
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	sdkconfig "github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
 )
+
+func TestAPICallTokenPlaceholderValidation(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		index      string
+		header     string
+		wantHeader string
+		wantError  string
+	}{
+		{name: "missing index", header: "Bearer $TOKEN$", wantError: "auth token not found"},
+		{name: "stale index", index: "missing", header: "Bearer $TOKEN$", wantError: "auth credential not found for auth_index"},
+		{name: "empty token", index: "empty", header: "Bearer $TOKEN$", wantError: "auth token not found"},
+		{name: "OAuth token", index: "oauth", header: "Bearer $TOKEN$", wantHeader: "Bearer test-oauth-token"},
+		{name: "API key", index: "apikey", header: "Bearer $TOKEN$", wantHeader: "Bearer test-api-key"},
+		{name: "repeated placeholder", index: "oauth", header: "$TOKEN$/$TOKEN$", wantHeader: "test-oauth-token/test-oauth-token"},
+		{name: "manual header", header: "Bearer manual-token", wantHeader: "Bearer manual-token"},
+		{name: "manual header with stale index", index: "missing", header: "Bearer manual-token", wantHeader: "Bearer manual-token"},
+		{name: "body placeholder without header"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const rawBody = `{"literal":"$TOKEN$"}`
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if got := r.Header.Get("Authorization"); got != tc.wantHeader {
+					t.Errorf("upstream Authorization = %q, want %q", got, tc.wantHeader)
+				}
+				body, errRead := io.ReadAll(r.Body)
+				if errRead != nil || string(body) != rawBody {
+					t.Errorf("upstream body = %q, error = %v; want unchanged raw body", body, errRead)
+				}
+				w.WriteHeader(http.StatusAccepted)
+				_, _ = w.Write([]byte("accepted"))
+			}))
+			t.Cleanup(server.Close)
+
+			manager := coreauth.NewManager(nil, nil, nil)
+			for _, auth := range []*coreauth.Auth{
+				{ID: "empty-token", Index: "empty", Provider: "claude"},
+				{ID: "oauth-token", Index: "oauth", Provider: "claude", Metadata: map[string]any{"access_token": "test-oauth-token"}},
+				{ID: "api-key", Index: "apikey", Provider: "codex", Attributes: map[string]string{"api_key": "test-api-key"}},
+			} {
+				if _, errRegister := manager.Register(t.Context(), auth); errRegister != nil {
+					t.Fatalf("register auth: %v", errRegister)
+				}
+			}
+			h := &Handler{cfg: &config.Config{}, authManager: manager}
+			router := gin.New()
+			router.POST("/", h.APICall)
+			body, errMarshal := json.Marshal(apiCallRequest{
+				AuthIndexSnake: &tc.index,
+				Method:         http.MethodPost,
+				URL:            server.URL,
+				Header:         map[string]string{"Authorization": tc.header},
+				Data:           rawBody,
+			})
+			if errMarshal != nil {
+				t.Fatalf("marshal request: %v", errMarshal)
+			}
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(recorder, req)
+
+			if tc.wantError != "" {
+				if recorder.Code != http.StatusBadRequest || calls.Load() != 0 {
+					t.Fatalf("status/calls = %d/%d, want 400/0; body = %s", recorder.Code, calls.Load(), recorder.Body.String())
+				}
+				var response struct {
+					Error string `json:"error"`
+				}
+				if errDecode := json.Unmarshal(recorder.Body.Bytes(), &response); errDecode != nil || response.Error != tc.wantError {
+					t.Fatalf("error response = %s, decode error = %v; want %q", recorder.Body.String(), errDecode, tc.wantError)
+				}
+				return
+			}
+			if recorder.Code != http.StatusOK || calls.Load() != 1 {
+				t.Fatalf("status/calls = %d/%d, want 200/1; body = %s", recorder.Code, calls.Load(), recorder.Body.String())
+			}
+			var response apiCallResponse
+			if errDecode := json.Unmarshal(recorder.Body.Bytes(), &response); errDecode != nil {
+				t.Fatalf("decode response: %v", errDecode)
+			}
+			if response.StatusCode != http.StatusAccepted || response.Body != "accepted" {
+				t.Fatalf("upstream response = %+v", response)
+			}
+		})
+	}
+}
 
 func TestAPICallUsesRequestProxyURL(t *testing.T) {
 	t.Parallel()

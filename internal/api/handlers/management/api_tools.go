@@ -50,7 +50,7 @@ type apiCallResponse struct {
 // Request JSON:
 //   - auth_index / authIndex / AuthIndex (optional):
 //     The credential "auth_index" from GET /v0/management/auth-files (or other endpoints returning it).
-//     If omitted or not found, credential-specific proxy/token substitution is skipped.
+//     If omitted or not found, credential-specific proxy selection is skipped.
 //   - method (required): HTTP method, e.g. GET, POST, PUT, PATCH, DELETE.
 //   - url (required): Absolute URL including scheme and host, e.g. "https://api.example.com/v1/ping".
 //   - proxy_url (optional): Proxy used for this request. Supports HTTP, HTTPS, SOCKS5, SOCKS5H,
@@ -61,6 +61,7 @@ type apiCallResponse struct {
 //     2) attributes.api_key
 //     3) metadata.token / metadata.id_token / metadata.cookie
 //     Example: {"Authorization":"Bearer $TOKEN$"}.
+//     Returns HTTP 400 before making the request if "$TOKEN$" cannot be resolved.
 //     Note: if you need to override the HTTP Host header, set header["Host"].
 //   - data (optional): Raw request body as string (useful for POST/PUT/PATCH).
 //
@@ -137,12 +138,13 @@ func (h *Handler) APICall(c *gin.Context) {
 			token = tokenValueForAuth(auth)
 			tokenResolved = true
 		}
-		if auth != nil && token == "" {
+		if token == "" {
+			if authIndex != "" && auth == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "auth credential not found for auth_index"})
+				return
+			}
 			c.JSON(http.StatusBadRequest, gin.H{"error": "auth token not found"})
 			return
-		}
-		if token == "" {
-			continue
 		}
 		reqHeaders[key] = strings.ReplaceAll(value, "$TOKEN$", token)
 	}

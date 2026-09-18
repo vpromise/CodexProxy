@@ -305,3 +305,94 @@ func TestClaudeHeadersIndicateUnifiedRateLimitRejection_AllowedWarning(t *testin
 		})
 	}
 }
+
+func TestClaudeOverageRejectionRequiresHealthySharedWindows(t *testing.T) {
+	cases := []struct {
+		name           string
+		overrides      map[string]string
+		wantCredential bool
+	}{
+		{name: "overage without Fable header"},
+		{name: "spend cap without overage status", overrides: map[string]string{"Overage-Status": "", "Overage-Disabled-Reason": "org_spend_cap_reached"}},
+		{name: "representative overage claim", overrides: map[string]string{"Overage-Status": "", "Representative-Claim": " SEVEN_DAY_OVERAGE_INCLUDED "}},
+		{name: "missing 5h status with healthy utilization", overrides: map[string]string{"5h-Status": "", "5h-Utilization": "0.00", "7d_oi-Status": "rejected"}},
+		{name: "missing 7d status with healthy utilization", overrides: map[string]string{"7d-Status": "", "7d-Utilization": " 0.92 ", "5h-Status": "allowed_warning"}},
+		{name: "explicit 5h rejection overrides utilization", overrides: map[string]string{"5h-Status": "rejected", "5h-Utilization": "0.00"}, wantCredential: true},
+		{name: "explicit 7d rejection overrides utilization", overrides: map[string]string{"7d-Status": "rejected", "7d-Utilization": "0.00"}, wantCredential: true},
+		{name: "both statuses missing", overrides: map[string]string{"5h-Status": "", "7d-Status": "", "5h-Utilization": "0.00", "7d-Utilization": "0.00"}, wantCredential: true},
+		{name: "unknown status", overrides: map[string]string{"5h-Status": "unknown", "5h-Utilization": "0.00"}, wantCredential: true},
+		{name: "no overage evidence", overrides: map[string]string{"Overage-Status": ""}, wantCredential: true},
+	}
+	for _, raw := range []string{"", "invalid", "NaN", "+Inf", "-Inf", "-0.01", "1.0", "1.01"} {
+		cases = append(cases, struct {
+			name           string
+			overrides      map[string]string
+			wantCredential bool
+		}{"unhealthy or invalid utilization " + raw, map[string]string{"5h-Status": "", "5h-Utilization": raw}, true})
+	}
+	now := time.Now().Truncate(time.Second)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := make(http.Header)
+			for suffix, value := range map[string]string{
+				"Status": "rejected", "5h-Status": "allowed", "7d-Status": "allowed", "Overage-Status": "rejected",
+			} {
+				headers.Set("Anthropic-Ratelimit-Unified-"+suffix, value)
+			}
+			for suffix, value := range tc.overrides {
+				headers.Set("Anthropic-Ratelimit-Unified-"+suffix, value)
+			}
+			reset := strconv.FormatInt(now.Add(7*24*time.Hour).Unix(), 10)
+			headers.Set("Anthropic-Ratelimit-Unified-Reset", reset)
+			headers.Set("Anthropic-Ratelimit-Unified-7d_oi-Reset", reset)
+			headers.Set("Retry-After", "120")
+			if got := ClaudeHeadersIndicateUnifiedRateLimitRejection(headers); got != tc.wantCredential {
+				t.Fatalf("credential-scoped rejection = %v, want %v", got, tc.wantCredential)
+			}
+			wantReset := 120 * time.Second
+			if tc.wantCredential {
+				wantReset = 7 * 24 * time.Hour
+			}
+			if got := parseClaudeRateLimitResetWithFuzz(headers, now, 0, 0); got == nil || *got != wantReset {
+				t.Fatalf("cooldown = %v, want %v", got, wantReset)
+			}
+		})
+	}
+}
+
+func TestClaudeOverageResetPreservesUpstreamRetryAfter(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	cases := []struct {
+		name         string
+		retryAfter   string
+		retryAfterMs string
+		want         time.Duration
+	}{
+		{name: "long upstream cooldown", retryAfter: "121180", want: 121180 * time.Second},
+		{name: "milliseconds take precedence", retryAfter: "121180", retryAfterMs: "1500", want: 1500 * time.Millisecond},
+		{name: "no retry header leaves backoff to manager"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := make(http.Header)
+			headers.Set("Anthropic-Ratelimit-Unified-Status", "rejected")
+			headers.Set("Anthropic-Ratelimit-Unified-5h-Utilization", "0.00")
+			headers.Set("Anthropic-Ratelimit-Unified-7d-Status", "allowed")
+			headers.Set("Anthropic-Ratelimit-Unified-7d_oi-Status", "rejected")
+			headers.Set("Anthropic-Ratelimit-Unified-Overage-Disabled-Reason", "org_spend_cap_reached")
+			reset := strconv.FormatInt(now.Add(7*24*time.Hour).Unix(), 10)
+			headers.Set("Anthropic-Ratelimit-Unified-7d_oi-Reset", reset)
+			headers.Set("Anthropic-Ratelimit-Unified-Reset", reset)
+			headers.Set("Retry-After", tc.retryAfter)
+			headers.Set("Retry-After-Ms", tc.retryAfterMs)
+			got := parseClaudeRateLimitResetWithFuzz(headers, now, 0, 0)
+			if tc.want == 0 {
+				if got != nil {
+					t.Fatalf("cooldown = %v, want nil for manager backoff", *got)
+				}
+			} else if got == nil || *got != tc.want {
+				t.Fatalf("cooldown = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
