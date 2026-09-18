@@ -32,6 +32,7 @@ auths/*
 
 # Documentation
 docs/*
+!docs/upstream-sync.md
 AGENTS.md
 CLAUDE.md
 GEMINI.md

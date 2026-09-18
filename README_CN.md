@@ -91,6 +91,8 @@ openai-compatibility:
 
 ## 开发验证
 
+上游审查位置、已发布补丁、提交状态和暂缓项目参见[上游同步台账](docs/upstream-sync.md)。
+
 ```bash
 gofmt -w .
 go test ./...

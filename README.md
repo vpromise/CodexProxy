@@ -91,6 +91,8 @@ See [config.example.yaml](config.example.yaml) for routing, retry, model alias, 
 
 ## Development
 
+See the [upstream sync ledger](docs/upstream-sync.md) for the last reviewed upstream commit, published backports, publication status, and deferred work.
+
 ```bash
 gofmt -w .
 go test ./...
