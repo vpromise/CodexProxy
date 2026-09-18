@@ -8,19 +8,30 @@ Updated: 2026-09-18. This is the checkpoint for selective backports from `router
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [8c664b2f](https://github.com/router-for-me/CLIProxyAPI/commit/8c664b2fede5c83b919be1df9b01057ec4e4c950) (`8c664b2fede5c83b919be1df9b01057ec4e4c950`) |
-| Release at that review | [v7.3.6](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.6), published 2026-09-17 05:53:32 UTC |
-| Latest verified published implementation | [ec916ab8](https://github.com/vpromise/CodexProxy/commit/ec916ab8cce092707956d14d7eaf1c679b3406b8) (`ec916ab8cce092707956d14d7eaf1c679b3406b8`) on `main` |
-| Published source tree | `8a7dc4270ee69b84e26314ee3e6a4eb168250944` |
-| Latest publication | Remaining three v7.3.3 fixes across 17 source/config/test paths, plus this ledger and README links |
-| Unpublished selected fixes | None; all four selected v7.3.3 fixes and both v7.3.6 batches are published |
+| Last reviewed upstream main | [b773607e](https://github.com/router-for-me/CLIProxyAPI/commit/b773607e3e7756dc6020a291825e4eb08899595a) (`b773607e3e7756dc6020a291825e4eb08899595a`) |
+| Release at that review | [v7.3.7](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.7), published 2026-09-17 19:19:20 UTC |
+| Latest verified published implementation | [b06871dd](https://github.com/vpromise/CodexProxy/commit/b06871dd66c9934eb6e10651234b2a37229ba38f) (`b06871dd66c9934eb6e10651234b2a37229ba38f`) on `main` |
+| Published source tree | `92c0eb39fe6df9f6f4afc276ea791947026f63dc` |
+| Latest publication | Two narrow v7.3.7 repairs: management header-token validation and Claude overage classification; five source/test paths plus this ledger |
+| Unpublished selected fixes | None; both selected v7.3.7 repairs, all four selected v7.3.3 fixes and both v7.3.6 batches are published |
 | Deployment | The September 17 and 18 publications were not deployed in these workflows; this ledger does not assert the current server version |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
-| Current selection policy | Keep changes minimal; no third batch from the remaining backlog is approved |
+| Current selection policy | Only the two demonstrated v7.3.7 defects were approved for this batch; the remaining backlog stays deferred |
 
-The published implementation commit above deliberately excludes the ledger and README changes, which are recorded in a separate documentation commit. The reviewed upstream boundary remains unchanged by this publication.
+The published implementation commit above excludes this ledger update, which is recorded in a separate documentation commit. The new review covered 11 commits (10 non-merge commits) after `8c664b2fede5c83b919be1df9b01057ec4e4c950`; advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
 
-## Published on 2026-09-18
+## Published on 2026-09-18 — selected v7.3.7 repairs
+
+| Upstream source | Published behavior | Boundary | Fork commit |
+| --- | --- | --- | --- |
+| [0b550539](https://github.com/router-for-me/CLIProxyAPI/commit/0b55053944aa1547ba762c3fc519261cccc51d66) | Reject unresolved management APICall header `$TOKEN$` placeholders with local HTTP 400 before any outbound request | Preserve literal headers, requests without placeholders and raw bodies; exclude xAI OAuth resolution/refresh and body interpolation | [b06871dd](https://github.com/vpromise/CodexProxy/commit/b06871dd66c9934eb6e10651234b2a37229ba38f) |
+| [44eaef00](https://github.com/router-for-me/CLIProxyAPI/commit/44eaef0009f8464fd04db7ce4747a61244b7922e) | Scope overage/Fable-only rejections to the requested model when shared subscription windows remain healthy | Import only the rate-limit helper changes; no `claude.model-level-cooling` override, config additions or manager/lifecycle rewrite | [b06871dd](https://github.com/vpromise/CodexProxy/commit/b06871dd66c9934eb6e10651234b2a37229ba38f) |
+
+The Claude exception requires an overage/Fable signal plus healthy shared windows: both statuses explicitly allowed (including `allowed_warning`), or one allowed status and a valid finite utilization in `[0, 1)` for the omitted window. Explicit shared 5h/7d rejection still blocks the credential; missing, malformed or ambiguous health evidence stays conservative. The affected model retains upstream `Retry-After` and its bounded grace period. Existing 529 classification, fast-mode entitlement handling, downstream retry metadata, longer cooldowns, disabled-state protections and auxiliary-request rules remain intact. This does not enable usage-credit billing.
+
+The two gaps were reproduced against unchanged `49ab84d2` before implementation. New regressions exercise management outbound requests, ordinary/streaming manager execution and sibling-model availability, native token counting, reset selection and retry metadata. Existing cooldown monotonicity and in-flight disable/reset regressions also passed. Full tests passed in **67 packages**, race checks in **4 packages**, and the server build passed. The only command-level exclusions remain `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS` (the existing macOS 127.0.0.2 binding limitation). Formatting and patch whitespace checks passed. Verification used dedicated temporary Go caches, removed after completion. No real inference request or server deployment was performed.
+
+## Earlier publication on 2026-09-18 — remaining v7.3.3 repairs
 
 | Upstream source | Published behavior | Boundary | Fork commit |
 | --- | --- | --- | --- |
@@ -75,10 +86,15 @@ The lifecycle integration keeps the approved five-day Codex refresh lead. Creden
 
 ## Deferred, conditional or excluded
 
-The 2026-09-17 reassessment recommends **no additional batch now**. Revisit a candidate when it addresses a demonstrated problem in an active supported path and can be implemented with a narrow scope.
+The September 17 backlog remains deferred. The September 18 review approved only the two narrow v7.3.7 repairs above; the additions below remain deferred or excluded. Revisit a candidate when it addresses a demonstrated problem in an active supported path and can be implemented with a narrow scope.
 
 | Sources | Disposition and trigger |
 | --- | --- |
+| [76ac75e6](https://github.com/router-for-me/CLIProxyAPI/commit/76ac75e68ae679298815c43a7750f6c690f8a9bd) | Defer auth-list pagination until measured list latency/payload warrants changing the local full-list filtering, counts and selection contracts; upstream still snapshots all auth records |
+| [afba07ba](https://github.com/router-for-me/CLIProxyAPI/commit/afba07ba265a61c9aed101654e6bfe86b616cd0d) | Revisit YAML preservation before using `plugins.configs`; no active local plugin configuration was found and deployed configuration was not inspected |
+| [b715526a](https://github.com/router-for-me/CLIProxyAPI/commit/b715526add0c452acc62062bf4fcef53897be604) | Defer plugin scheduling across priorities; no supported native routing need was established |
+| [b773607e](https://github.com/router-for-me/CLIProxyAPI/commit/b773607e3e7756dc6020a291825e4eb08899595a) | Revisit the FreeBSD release-build repair before using that release target; it is separate from the current Linux deployment workflow |
+| Remaining scope of [44eaef00](https://github.com/router-for-me/CLIProxyAPI/commit/44eaef0009f8464fd04db7ce4747a61244b7922e) | Exclude the optional model-level-cooling override, which can reduce real shared-limit rejection to one model; keep the approved credential-wide shared-limit policy |
 | [2a6b87ac](https://github.com/router-for-me/CLIProxyAPI/commit/2a6b87aca083a5bf498ac1f68a1b636c500d7aaa) | Defer downstream WebSocket keepalive until an actual idle-disconnect path is identified |
 | [1ca975df](https://github.com/router-for-me/CLIProxyAPI/commit/1ca975dfc011c320fd045a7ce9070d66e418fa22) | Do not add management cooldown snapshots now; diagnostic API/UI expansion without a demonstrated need |
 | [8f23ad02](https://github.com/router-for-me/CLIProxyAPI/commit/8f23ad0291443c761b6748bb6068ca32f9dca2c1), [294b7f5b](https://github.com/router-for-me/CLIProxyAPI/commit/294b7f5b191bb9312d5ed3d4652b2db0279afbf5), [4311ae87](https://github.com/router-for-me/CLIProxyAPI/commit/4311ae874774014a6cfa63a251e2f989ed189bad), [678da561](https://github.com/router-for-me/CLIProxyAPI/commit/678da56193fbea407b6dc57321e3f2a5cd290f68) | Alias-template lookup is a conditional narrow repair when active aliases/prefixes need it; do not bundle capability policy, search advertisements or catalog replacement |
@@ -89,14 +105,14 @@ The 2026-09-17 reassessment recommends **no additional batch now**. Revisit a ca
 | [b908ed5d](https://github.com/router-for-me/CLIProxyAPI/commit/b908ed5d8644fe63fe0ffcfd6c2e14ca6b919b99) | Git-store recovery is conditional on active Git-backed credential storage; deployed storage was not inspected |
 | [fc96a87f](https://github.com/router-for-me/CLIProxyAPI/commit/fc96a87fa66c0cfd8b4746449a178955229d9db8) | Credential filename migration remains deferred |
 | Feature families / other policies | Keep Merkle/LCP, distributed Home, plugin expansion, arbitrary Claude beta forwarding, lossy tool-schema rewriting and unrelated model-catalog changes deferred |
-| Unsupported native providers | Do not reintroduce Gemini, Interactions, Vertex, AI Studio, Antigravity, Kimi, xAI/Grok or other out-of-scope native executors; shared supported-path fixes may still be reviewed separately |
+| Unsupported native providers | Do not reintroduce Gemini, Interactions, Vertex, AI Studio, Antigravity, Kimi, xAI/Grok, Devin or other out-of-scope native executors; shared supported-path fixes may still be reviewed separately |
 
 `prefer_websockets: true` on an OpenAI-compatible model is not automatically a local defect: the fork can accept downstream WebSockets and execute upstream through HTTP. A test expecting upstream's policy is not sufficient evidence to change this behavior.
 
 ## How to continue the next review
 
 1. Check the current branch, working tree and remote. All selected fixes listed above were published at this checkpoint; inspect any later local changes separately.
-2. Compare newly fetched upstream commits after `8c664b2fede5c83b919be1df9b01057ec4e4c950`. Older deferred items above remain deferred unless their trigger is met.
+2. Compare newly fetched upstream commits after `b773607e3e7756dc6020a291825e4eb08899595a`. Older deferred items above remain deferred unless their trigger is met.
 3. Search this file for a source SHA and inspect the associated fork commit before importing anything again. Verify behavior, not only ancestry or commit titles.
 4. Record exact selected scope, prerequisite commits, preserved local policies and verification results. Changes to cooldown, disable or scheduling behavior require the previously requested discussion before implementation.
 5. After publication, update this ledger with the actual fork commits and source tree read back from GitHub. Record deployment separately.
@@ -112,3 +128,5 @@ The essential publication mapping is included above so this file remains useful 
 - `publication-v7.3.6-2026-09-17/` — independent publication verification and remote readback
 - `publication-v7.3.3-remaining-2026-09-18/` — remaining repairs, exact source-tree comparison and publication readback
 - `upstream-minimal-scope-review-2026-09-17/` — corrected manager-level probes and current deferrals
+- `upstream-review-v7.3.7-2026-09-18/` and `upstream-value-reassessment-v7.3.7-2026-09-18/` — review and baseline defect reproductions
+- `upstream-sync-v7.3.7-2026-09-18/` — selected patches, source hashes, focused/full/race/build verification and publication readback
