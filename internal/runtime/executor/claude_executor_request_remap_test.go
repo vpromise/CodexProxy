@@ -745,3 +745,124 @@ func reverseMapKeyFor(m map[string]string, val string) string {
 	}
 	return ""
 }
+
+func TestReverseRemapOAuthToolNamesRestoresHybridPassthroughMCPTools(t *testing.T) {
+	const virtual = "mcp__ripple_middle__"
+	reverseMap := map[string]string{
+		virtual + "blanket_Bash":       "Bash",
+		virtual + "brand_Read":         "Read",
+		"mcp__acme__link_pull_request": "mcp__acme__link_pull_request",
+		"mcp__acme__list_threads":      "mcp__acme__list_threads",
+	}
+
+	testCases := []struct {
+		name       string
+		hybridName string
+		wantName   string
+	}{
+		{
+			name:       "model replaced server with virtual prefix",
+			hybridName: "mcp__ripple_middle__link_pull_request",
+			wantName:   "mcp__acme__link_pull_request",
+		},
+		{
+			name:       "model prepended virtual prefix to full passthrough name",
+			hybridName: "mcp__ripple_middle__acme__link_pull_request",
+			wantName:   "mcp__acme__link_pull_request",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Non-stream response
+			resp := []byte(fmt.Sprintf(`{"content":[{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}]}`, tc.hybridName))
+			restored, err := restoreClaudeOAuthToolNamesFromResponse(resp, reverseMap)
+			if err != nil {
+				t.Fatalf("restoreClaudeOAuthToolNamesFromResponse() error = %v, want %q", err, tc.wantName)
+			}
+			if got := gjson.GetBytes(restored, "content.0.name").String(); got != tc.wantName {
+				t.Fatalf("content.0.name = %q, want %q", got, tc.wantName)
+			}
+
+			// Streaming response
+			line := []byte(fmt.Sprintf(`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}}`, tc.hybridName))
+			restoredLine, errStream := restoreClaudeOAuthToolNamesFromStreamLine(line, reverseMap)
+			if errStream != nil {
+				t.Fatalf("restoreClaudeOAuthToolNamesFromStreamLine() error = %v, want %q", errStream, tc.wantName)
+			}
+			if got := gjson.GetBytes(helps.JSONPayload(restoredLine), "content_block.name").String(); got != tc.wantName {
+				t.Fatalf("content_block.name = %q, want %q", got, tc.wantName)
+			}
+		})
+	}
+}
+
+func TestReverseRemapOAuthToolNamesHybridPassthroughPrecedenceAndAmbiguity(t *testing.T) {
+	const virtual = "mcp__ripple_middle__"
+
+	t.Run("client tool takes precedence over passthrough with same suffix", func(t *testing.T) {
+		reverseMap := map[string]string{
+			virtual + "blanket_Bash": "Bash",
+			"mcp__shell__Bash":       "mcp__shell__Bash",
+		}
+		// mcp__<virtual>__Bash is a semantic suffix match for Bash, should restore to Bash, NOT mcp__shell__Bash
+		resp := []byte(fmt.Sprintf(`{"content":[{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}]}`, virtual+"Bash"))
+		restored, err := restoreClaudeOAuthToolNamesFromResponse(resp, reverseMap)
+		if err != nil {
+			t.Fatalf("restoreClaudeOAuthToolNamesFromResponse() error = %v", err)
+		}
+		if got := gjson.GetBytes(restored, "content.0.name").String(); got != "Bash" {
+			t.Fatalf("content.0.name = %q, want %q", got, "Bash")
+		}
+		line := []byte(fmt.Sprintf(`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}}`, virtual+"Bash"))
+		restoredLine, errStream := restoreClaudeOAuthToolNamesFromStreamLine(line, reverseMap)
+		if errStream != nil {
+			t.Fatal(errStream)
+		}
+		if got := gjson.GetBytes(helps.JSONPayload(restoredLine), "content_block.name").String(); got != "Bash" {
+			t.Fatalf("stream tool name = %q, want Bash", got)
+		}
+	})
+
+	t.Run("ambiguous passthrough tool rejected", func(t *testing.T) {
+		reverseMap := map[string]string{
+			virtual + "blanket_other": "other",
+			"mcp__srv1__query":        "mcp__srv1__query",
+			"mcp__srv2__query":        "mcp__srv2__query",
+		}
+		// mcp__<virtual>__query matches both srv1 and srv2, cannot disambiguate
+		resp := []byte(fmt.Sprintf(`{"content":[{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}]}`, virtual+"query"))
+		_, err := restoreClaudeOAuthToolNamesFromResponse(resp, reverseMap)
+		if err == nil {
+			t.Fatal("restoreClaudeOAuthToolNamesFromResponse() expected error for ambiguous passthrough, got nil")
+		}
+		var requestErr cliproxyexecutor.RequestScopedError
+		if !errors.As(err, &requestErr) || !requestErr.IsRequestScoped() {
+			t.Fatalf("ambiguous passthrough error = %v, want request-scoped", err)
+		}
+		line := []byte(fmt.Sprintf(`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":%q,"input":{}}}`, virtual+"query"))
+		_, errStream := restoreClaudeOAuthToolNamesFromStreamLine(line, reverseMap)
+		requestErr = nil
+		if !errors.As(errStream, &requestErr) || !requestErr.IsRequestScoped() {
+			t.Fatalf("ambiguous stream passthrough error = %v, want request-scoped", errStream)
+		}
+	})
+}
+
+func TestReverseRemapOAuthToolNamesHybridPassthroughRequiresKnownVirtualServer(t *testing.T) {
+	for _, reverseMap := range []map[string]string{
+		{"mcp__acme__query": "mcp__acme__query"},
+		{"mcp__acme__query": "mcp__acme__query", "mcp__ripple_middle__blanket_Bash": "Bash"},
+	} {
+		response := []byte(`{"content":[{"type":"tool_use","id":"toolu_1","name":"mcp__unrelated__query","input":{}}]}`)
+		restored, errRestore := restoreClaudeOAuthToolNamesFromResponse(response, reverseMap)
+		if errRestore != nil || !bytes.Equal(restored, response) {
+			t.Fatalf("unrelated MCP response changed: %s, error: %v", restored, errRestore)
+		}
+		line := []byte(`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"mcp__unrelated__query","input":{}}}`)
+		restoredLine, errStream := restoreClaudeOAuthToolNamesFromStreamLine(line, reverseMap)
+		if errStream != nil || !bytes.Equal(restoredLine, line) {
+			t.Fatalf("unrelated MCP stream changed: %s, error: %v", restoredLine, errStream)
+		}
+	}
+}

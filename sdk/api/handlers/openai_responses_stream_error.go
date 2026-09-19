@@ -143,7 +143,9 @@ func openAIResponsesStreamFailedErrorDetail(status int, errText, code, message s
 	}
 
 	errorType := "invalid_request_error"
-	if status >= http.StatusInternalServerError {
+	// A Codex stream that ends before response.completed is a transport failure,
+	// surfaced as HTTP 408, rather than an invalid client request.
+	if status == http.StatusRequestTimeout || status >= http.StatusInternalServerError {
 		errorType = "server_error"
 	}
 	return map[string]any{

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 )
 
@@ -86,5 +87,62 @@ func TestBuildOpenAIResponsesStreamFailedChunkPreservesNestedError(t *testing.T)
 	}
 	if payload.Response.Error.Message != "blocked" {
 		t.Fatalf("response.error.message = %q, want %q", payload.Response.Error.Message, "blocked")
+	}
+}
+
+func TestBuildOpenAIResponsesStreamFailedChunkClassifiesTransportFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		status   int
+		wantType string
+		wantCode string
+	}{
+		{"incomplete stream", http.StatusRequestTimeout, "server_error", "request_timeout"},
+		{"server failure", http.StatusInternalServerError, "server_error", "internal_server_error"},
+		{"bad request", http.StatusBadRequest, "invalid_request_error", "invalid_request_error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chunk := BuildOpenAIResponsesStreamFailedChunk(tc.status, "failure detail", 7)
+			var payload openAIResponsesStreamFailedChunk
+			if errUnmarshal := json.Unmarshal(chunk, &payload); errUnmarshal != nil {
+				t.Fatal(errUnmarshal)
+			}
+			if payload.Type != "response.failed" || payload.Response.Status != "failed" || payload.SequenceNumber != 7 {
+				t.Fatalf("unexpected terminal frame: %s", chunk)
+			}
+			want := map[string]any{"type": tc.wantType, "code": tc.wantCode, "message": "failure detail"}
+			if !reflect.DeepEqual(payload.Response.Error, want) {
+				t.Fatalf("response.error = %v, want %v", payload.Response.Error, want)
+			}
+		})
+	}
+}
+
+func TestBuildOpenAIResponsesStreamFailedChunkTimeoutPreservesUpstreamError(t *testing.T) {
+	for _, body := range []string{
+		`{"error":{"type":"upstream_type","code":"upstream_code","message":"upstream detail","param":null}}`,
+		`{"response":{"error":{"type":"upstream_type","code":"upstream_code","message":"upstream detail","param":null}}}`,
+	} {
+		chunk := BuildOpenAIResponsesStreamFailedChunk(http.StatusRequestTimeout, body, 1)
+		var payload openAIResponsesStreamFailedChunk
+		if errUnmarshal := json.Unmarshal(chunk, &payload); errUnmarshal != nil {
+			t.Fatal(errUnmarshal)
+		}
+		want := map[string]any{"type": "upstream_type", "code": "upstream_code", "message": "upstream detail", "param": nil}
+		if !reflect.DeepEqual(payload.Response.Error, want) {
+			t.Fatalf("upstream error overwritten: %s", chunk)
+		}
+	}
+}
+
+func TestBuildOpenAIResponsesStreamErrorChunkTimeoutKeepsLegacyShape(t *testing.T) {
+	chunk := BuildOpenAIResponsesStreamErrorChunk(http.StatusRequestTimeout, "stream interrupted", 7)
+	var payload map[string]any
+	if errUnmarshal := json.Unmarshal(chunk, &payload); errUnmarshal != nil {
+		t.Fatal(errUnmarshal)
+	}
+	want := map[string]any{"type": "error", "code": "request_timeout", "message": "stream interrupted", "sequence_number": float64(7)}
+	if !reflect.DeepEqual(payload, want) {
+		t.Fatalf("legacy frame = %s, want %v", chunk, want)
 	}
 }
