@@ -1,24 +1,39 @@
 # Upstream sync ledger
 
-Updated: 2026-09-18. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-09-19. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
-**The reviewed upstream boundary is not a full merge boundary.** Only the behavior listed as published below has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
+**The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 ## Current checkpoint
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [b773607e](https://github.com/router-for-me/CLIProxyAPI/commit/b773607e3e7756dc6020a291825e4eb08899595a) (`b773607e3e7756dc6020a291825e4eb08899595a`) |
-| Release at that review | [v7.3.7](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.7), published 2026-09-17 19:19:20 UTC |
-| Latest verified published implementation | [b06871dd](https://github.com/vpromise/CodexProxy/commit/b06871dd66c9934eb6e10651234b2a37229ba38f) (`b06871dd66c9934eb6e10651234b2a37229ba38f`) on `main` |
-| Published source tree | `92c0eb39fe6df9f6f4afc276ea791947026f63dc` |
-| Latest publication | Two narrow v7.3.7 repairs: management header-token validation and Claude overage classification; five source/test paths plus this ledger |
-| Unpublished selected fixes | None; both selected v7.3.7 repairs, all four selected v7.3.3 fixes and both v7.3.6 batches are published |
-| Deployment | The September 17 and 18 publications were not deployed in these workflows; this ledger does not assert the current server version |
+| Last reviewed upstream main | [c93978c4](https://github.com/router-for-me/CLIProxyAPI/commit/c93978c4ea2e908255a2a06c37599fda3651554a) (`c93978c4ea2e908255a2a06c37599fda3651554a`) |
+| Release at that review | [v7.3.8](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.8), published 2026-09-18 21:17:57 UTC |
+| Latest verified published implementation | [76e86745](https://github.com/vpromise/CodexProxy/commit/76e867453f36179820b2ce959e0c6c2062da6cc5) (`76e867453f36179820b2ce959e0c6c2062da6cc5`) on `main` |
+| Published source tree | `33a893e7381e675a24eddcd2c5c9b5f83b8075a3` |
+| Latest publication | Four selected v7.3.8 protocol repairs; nine source/test paths plus this ledger |
+| Unpublished selected fixes | None; all four selected v7.3.8 repairs and the previously selected batches are published |
+| Deployment | The September 17, 18 and 19 publications were not deployed in these workflows; this ledger does not assert the current server version |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
-| Current selection policy | Only the two demonstrated v7.3.7 defects were approved for this batch; the remaining backlog stays deferred |
+| Current selection policy | Only the four narrow v7.3.8 protocol repairs were selected for this batch; configuration persistence, tool-history ordering and other additions remain deferred |
 
-The published implementation commit above excludes this ledger update, which is recorded in a separate documentation commit. The new review covered 11 commits (10 non-merge commits) after `8c664b2fede5c83b919be1df9b01057ec4e4c950`; advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+The published implementation above excludes this ledger update, which is recorded in a separate documentation commit. The September 19 review covered 26 commits (24 non-merge commits) after `b773607e3e7756dc6020a291825e4eb08899595a`; advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+
+## Published on 2026-09-19 — selected v7.3.8 repairs
+
+All four repairs are published in [76e86745](https://github.com/vpromise/CodexProxy/commit/76e867453f36179820b2ce959e0c6c2062da6cc5), based on `9286733407de2bd50de52cfbfc4ee8c190bbbfa2`.
+
+| Upstream source | Published behavior | Adaptation boundary |
+| --- | --- | --- |
+| [3662d153](https://github.com/router-for-me/CLIProxyAPI/commit/3662d1535a8b5c86e3a96fdd41e9bab2e16018a5) | Strip unsupported item-level and tool-output-part `prompt_cache_breakpoint` hints from Codex Responses input | Retain caller content, media, call IDs and raw numeric precision; no service-tier changes |
+| [cb62a674](https://github.com/router-for-me/CLIProxyAPI/commit/cb62a6748b9982c9f886e2ca9356a1c10fe14c0a) | Classify a synthesized HTTP 408 terminal stream failure as `server_error` | Adapt only the fork's official-Codex `response.failed` detail; preserve explicit upstream errors and other clients' legacy error frames; no new timeout or retry policy |
+| [f86a33f7](https://github.com/router-for-me/CLIProxyAPI/commit/f86a33f72175b34a17557128f12c79d55f6df611) | Ordinary client tools named `advisor` use normal Claude system-prompt relocation in Messages and count_tokens | Keep the existing layout protections for actual server advisor calls and encrypted results |
+| [22392c53](https://github.com/router-for-me/CLIProxyAPI/commit/22392c537d959a631d33af79c9993137121e6643) | Restore declared caller MCP tool names when the model adds or substitutes the request's virtual server prefix | Restrict recovery to declared tools under a known virtual server; exact mappings and client aliases retain priority; ambiguous matches remain request-scoped errors |
+
+These changes preserve the existing cooldown, disable, scheduling and provider-scope policies. Claude Code **2.1.258** and Codex **0.154.0** remain unchanged. The upstream overage `Retry-After` change is deliberately excluded: the affected model retains its deadline while healthy sibling models remain available.
+
+Verification passed: focused protocol and existing overage-manager regressions, full tests in **67 packages**, race checks in **4 packages**, and the server build. New regressions cover item/part-level cache hints with media and numeric precision, the real executor-to-Responses-handler truncated-SSE path, explicit upstream error preservation, legacy frame shape, both advisor relocation paths, and streaming/non-streaming MCP restoration with precedence, scope and ambiguity controls. The only command-level exclusions remain `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS` (the existing macOS 127.0.0.2 binding limitation). Formatting and patch whitespace checks passed. Dedicated temporary Go caches and the verification binary were removed. The unchanged-baseline reproductions and implementation results are recorded in the local archives. Publication reused these results after matching all source files against the verified hashes; no tests were rerun or Go caches regenerated. No real inference request or server deployment was performed.
 
 ## Published on 2026-09-18 — selected v7.3.7 repairs
 
@@ -86,10 +101,17 @@ The lifecycle integration keeps the approved five-day Codex refresh lead. Creden
 
 ## Deferred, conditional or excluded
 
-The September 17 backlog remains deferred. The September 18 review approved only the two narrow v7.3.7 repairs above; the additions below remain deferred or excluded. Revisit a candidate when it addresses a demonstrated problem in an active supported path and can be implemented with a narrow scope.
+The earlier backlog remains deferred. The September 19 batch includes only the four narrow v7.3.8 repairs above; the additions below remain deferred or excluded. Revisit a candidate when it addresses a demonstrated problem in an active supported path and can be implemented with a narrow scope.
 
 | Sources | Disposition and trigger |
 | --- | --- |
+| [f4852170](https://github.com/router-for-me/CLIProxyAPI/commit/f4852170ee59b1def838cc5e7000a97348e23a62) | Configuration persistence needs local UI/full-list PUT adaptation: preserve explicit false, clear stale nested keys and define omit/empty/null behavior. Discuss `disable-cooling:false` inheritance before implementation; upstream PATCH support alone does not repair the current UI path |
+| [cc545cbf](https://github.com/router-for-me/CLIProxyAPI/commit/cc545cbf906b9da636fa2365cadd7f9488065e5d) | Consider a separate conservative tool-history alignment repair for complete, unique tool/result groups. Preserve local orphan/media/reasoning behavior; exclude bundled plugin-normalizer and multi-agent expansion |
+| [1cce9325](https://github.com/router-for-me/CLIProxyAPI/commit/1cce9325738f5857cc676317abe8a8bf03086c32) | Do not discard overage/Fable `Retry-After`: local manager tests preserve long model cooldowns while healthy siblings remain usable. Revisit only with a demonstrated local execution-path failure and an agreed policy change |
+| [859c4865](https://github.com/router-for-me/CLIProxyAPI/commit/859c486512b736edc848be6355e14224b610294a) | Defer explicit `fast`/`ultrafast` tier compatibility until a caller needs it; do not enable accelerated tiers by default |
+| [25f40d8c](https://github.com/router-for-me/CLIProxyAPI/commit/25f40d8cf8dfa8765e45873060cf41056cd1b112), [e9463ff5](https://github.com/router-for-me/CLIProxyAPI/commit/e9463ff5a79537b22971d101c4e9f49797fe682c), [f8467f07](https://github.com/router-for-me/CLIProxyAPI/commit/f8467f07dca55b130ddd69278d37f5844d23de28), [cde7d57e](https://github.com/router-for-me/CLIProxyAPI/commit/cde7d57e44e6c52fd59d532b35c9a33886d99823), [e84e248c](https://github.com/router-for-me/CLIProxyAPI/commit/e84e248c51e549d881973175071bc0e21ec43aa1) | Defer response-model statistics, substitution warnings and stream observation until a concrete diagnostic need justifies the extra state and processing |
+| [81d6ba77](https://github.com/router-for-me/CLIProxyAPI/commit/81d6ba774621e4c05c353566db737560bfdce4e5) | Third-party Responses reasoning is conditional on a supported active route; no native Codex benefit established. Any adaptation must retain local reasoning normalization and encrypted-replay protections |
+| [690f4f31](https://github.com/router-for-me/CLIProxyAPI/commit/690f4f3116b6cbec3b82a61793d35db69dc0d6fa) | Add a token-limit dialect option only for an active compatible backend that needs it; upstream's default-false path also rewrites existing `max_completion_tokens`, so it is not a neutral import |
 | [76ac75e6](https://github.com/router-for-me/CLIProxyAPI/commit/76ac75e68ae679298815c43a7750f6c690f8a9bd) | Defer auth-list pagination until measured list latency/payload warrants changing the local full-list filtering, counts and selection contracts; upstream still snapshots all auth records |
 | [afba07ba](https://github.com/router-for-me/CLIProxyAPI/commit/afba07ba265a61c9aed101654e6bfe86b616cd0d) | Revisit YAML preservation before using `plugins.configs`; no active local plugin configuration was found and deployed configuration was not inspected |
 | [b715526a](https://github.com/router-for-me/CLIProxyAPI/commit/b715526add0c452acc62062bf4fcef53897be604) | Defer plugin scheduling across priorities; no supported native routing need was established |
@@ -112,7 +134,7 @@ The September 17 backlog remains deferred. The September 18 review approved only
 ## How to continue the next review
 
 1. Check the current branch, working tree and remote. All selected fixes listed above were published at this checkpoint; inspect any later local changes separately.
-2. Compare newly fetched upstream commits after `b773607e3e7756dc6020a291825e4eb08899595a`. Older deferred items above remain deferred unless their trigger is met.
+2. Compare newly fetched upstream commits after `c93978c4ea2e908255a2a06c37599fda3651554a`. Older deferred items above remain deferred unless their trigger is met.
 3. Search this file for a source SHA and inspect the associated fork commit before importing anything again. Verify behavior, not only ancestry or commit titles.
 4. Record exact selected scope, prerequisite commits, preserved local policies and verification results. Changes to cooldown, disable or scheduling behavior require the previously requested discussion before implementation.
 5. After publication, update this ledger with the actual fork commits and source tree read back from GitHub. Record deployment separately.
@@ -130,3 +152,5 @@ The essential publication mapping is included above so this file remains useful 
 - `upstream-minimal-scope-review-2026-09-17/` — corrected manager-level probes and current deferrals
 - `upstream-review-v7.3.7-2026-09-18/` and `upstream-value-reassessment-v7.3.7-2026-09-18/` — review and baseline defect reproductions
 - `upstream-sync-v7.3.7-2026-09-18/` — selected patches, source hashes, focused/full/race/build verification and publication readback
+- `upstream-review-v7.3.8-2026-09-19/` — all 26 source commits, applicability decisions and unchanged-baseline reproductions
+- `upstream-sync-v7.3.8-batch1-2026-09-19/` — four selected repairs, source hashes, implementation verification and publication readback
