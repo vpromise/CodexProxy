@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-09-19. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-09-21. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -8,17 +8,31 @@ Updated: 2026-09-19. This is the checkpoint for selective backports from `router
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [c93978c4](https://github.com/router-for-me/CLIProxyAPI/commit/c93978c4ea2e908255a2a06c37599fda3651554a) (`c93978c4ea2e908255a2a06c37599fda3651554a`) |
-| Release at that review | [v7.3.8](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.8), published 2026-09-18 21:17:57 UTC |
-| Latest verified published implementation | [76e86745](https://github.com/vpromise/CodexProxy/commit/76e867453f36179820b2ce959e0c6c2062da6cc5) (`76e867453f36179820b2ce959e0c6c2062da6cc5`) on `main` |
-| Published source tree | `33a893e7381e675a24eddcd2c5c9b5f83b8075a3` |
-| Latest publication | Four selected v7.3.8 protocol repairs; nine source/test paths plus this ledger |
-| Unpublished selected fixes | None; all four selected v7.3.8 repairs and the previously selected batches are published |
-| Deployment | The September 17, 18 and 19 publications were not deployed in these workflows; this ledger does not assert the current server version |
+| Last reviewed upstream main | [a5ab6952](https://github.com/router-for-me/CLIProxyAPI/commit/a5ab69521f7b4e0f244836d0419da8fcd89408ea) (`a5ab69521f7b4e0f244836d0419da8fcd89408ea`) |
+| Release at that review | [v7.3.10](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.10), published 2026-09-20 23:05:09 UTC |
+| Latest verified published implementation | [4208d16c](https://github.com/vpromise/CodexProxy/commit/4208d16c32aeb362f94ad0fdb92677944c8f6324) (`4208d16c32aeb362f94ad0fdb92677944c8f6324`) on `main` |
+| Published source tree | `5f42fc5afbbad8c1229a98f647f7f39d45d99b3c` |
+| Latest publication | Three selected v7.3.9/v7.3.10 compatibility groups; fifteen source/test paths plus this ledger |
+| Unpublished selected fixes | None; all three selected v7.3.9/v7.3.10 groups and the earlier selected batches are published |
+| Deployment | The September 17, 18, 19 and 21 publications were not deployed in these workflows; this ledger does not assert the current server version |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
-| Current selection policy | Only the four narrow v7.3.8 protocol repairs were selected for this batch; configuration persistence, tool-history ordering and other additions remain deferred |
+| Current selection policy | Three narrow client/protocol groups selected; cooldown display, scheduler restructuring and conditional features remain deferred |
 
-The published implementation above excludes this ledger update, which is recorded in a separate documentation commit. The September 19 review covered 26 commits (24 non-merge commits) after `b773607e3e7756dc6020a291825e4eb08899595a`; advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+The latest published implementation is `4208d16c`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `8bf0c982`, with implementation `76e86745`. The September 21 review covered 21 commits (19 non-merge commits) after `c93978c4ea2e908255a2a06c37599fda3651554a`. Advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+
+## Published on 2026-09-21 — selected v7.3.9/v7.3.10 repairs
+
+All three groups are published in [4208d16c](https://github.com/vpromise/CodexProxy/commit/4208d16c32aeb362f94ad0fdb92677944c8f6324), based on `8bf0c9821949f03dec68cf9573a493016f8d155c`. Publication did not deploy the server.
+
+| Upstream source | Published behavior | Adaptation boundary |
+| --- | --- | --- |
+| [83a4913a](https://github.com/router-for-me/CLIProxyAPI/commit/83a4913aa49c3acf1f26489876a4d48045e82aba), [c52ca7bd](https://github.com/router-for-me/CLIProxyAPI/commit/c52ca7bd4e0b3e263d1157c572cdc75810df3d57) | Recognize native Claude Code patches at or above the measured baseline in the same major/minor line, including `2.1.263` | Keep all other native signals, explicit cloak overrides and exact stabilized software-profile checks; default Claude fingerprint remains `2.1.258` |
+| [883660fb](https://github.com/router-for-me/CLIProxyAPI/commit/883660fb8153f48cf514de3e9c8268d847afcc64) | Deduct cache writes and reads from uncached input in Codex/OpenAI-to-Claude streaming and non-streaming usage | Keep cache-creation aliases, overflow/non-negative guards and the fork's stream completion behavior; no quota or cooldown policy changes |
+| [49eec664](https://github.com/router-for-me/CLIProxyAPI/commit/49eec664f419f891d365908383a6ef8582433eef), Claude portion of [f247e2b0](https://github.com/router-for-me/CLIProxyAPI/commit/f247e2b017a85b50aa6d461daec5ef38b8109684) | Preserve explicit `none`, allowed function subsets, named choices, parallel restrictions and caller-specified boolean `strict` in the applicable Claude/OpenAI converters | Exclude Gemini; unknown selection types/modes resolve to `none`; an explicit empty/null nested allowlist cannot fall back to a broader flat list; preserve schema values, cache markers and strict precedence |
+
+No provider, configuration option, post-connection timeout, session architecture, lifecycle, cooldown or scheduling policy is added. Codex's default fingerprint remains **0.154.0**. Upstream's long configuration-example replacement is omitted because the fork intentionally uses a scoped example; the version-recognition policy is documented here and alongside the implementation.
+
+Verification passed: full tests in **67 packages**, race checks in **5 packages**, server build, formatting of changed Go files and patch whitespace checks. The two existing command-level exclusions are `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS` (the macOS 127.0.0.2 binding limitation). The optional `TestClaudeCodeTLSClientHelloCapture` also skipped itself because `CPA_TLS_FP_PROXY` was not configured. Coverage includes newer/baseline/older/unmeasured-minor OAuth clients, explicit cloak overrides, exact stabilized profiles, count_tokens native recognition, existing beta/effort preservation, streaming/non-streaming cache accounting, unknown/empty tool selections, parallel restrictions, schema values and strict precedence. Dedicated temporary Go caches and the verification binary were removed after the checks. No real inference request was sent. Detailed external logs and source-hash snapshots were removed during the user-requested cleanup on 2026-09-21; the verification summary and source-commit mapping remain in this ledger. Publication reused the successful implementation checks and did not change Go source or tests, rerun tests, or regenerate build caches.
 
 ## Published on 2026-09-19 — selected v7.3.8 repairs
 
@@ -105,6 +119,13 @@ The earlier backlog remains deferred. The September 19 batch includes only the f
 
 | Sources | Disposition and trigger |
 | --- | --- |
+| [b4ff581d](https://github.com/router-for-me/CLIProxyAPI/commit/b4ff581dafa4583c0fa8b86afeedae9be72b93a3) | Expired cooldown display needs a separate adaptation: a model's aggregate deadline must not imply that all sibling models are unavailable; agree on the display contract before implementation |
+| [e56547f3](https://github.com/router-for-me/CLIProxyAPI/commit/e56547f39d5769403dfb772501a5675ec8988132) | Redundant rebuild after a cooled pick is reproduced, but healthy siblings remain selectable and the local manager holds its read lock during rebuild; direct stale-snapshot helper failures do not establish a reachable manager race. Discuss scheduling/lifecycle/cooldown invariants before adapting |
+| [93b94d22](https://github.com/router-for-me/CLIProxyAPI/commit/93b94d22a9bd3f8cee5e28107a11b70842298102) | PATCH Claude-key priority is conditional on a used PATCH consumer; the current management UI saves priority through PUT |
+| [40cc6489](https://github.com/router-for-me/CLIProxyAPI/commit/40cc6489879ad2e08f71384137ea650359d8bb9f) | Reuse/invent follow-up `reasoning_content` only if an actually used compatible thinking backend requires it; do not apply the placeholder policy to all requests by default |
+| [1c878749](https://github.com/router-for-me/CLIProxyAPI/commit/1c87874966a0c636e46ae4268faddd99a974b392) | Plugin RPC status preservation is conditional on active plugin executor or host-callback use |
+| [42c9680e](https://github.com/router-for-me/CLIProxyAPI/commit/42c9680eee553b047e46ac85a6b1543e87e526e7), [ddc3f731](https://github.com/router-for-me/CLIProxyAPI/commit/ddc3f731f45a463daa8d573715bb84934729fa08), [28100e54](https://github.com/router-for-me/CLIProxyAPI/commit/28100e54b9b597befde8f6bba16d6115cf27fef5) | Defer duplex response steering and LCP/compaction session metadata; these broaden account pinning, replay or session behavior |
+| [563865e7](https://github.com/router-for-me/CLIProxyAPI/commit/563865e77adb9ea3a7ad179863659c14cb7b1bf3) | The affected timing/channel-race test variants are absent locally; shared formatting-only hunks are not a needed repair |
 | [f4852170](https://github.com/router-for-me/CLIProxyAPI/commit/f4852170ee59b1def838cc5e7000a97348e23a62) | Configuration persistence needs local UI/full-list PUT adaptation: preserve explicit false, clear stale nested keys and define omit/empty/null behavior. Discuss `disable-cooling:false` inheritance before implementation; upstream PATCH support alone does not repair the current UI path |
 | [cc545cbf](https://github.com/router-for-me/CLIProxyAPI/commit/cc545cbf906b9da636fa2365cadd7f9488065e5d) | Consider a separate conservative tool-history alignment repair for complete, unique tool/result groups. Preserve local orphan/media/reasoning behavior; exclude bundled plugin-normalizer and multi-agent expansion |
 | [1cce9325](https://github.com/router-for-me/CLIProxyAPI/commit/1cce9325738f5857cc676317abe8a8bf03086c32) | Do not discard overage/Fable `Retry-After`: local manager tests preserve long model cooldowns while healthy siblings remain usable. Revisit only with a demonstrated local execution-path failure and an agreed policy change |
@@ -133,24 +154,14 @@ The earlier backlog remains deferred. The September 19 batch includes only the f
 
 ## How to continue the next review
 
-1. Check the current branch, working tree and remote. All selected fixes listed above were published at this checkpoint; inspect any later local changes separately.
-2. Compare newly fetched upstream commits after `c93978c4ea2e908255a2a06c37599fda3651554a`. Older deferred items above remain deferred unless their trigger is met.
+1. Check the current branch, working tree and remote. All selected fixes listed above are published at this checkpoint; inspect any later local changes separately.
+2. Compare newly fetched upstream commits after `a5ab69521f7b4e0f244836d0419da8fcd89408ea`. Older deferred items above remain deferred unless their trigger is met.
 3. Search this file for a source SHA and inspect the associated fork commit before importing anything again. Verify behavior, not only ancestry or commit titles.
 4. Record exact selected scope, prerequisite commits, preserved local policies and verification results. Changes to cooldown, disable or scheduling behavior require the previously requested discussion before implementation.
 5. After publication, update this ledger with the actual fork commits and source tree read back from GitHub. Record deployment separately.
 
-## Local evidence archive
+## Local artifact cleanup
 
-The essential publication mapping is included above so this file remains useful in a fresh clone. Detailed patch, hash and test records also exist beside the local repository, under the following directories; they are audit records, not build caches:
+On 2026-09-21, at the user's request, generated upstream review/sync archives, publication verification records, lifecycle/reliability test artifacts, the obsolete `CodexProxy-review.*` snapshot, and their standalone review notes were removed from the parent directory. The essential upstream commit mappings, implementation/publication boundaries, deferred decisions and verification summaries remain in this tracked ledger.
 
-- `upstream-sync-2026-09-07/` and `upstream-sync-2026-09-10/`
-- `upstream-sync-2026-09-14/`, `auth-lifecycle-2026-09-14/` and `reliability-followup-2026-09-14/`
-- `upstream-sync-v7.3.3-2026-09-15/`
-- `upstream-sync-v7.3.6-batch1-2026-09-17/` and `upstream-sync-v7.3.6-batch2-2026-09-17/`
-- `publication-v7.3.6-2026-09-17/` — independent publication verification and remote readback
-- `publication-v7.3.3-remaining-2026-09-18/` — remaining repairs, exact source-tree comparison and publication readback
-- `upstream-minimal-scope-review-2026-09-17/` — corrected manager-level probes and current deferrals
-- `upstream-review-v7.3.7-2026-09-18/` and `upstream-value-reassessment-v7.3.7-2026-09-18/` — review and baseline defect reproductions
-- `upstream-sync-v7.3.7-2026-09-18/` — selected patches, source hashes, focused/full/race/build verification and publication readback
-- `upstream-review-v7.3.8-2026-09-19/` — all 26 source commits, applicability decisions and unchanged-baseline reproductions
-- `upstream-sync-v7.3.8-batch1-2026-09-19/` — four selected repairs, source hashes, implementation verification and publication readback
+Earlier references to local archives describe historical verification; their raw patches, logs and source-hash snapshots are no longer available. The active `CodexProxy` source tree and its unpublished changes were retained. Separate projects, deployment records, incident diagnostics and the `codex_analyses` notes were not part of this cleanup.
