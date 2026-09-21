@@ -171,8 +171,14 @@ func TestClaudeExecutor_MessageFeatureBetasPreserveEffortControl(t *testing.T) {
 			if gjson.GetBytes(upstreamBody, "betas").Exists() {
 				t.Error("body betas were not lifted to the header")
 			}
-			if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.258 (external, cli)" {
-				t.Errorf("User-Agent = %q, want the unchanged 2.1.258 baseline", got)
+			wantUserAgent := "claude-cli/2.1.258 (external, cli)"
+			if mode == "count_tokens" {
+				// Count-token requests do not require metadata identity. Messages
+				// without that signal must still use the configured baseline.
+				wantUserAgent = "claude-cli/2.1.267 (external, cli)"
+			}
+			if got := upstreamHeaders.Get("User-Agent"); got != wantUserAgent {
+				t.Errorf("User-Agent = %q, want %q", got, wantUserAgent)
 			}
 		})
 	}
