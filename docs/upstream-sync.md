@@ -10,19 +10,19 @@ Updated: 2026-09-22. This is the checkpoint for selective backports from `router
 | --- | --- |
 | Last reviewed upstream main | [55566294](https://github.com/router-for-me/CLIProxyAPI/commit/555662940411a07460e9d24d14477a5f50dffdb5) (`555662940411a07460e9d24d14477a5f50dffdb5`) |
 | Release at that review | [v7.3.12](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.12), published 2026-09-22 02:25:45 UTC; tag resolves to `2eb8dd11d2480c5fd8bc8f2796cec6af534bc3b6` |
-| Latest verified published implementation | [c6ec7f59](https://github.com/vpromise/CodexProxy/commit/c6ec7f590f72776c97dd38c85f2fb08e334700b8) (`c6ec7f590f72776c97dd38c85f2fb08e334700b8`) on `main` |
-| Published source tree | `3b0e4b11989a7f138856cd6761c11f31b294b320` |
-| Latest publication | Four selected v7.3.11 compatibility groups; thirteen source/test paths plus this ledger |
-| Unpublished selected fixes | Four selected v7.3.12 groups are integrated and validated locally, based on `f6795e4fa55d57f62de301cfadccc7f23efaf8b3`; not committed or pushed |
+| Latest verified published implementation | [6b6d721f](https://github.com/vpromise/CodexProxy/commit/6b6d721f33ed274a4dc28664eb62b6d152409fc7) (`6b6d721f33ed274a4dc28664eb62b6d152409fc7`) on `main` |
+| Published source tree | `63af90e7fdf000bf6e93866854e1975c5d2a3841` |
+| Latest publication | Four selected v7.3.12 groups; ten production/data/test paths plus this ledger |
+| Unpublished selected fixes | None; all four selected v7.3.12 groups and earlier selected batches are published |
 | Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22 work did not deploy changes |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
 | Current selection policy | Three narrow request/stream optimizations and the scoped Spark catalog removal selected from v7.3.12; full Responses tool indexing and execution-scoped proxy overrides deferred; unsupported native providers excluded |
 
-The latest published implementation remains `c6ec7f59`; its tree excludes the publication-ledger update `f6795e4f` and the local v7.3.12 work below. This review accounts for 14 commits in v7.3.12 after `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063` (11 non-merge commits and 3 merges), plus one later documentation commit on main. Advancing the reviewed checkpoint does not merge their ancestry or imply their full inclusion.
+The latest published implementation is `6b6d721f`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `f6795e4f`, with implementation `c6ec7f59`. This review accounts for 14 commits in v7.3.12 after `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063` (11 non-merge commits and 3 merges), plus one later documentation commit on main. Advancing the reviewed checkpoint does not merge their ancestry or imply their full inclusion.
 
-## Integrated locally on 2026-09-22 — selected v7.3.12 updates
+## Published on 2026-09-22 — selected v7.3.12 updates
 
-The following four groups are implemented on the unchanged fork base `f6795e4fa55d57f62de301cfadccc7f23efaf8b3`. They have passed local validation and remain uncommitted: six production/data paths, four test/benchmark paths and this ledger. No GitHub publication or server deployment was performed by this skill invocation.
+The following four groups are published in [6b6d721f](https://github.com/vpromise/CodexProxy/commit/6b6d721f33ed274a4dc28664eb62b6d152409fc7), based on `f6795e4fa55d57f62de301cfadccc7f23efaf8b3`: six production/data paths, four test/benchmark paths and this ledger. Publication did not deploy the server.
 
 | Selected group | Upstream source | Included behavior and preservation boundary |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ Three repetitions of `-benchmem -benchtime=200ms` produced these medians on the 
 | Claude request pair, 1 MiB Responses input, normal/compat mode | 22.19 / 22.17 ms; 25.37 / 23.25 MB | 11.20 / 11.09 ms; 13.74 / 12.68 MB | About half the translation time in the eligible identical-input case; separate-translation and paired paths measured with the same fixture. |
 | Responses stream, 100 history turns and 256 chunks | 107.95 ms | 3.95 ms | About 96.3% less processing time in this long-request fixture by avoiding full JSON revalidation per chunk; existing tool-name lookup is retained. |
 
-For later publication verification, the tested input manifest SHA-256 is `832997e090ea785846c2b6dbd6cba0dd29f53b8b721d81c0f430a98b3ba6ff5c`. It covers **1544** tracked or non-ignored untracked regular files, excluding only `docs/upstream-sync.md`: sort unique relative paths from `git ls-files -co --exclude-standard -z`, encode each as `<SHA-256 of file bytes><two spaces><relative path>\n`, concatenate and hash. The candidate inputs matched before and after all checks. The final integrated source must match this same manifest; documentation-only publication bookkeeping can reuse this evidence. Temporary worktree, logs, executable and dedicated build/test caches are removed after integration.
+The tested input manifest SHA-256 is `832997e090ea785846c2b6dbd6cba0dd29f53b8b721d81c0f430a98b3ba6ff5c`. It covers **1544** tracked or non-ignored untracked regular files, excluding only `docs/upstream-sync.md`: sort unique relative paths from `git ls-files -co --exclude-standard -z`, encode each as `<SHA-256 of file bytes><two spaces><relative path>\n`, concatenate and hash. The candidate inputs matched before and after all checks, after local integration and again before publication. The temporary worktree, logs, executable and dedicated build/test caches were removed after integration. Publication reused the successful validation without changing source/tests, rerunning Go checks or regenerating build caches. GitHub's `main` ref was read back as `6b6d721f33ed274a4dc28664eb62b6d152409fc7` before this publication-ledger update.
 
 ## Reviewed on 2026-09-22 — remaining v7.3.12 scope
 
@@ -233,8 +233,8 @@ The earlier backlog remains deferred. The September 19 batch includes only the f
 
 ## How to continue the next review
 
-1. Check the current branch, working tree and remote. Separate the locally validated v7.3.12 groups from the published v7.3.11 checkpoint; inspect later local changes separately.
-2. Compare newly fetched upstream commits after `555662940411a07460e9d24d14477a5f50dffdb5`. Resume any unpublished selected work from the records above. Older deferred items remain deferred unless their trigger is met.
+1. Check the current branch, working tree and remote. Distinguish published implementations from any pending local groups recorded in the current checkpoint; inspect later local changes separately.
+2. Compare newly fetched upstream commits after the current checkpoint's last reviewed upstream main. Resume any unpublished selected work from the records above. Older deferred items remain deferred unless their trigger is met.
 3. Search this file for a source SHA and inspect the associated fork commit before importing anything again. Verify behavior, not only ancestry or commit titles.
 4. Record exact selected scope, prerequisite commits, preserved local policies and verification results. Changes to cooldown, disable or scheduling behavior require the previously requested discussion before implementation.
 5. After publication, update this ledger with the actual fork commits and source tree read back from GitHub. Record deployment separately.
