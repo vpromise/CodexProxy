@@ -10,19 +10,19 @@ Updated: 2026-09-22. This is the checkpoint for selective backports from `router
 | --- | --- |
 | Last reviewed upstream main | [ffe6ad3c](https://github.com/router-for-me/CLIProxyAPI/commit/ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063) (`ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`) |
 | Release at that review | [v7.3.11](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.11), published 2026-09-21 14:43:42 UTC |
-| Latest verified published implementation | [4208d16c](https://github.com/vpromise/CodexProxy/commit/4208d16c32aeb362f94ad0fdb92677944c8f6324) (`4208d16c32aeb362f94ad0fdb92677944c8f6324`) on `main` |
-| Published source tree | `5f42fc5afbbad8c1229a98f647f7f39d45d99b3c` |
-| Latest publication | Three selected v7.3.9/v7.3.10 compatibility groups; fifteen source/test paths plus this ledger |
-| Unpublished selected fixes | Four selected v7.3.11 groups implemented and validated locally on top of `7c96a1cc`; not yet committed or pushed |
+| Latest verified published implementation | [c6ec7f59](https://github.com/vpromise/CodexProxy/commit/c6ec7f590f72776c97dd38c85f2fb08e334700b8) (`c6ec7f590f72776c97dd38c85f2fb08e334700b8`) on `main` |
+| Published source tree | `3b0e4b11989a7f138856cd6761c11f31b294b320` |
+| Latest publication | Four selected v7.3.11 compatibility groups; thirteen source/test paths plus this ledger |
+| Unpublished selected fixes | None; all four selected v7.3.11 groups and the earlier selected batches are published |
 | Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22 work did not deploy changes |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
 | Current selection policy | Four narrow v7.3.11 repairs selected and adapted; usage-plugin metadata remains deferred, and xAI/Gemini changes remain excluded |
 
-The latest published implementation is `4208d16c`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `8bf0c982`, with implementation `76e86745`. The September 21 review covered 21 commits (19 non-merge commits) after `c93978c4ea2e908255a2a06c37599fda3651554a`. Advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+The latest published implementation is `c6ec7f59`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `7c96a1cc`, with implementation `4208d16c`. The September 22 review covered all 8 non-merge commits after `a5ab69521f7b4e0f244836d0419da8fcd89408ea` through `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`. Advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
 
-## Implemented locally on 2026-09-22 — selected v7.3.11 repairs
+## Published on 2026-09-22 — selected v7.3.11 repairs
 
-All four groups in the review table below are implemented in the working tree based on `7c96a1cc099634c46807aec88b24c4d0a906add2`: six production paths and seven test paths, plus this ledger. They are not yet committed, published or deployed.
+All four groups in the review table below are published in [c6ec7f59](https://github.com/vpromise/CodexProxy/commit/c6ec7f590f72776c97dd38c85f2fb08e334700b8), based on `7c96a1cc099634c46807aec88b24c4d0a906add2`: six production paths and seven test paths, plus this ledger. Publication did not deploy the server.
 
 - Generated Claude CLI headers now add `fallback-credit` only for an explicitly requested beta, a `fallback_credit_token`, or OAuth with `fallbacks`. Native caller beta headers and the separate count_tokens profile retain their existing policies.
 - Chat Completions-to-Claude tool results move the first valid part-level cache marker, or the message-level fallback, onto the enclosing tool-result block. Nested text, image and document parts retain their content without nested cache markers. Part precedence, TTL and tool IDs are covered; validation changes are restricted to this tool-result helper, leaving ordinary message/tool-definition cache handling unchanged.
@@ -35,9 +35,11 @@ Validation passed with Go **1.27.1** on macOS arm64: focused regressions; `go te
 
 The command-level exclusions were `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS`, using `-skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$'` for the existing macOS 127.0.0.2 binding limitation. `TestClaudeCodeTLSClientHelloCapture` skipped itself because `CPA_TLS_FP_PROXY` was unset. The three existing WebSocket allocation-budget tests skipped themselves under the race detector and passed in the ordinary full suite. No live provider inference or server operation was performed. Dedicated temporary test/build caches, logs and the verification binary were removed after validation.
 
+Publication reused the successful implementation checks without changing Go source or tests, rerunning tests, or regenerating build caches. The implementation push was verified against GitHub's `main` ref before this publication-ledger update.
+
 ## Reviewed on 2026-09-22 — v7.3.11 selection
 
-Reviewed all **8 non-merge commits** after `a5ab69521f7b4e0f244836d0419da8fcd89408ea` through `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`, which was both upstream main and the v7.3.11 release commit at review time. The fork remains at `7c96a1cc`. Upstream's client baselines remain Claude Code **2.1.258** and Codex **0.154.0**; there is no additional version bump or model-catalog change in this range.
+Reviewed all **8 non-merge commits** after `a5ab69521f7b4e0f244836d0419da8fcd89408ea` through `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`, which was both upstream main and the v7.3.11 release commit at review time. The fork was at `7c96a1cc` at the start of that review. Upstream's client baselines remain Claude Code **2.1.258** and Codex **0.154.0**; there is no additional version bump or model-catalog change in this range.
 
 | Selected batch | Upstream source | Baseline finding and adaptation boundary |
 | --- | --- | --- |
