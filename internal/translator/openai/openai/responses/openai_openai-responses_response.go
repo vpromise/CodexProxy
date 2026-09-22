@@ -20,13 +20,16 @@ type oaiToResponsesStateReasoning struct {
 	OutputIndex   int
 }
 type oaiToResponsesState struct {
-	Seq              int
-	ResponseID       string
-	Created          int64
-	Started          bool
-	CompletedEmitted bool
-	ReasoningID      string
-	ReasoningIndex   int
+	// Request inputs stay fixed for a stream; avoid validating the full history per chunk.
+	RequestJSON        []byte
+	RequestInitialized bool
+	Seq                int
+	ResponseID         string
+	Created            int64
+	Started            bool
+	CompletedEmitted   bool
+	ReasoningID        string
+	ReasoningIndex     int
 	// aggregation buffers for response.output
 	// Per-output message text buffers by index
 	MsgTextBuf   map[int]*strings.Builder
@@ -282,7 +285,11 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 	if len(rawJSON) == 0 {
 		return [][]byte{}
 	}
-	requestForNamespace := pickRequestJSON(originalRequestRawJSON, requestRawJSON)
+	if !st.RequestInitialized {
+		st.RequestJSON = pickRequestJSON(originalRequestRawJSON, requestRawJSON)
+		st.RequestInitialized = true
+	}
+	requestForNamespace := st.RequestJSON
 	isDone := bytes.Equal(rawJSON, []byte("[DONE]"))
 	if isDone && (!st.Started || st.CompletedEmitted) {
 		return [][]byte{}

@@ -8,17 +8,62 @@ Updated: 2026-09-22. This is the checkpoint for selective backports from `router
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [ffe6ad3c](https://github.com/router-for-me/CLIProxyAPI/commit/ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063) (`ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`) |
-| Release at that review | [v7.3.11](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.11), published 2026-09-21 14:43:42 UTC |
+| Last reviewed upstream main | [55566294](https://github.com/router-for-me/CLIProxyAPI/commit/555662940411a07460e9d24d14477a5f50dffdb5) (`555662940411a07460e9d24d14477a5f50dffdb5`) |
+| Release at that review | [v7.3.12](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.12), published 2026-09-22 02:25:45 UTC; tag resolves to `2eb8dd11d2480c5fd8bc8f2796cec6af534bc3b6` |
 | Latest verified published implementation | [c6ec7f59](https://github.com/vpromise/CodexProxy/commit/c6ec7f590f72776c97dd38c85f2fb08e334700b8) (`c6ec7f590f72776c97dd38c85f2fb08e334700b8`) on `main` |
 | Published source tree | `3b0e4b11989a7f138856cd6761c11f31b294b320` |
 | Latest publication | Four selected v7.3.11 compatibility groups; thirteen source/test paths plus this ledger |
-| Unpublished selected fixes | None; all four selected v7.3.11 groups and the earlier selected batches are published |
+| Unpublished selected fixes | Four selected v7.3.12 groups are integrated and validated locally, based on `f6795e4fa55d57f62de301cfadccc7f23efaf8b3`; not committed or pushed |
 | Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22 work did not deploy changes |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
-| Current selection policy | Four narrow v7.3.11 repairs selected and adapted; usage-plugin metadata remains deferred, and xAI/Gemini changes remain excluded |
+| Current selection policy | Three narrow request/stream optimizations and the scoped Spark catalog removal selected from v7.3.12; full Responses tool indexing and execution-scoped proxy overrides deferred; unsupported native providers excluded |
 
-The latest published implementation is `c6ec7f59`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `7c96a1cc`, with implementation `4208d16c`. The September 22 review covered all 8 non-merge commits after `a5ab69521f7b4e0f244836d0419da8fcd89408ea` through `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`. Advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+The latest published implementation remains `c6ec7f59`; its tree excludes the publication-ledger update `f6795e4f` and the local v7.3.12 work below. This review accounts for 14 commits in v7.3.12 after `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063` (11 non-merge commits and 3 merges), plus one later documentation commit on main. Advancing the reviewed checkpoint does not merge their ancestry or imply their full inclusion.
+
+## Integrated locally on 2026-09-22 — selected v7.3.12 updates
+
+The following four groups are implemented on the unchanged fork base `f6795e4fa55d57f62de301cfadccc7f23efaf8b3`. They have passed local validation and remain uncommitted: six production/data paths, four test/benchmark paths and this ledger. No GitHub publication or server deployment was performed by this skill invocation.
+
+| Selected group | Upstream source | Included behavior and preservation boundary |
+| --- | --- | --- |
+| Codex SSE allocation | [cbf83183](https://github.com/router-for-me/CLIProxyAPI/commit/cbf8318315a102e65f288f17fba2322cf9cecda2), ownership resolution in [f6d582cb](https://github.com/router-for-me/CLIProxyAPI/commit/f6d582cb68a46c2a6523d3ed3f58b036096c752c) | Remove the defensive copy immediately discarded when a `data:` line is rebuilt, in both bootstrap and established-stream loops. Comments, event fields and other non-data lines still receive owned storage. Keep bootstrap budgets, error/status propagation, terminal output, usage and replay behavior. Exclude the absent Grok keepalive path. |
+| Claude request translation | Claude portion of [639b7f11](https://github.com/router-for-me/CLIProxyAPI/commit/639b7f1126b4c357c28f5016495113e425806e89), pair-helper prerequisite from [8a6a3968](https://github.com/router-for-me/CLIProxyAPI/commit/8a6a39684d11b888644bb1cebc55134856064731) | Reuse translation only when the original and working payloads describe the same bytes of the same backing array and no plugin hooks are installed. Retain separate output buffers, two ordered stateful hook calls, distinct-input handling and API-key compatibility behavior. Apply to Claude Execute/ExecuteStream, preserving native recognition, canonical thinking and subsequent wire processing. Exclude Gemini and the SDK unregister API added for upstream's counting test. |
+| Responses stream request selection | Request-selection portion of [8a6a3968](https://github.com/router-for-me/CLIProxyAPI/commit/8a6a39684d11b888644bb1cebc55134856064731) | Choose and validate the fixed original/fallback request once per stream, including caching an invalid/absent result. Keep this in the existing stream state. Preserve original-request precedence, independent stream state and existing namespace/tool-name resolution. Do not import the new tool-index maps or rewrite tool declarations, choices or history. |
+| Embedded Codex model catalog | [94b7cc2e](https://github.com/router-for-me/CLIProxyAPI/commit/94b7cc2ee0f0b6bff1a85f21e1977954c31b50fd) | Remove only `gpt-5.3-codex-spark` from embedded `codex-plus` and `codex-pro`, matching the public catalog at [models@0173cfad](https://github.com/router-for-me/models/commit/0173cfadb6a8b4b126db6f7ba16315683219e58b). This aligns startup/offline/local-model fallback advertising with that catalog. The separate Codex client metadata still includes Spark upstream and locally; no client metadata replacement or global model denylist is introduced. |
+
+Claude Code remains **2.1.258**, and Codex remains **0.154.0**, matching v7.3.12. No credentials, cooldown, disabled-state, scheduling, proxy priority, timeout, provider surface or configuration policy changed.
+
+Validation used Go **1.27.1**, macOS arm64, **CGO_ENABLED=1**, isolated source and dedicated temporary caches. The unchanged production baseline passed the new SSE ownership and Responses request-selection/isolation checks; the selected changes are performance improvements rather than newly reproduced protocol failures. The candidate passed focused compatibility regressions, full tests (**67** packages passed, **24** packages had no tests), race tests (**3** packages passed: `internal/runtime/executor`, `internal/runtime/executor/helps`, `internal/translator/openai/openai/responses`), and `go build -o <task-directory>/test-output ./cmd/server`. All commands completed with exit code 0. Formatting, `git diff --check`, exact catalog-delta checks and final diff review passed.
+
+The full and race commands used `-count=1 -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$'`; the full command targeted `./...`. The existing macOS limitation was reconfirmed by a local bind attempt to 127.0.0.2 returning `EADDRNOTAVAIL`. The optional `TestClaudeCodeTLSClientHelloCapture` skipped because `CPA_TLS_FP_PROXY` was unset. No other test-level skips or failures occurred in these runs. No Linux test run, live inference request or server operation was performed.
+
+Three repetitions of `-benchmem -benchtime=200ms` produced these medians on the local Apple M4 Max. These are synthetic processing/allocation measurements, not production latency claims:
+
+| Benchmark scope | Before | After | Interpretation |
+| --- | --- | --- | --- |
+| Codex ExecuteStream, 256 x 1 KiB deltas with SSE fields/comments | About 2.15 MB/call for Claude output; 0.995-0.996 MB/call for Responses output | About 1.85 MB/call for Claude; 0.699-0.700 MB/call for Responses | About 296 KB and 261 allocations removed per call, with bootstrap buffering both off/on; 13.8% / 29.7-29.8% fewer allocated bytes. Timing varied and is not claimed as an improvement. |
+| Claude request pair, 1 MiB Responses input, normal/compat mode | 22.19 / 22.17 ms; 25.37 / 23.25 MB | 11.20 / 11.09 ms; 13.74 / 12.68 MB | About half the translation time in the eligible identical-input case; separate-translation and paired paths measured with the same fixture. |
+| Responses stream, 100 history turns and 256 chunks | 107.95 ms | 3.95 ms | About 96.3% less processing time in this long-request fixture by avoiding full JSON revalidation per chunk; existing tool-name lookup is retained. |
+
+For later publication verification, the tested input manifest SHA-256 is `832997e090ea785846c2b6dbd6cba0dd29f53b8b721d81c0f430a98b3ba6ff5c`. It covers **1544** tracked or non-ignored untracked regular files, excluding only `docs/upstream-sync.md`: sort unique relative paths from `git ls-files -co --exclude-standard -z`, encode each as `<SHA-256 of file bytes><two spaces><relative path>\n`, concatenate and hash. The candidate inputs matched before and after all checks. The final integrated source must match this same manifest; documentation-only publication bookkeeping can reuse this evidence. Temporary worktree, logs, executable and dedicated build/test caches are removed after integration.
+
+## Reviewed on 2026-09-22 — remaining v7.3.12 scope
+
+Every commit after `ffe6ad3c` through release `2eb8dd11`, and the additional main commit `55566294`, is accounted for by the selected table above or the dispositions below. The three merge commits were inspected with `git show --remerge-diff`.
+
+| Source | Disposition and reason |
+| --- | --- |
+| [56518489](https://github.com/router-for-me/CLIProxyAPI/commit/56518489ce925406ca03af3079c7ebc411c7a1a2) | Excluded: the optimized `NormalizeCodexToolSchemas` traversal does not exist in this fork. Importing a schema-normalization feature to optimize it would add unrelated behavior. |
+| Remaining tool-index scope of [8a6a3968](https://github.com/router-for-me/CLIProxyAPI/commit/8a6a39684d11b888644bb1cebc55134856064731) / [PR #5990](https://github.com/router-for-me/CLIProxyAPI/pull/5990) | Deferred: five new lookup maps and broad request/response tool-resolution changes are unnecessary for the selected repeated-validation repair. Revisit if profiling identifies declaration/history lookup as an active bottleneck; retain local precision and tool-selection policies. |
+| [d582067c](https://github.com/router-for-me/CLIProxyAPI/commit/d582067c066f0267bb9d605daf6355e9eb75679a) / [issue #6013](https://github.com/router-for-me/CLIProxyAPI/issues/6013) | Deferred: per-execution outbound proxy selection is a plugin/SDK feature, spanning request context, proxy priority, refresh isolation and WebSocket connection reuse. No corresponding native-provider defect was established. A future import needs a concrete use case and an agreed routing/refresh plan. |
+| Remaining Gemini/SDK scope of [639b7f11](https://github.com/router-for-me/CLIProxyAPI/commit/639b7f1126b4c357c28f5016495113e425806e89) | Excluded: unsupported native Gemini paths; the added SDK unregister API is not required by the selected Claude implementation or its local tests. |
+| [130c8792](https://github.com/router-for-me/CLIProxyAPI/commit/130c879206ba2ea96d16de105b00ce4c03f08ffb), [b9b50a83](https://github.com/router-for-me/CLIProxyAPI/commit/b9b50a83cb9d667a9c7fb461ec40cc3ff3006837) | Excluded: Grok 4.7 catalog and completion-limit metadata are outside the native-provider surface. |
+| [a26cf2a8](https://github.com/router-for-me/CLIProxyAPI/commit/a26cf2a8c2e5ebb53cf7f74b174bf8f2d8984132), [2eb8dd11](https://github.com/router-for-me/CLIProxyAPI/commit/2eb8dd11d2480c5fd8bc8f2796cec6af534bc3b6) | Excluded: Gemini/Kimi stream copying and Gemini schema sanitizer fixes; those runtime/helper paths are absent from the supported local implementation. |
+| [bf44a7f8](https://github.com/router-for-me/CLIProxyAPI/commit/bf44a7f89206a0a4ef2134e42cf30d23fe5957cc) | Already equivalent: the two local test files are already gofmt-clean; no functional change. |
+| [7f63f8c8](https://github.com/router-for-me/CLIProxyAPI/commit/7f63f8c8d2a5ab1c0ab699d8ea4f62879c8066d5), [5083f650](https://github.com/router-for-me/CLIProxyAPI/commit/5083f65037afe708cdd0c340d195761c7ba0dac5), [f6d582cb](https://github.com/router-for-me/CLIProxyAPI/commit/f6d582cb68a46c2a6523d3ed3f58b036096c752c) | Merge accounting: the first two have no extra remerge resolution; the third combines the existing non-data/bootstrap comments with the owned-buffer clone already included in the Codex selection. No additional policy is imported. |
+| [55566294](https://github.com/router-for-me/CLIProxyAPI/commit/555662940411a07460e9d24d14477a5f50dffdb5) | Main-only, excluded: a README_CN sponsor-text correction after v7.3.12, with no runtime or client compatibility effect. |
+
+Earlier deferred decisions remain in the backlog below; this checkpoint does not promote them to integrated status.
 
 ## Published on 2026-09-22 — selected v7.3.11 repairs
 
@@ -188,8 +233,8 @@ The earlier backlog remains deferred. The September 19 batch includes only the f
 
 ## How to continue the next review
 
-1. Check the current branch, working tree and remote. All selected fixes listed above are published at this checkpoint; inspect any later local changes separately.
-2. Compare newly fetched upstream commits after `a5ab69521f7b4e0f244836d0419da8fcd89408ea`. Older deferred items above remain deferred unless their trigger is met.
+1. Check the current branch, working tree and remote. Separate the locally validated v7.3.12 groups from the published v7.3.11 checkpoint; inspect later local changes separately.
+2. Compare newly fetched upstream commits after `555662940411a07460e9d24d14477a5f50dffdb5`. Resume any unpublished selected work from the records above. Older deferred items remain deferred unless their trigger is met.
 3. Search this file for a source SHA and inspect the associated fork commit before importing anything again. Verify behavior, not only ancestry or commit titles.
 4. Record exact selected scope, prerequisite commits, preserved local policies and verification results. Changes to cooldown, disable or scheduling behavior require the previously requested discussion before implementation.
 5. After publication, update this ledger with the actual fork commits and source tree read back from GitHub. Record deployment separately.

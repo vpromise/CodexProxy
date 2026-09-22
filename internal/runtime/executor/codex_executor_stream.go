@@ -165,7 +165,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		for scanner.Scan() {
 			line := applyCodexIdentityConfuseResponsePayload(scanner.Bytes(), identityState)
 			helps.AppendAPIResponseChunk(ctx, e.cfg, line)
-			translatedLine := bytes.Clone(line)
+			var translatedLine []byte
 			isHandshake := false
 			terminalSuccess := false
 
@@ -215,6 +215,8 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 					translatedLine = append([]byte("data: "), data...)
 				}
 			} else {
+				// Translators may retain non-data lines after the scanner advances.
+				translatedLine = bytes.Clone(line)
 				isHandshake = true
 			}
 
@@ -298,7 +300,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		for scanner.Scan() {
 			line := applyCodexIdentityConfuseResponsePayload(scanner.Bytes(), identityState)
 			helps.AppendAPIResponseChunk(ctx, e.cfg, line)
-			translatedLine := bytes.Clone(line)
+			var translatedLine []byte
 			terminalSuccess := false
 
 			if bytes.HasPrefix(line, dataTag) {
@@ -341,6 +343,8 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 					}
 					translatedLine = append([]byte("data: "), data...)
 				}
+			} else {
+				translatedLine = bytes.Clone(line)
 			}
 
 			translatedLine = applyCodexIdentityExposeResponsePayload(translatedLine, identityState)
