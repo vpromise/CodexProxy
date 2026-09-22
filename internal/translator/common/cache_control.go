@@ -65,3 +65,48 @@ func AttachMessageCacheControl(msg []byte, src gjson.Result) []byte {
 	out, _ = sjson.SetRawBytes(out, "content.-1", textPart)
 	return out
 }
+
+// AttachToolMessageCacheControl hoists the first valid part-level cache_control
+// onto the tool_result block, falling back to message-level cache_control.
+func AttachToolMessageCacheControl(msg []byte, src gjson.Result) []byte {
+	cc := gjson.Result{}
+	content := src.Get("content")
+	if content.IsArray() {
+		content.ForEach(func(_, part gjson.Result) bool {
+			candidate := part.Get("cache_control")
+			if isToolResultCacheControl(candidate) {
+				cc = candidate
+				return false
+			}
+			return true
+		})
+	} else if content.IsObject() {
+		cc = content.Get("cache_control")
+	}
+	if !isToolResultCacheControl(cc) {
+		cc = src.Get("cache_control")
+	}
+	if !isToolResultCacheControl(cc) {
+		return msg
+	}
+
+	for i, block := range gjson.GetBytes(msg, "content").Array() {
+		if block.Get("type").String() != "tool_result" {
+			continue
+		}
+		out, errSet := sjson.SetRawBytes(msg, fmt.Sprintf("content.%d.cache_control", i), []byte(cc.Raw))
+		if errSet == nil {
+			return out
+		}
+		return msg
+	}
+	return msg
+}
+
+func isToolResultCacheControl(cc gjson.Result) bool {
+	if !cc.IsObject() {
+		return false
+	}
+	typ := cc.Get("type")
+	return typ.Type == gjson.String && typ.String() == "ephemeral"
+}

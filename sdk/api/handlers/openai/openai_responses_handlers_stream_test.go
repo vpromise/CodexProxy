@@ -33,6 +33,104 @@ func newResponsesStreamTestHandler(t *testing.T) (*OpenAIResponsesAPIHandler, *h
 	return h, recorder, c, flusher
 }
 
+func TestResponsesSSEFramerFiltersPrivateEvents(t *testing.T) {
+	for _, codexClient := range []bool{false, true} {
+		for _, tc := range []struct {
+			name, frame                   string
+			alwaysDrop, codexOnly, noData bool
+		}{
+			{name: "rate limits", frame: "event: codex.rate_limits\ndata: {\"type\":\"codex.rate_limits\"}\n\n", alwaysDrop: true},
+			{name: "telemetry data only", frame: "data: {\"type\":\"responsesapi.websocket_timing\"}\n\n", alwaysDrop: true},
+			{name: "private event with public payload type", frame: "event: responsesapi.websocket_timing\ndata: {\"type\":\"response.created\"}\n\n", alwaysDrop: true},
+			{name: "private payload with public event", frame: "event: response.created\ndata: {\"type\":\"codex.rate_limits\"}\n\n", alwaysDrop: true},
+			{name: "event only", frame: "event: responsesapi.websocket_timing\n\n", alwaysDrop: true},
+			{name: "non JSON private data", frame: "event: codex.rate_limits\ndata: internal\n\n", alwaysDrop: true},
+			{name: "Codex metadata", frame: "event: codex.response.metadata\ndata: {\"type\":\"codex.response.metadata\",\"turn_id\":\"turn-1\"}\n\n", codexOnly: true},
+			{name: "future Codex event", frame: "data: {\"type\":\"codex.future_event\"}\n\n", codexOnly: true},
+			{name: "multiline metadata", frame: "event: codex.response.metadata\r\ndata: {\"type\":\"codex.response.metadata\",\r\ndata: \"turn_id\":\"turn-1\"}\r\n\r\n", codexOnly: true},
+			{name: "future public event", frame: "event: response.future_event\ndata: {\"type\":\"response.future_event\"}\n\n"},
+			{name: "done sentinel", frame: "data: [DONE]\n\n"},
+			{name: "comment", frame: ": keep-alive\n\n", noData: true},
+		} {
+			client := "generic/"
+			if codexClient {
+				client = "codex/"
+			}
+			t.Run(client+tc.name, func(t *testing.T) {
+				framer := &responsesSSEFramer{isCodexClient: codexClient}
+				var output bytes.Buffer
+				// Executors supply SSE fields or frames. Also exercise buffering of
+				// an incomplete JSON payload without treating field names as byte streams.
+				if split := strings.Index(tc.frame, `"type"`); split >= 0 {
+					split += 3
+					framer.WriteChunk(&output, []byte(tc.frame[:split]))
+					framer.WriteChunk(&output, []byte(tc.frame[split:]))
+				} else {
+					framer.WriteChunk(&output, []byte(tc.frame))
+				}
+				framer.Flush(&output)
+				if tc.alwaysDrop || (tc.codexOnly && !codexClient) {
+					if output.Len() != 0 || framer.dataFrames != 0 || framer.lastEvent != "" || framer.terminalEvent != "" {
+						t.Fatalf("private frame affected client stream: output=%q state=%+v", output.String(), framer)
+					}
+					return
+				}
+				if strings.TrimSpace(output.String()) != strings.TrimSpace(tc.frame) {
+					t.Fatalf("public frame changed: got %q, want %q", output.String(), tc.frame)
+				}
+				wantFrames := 1
+				if tc.noData {
+					wantFrames = 0
+				}
+				if framer.dataFrames != wantFrames {
+					t.Fatalf("dataFrames = %d, want %d", framer.dataFrames, wantFrames)
+				}
+			})
+		}
+	}
+}
+
+func TestForwardResponsesStreamFiltersPrivateEventsWithoutLosingOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name, userAgent, originator string
+		wantMetadata                bool
+	}{
+		{name: "generic", userAgent: "OpenAI/Python"},
+		{name: "Codex desktop", userAgent: "Codex Desktop/26.803.41515", wantMetadata: true},
+		{name: "Codex CLI", userAgent: "codex_cli_rs/0.154.0", wantMetadata: true},
+		{name: "Codex originator", originator: "codex_cli_rs", wantMetadata: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, recorder, c, flusher := newResponsesStreamTestHandler(t)
+			c.Request.Header.Set("User-Agent", tc.userAgent)
+			c.Request.Header.Set("Originator", tc.originator)
+			data := make(chan []byte, 1)
+			data <- []byte("data: {\"type\":\"codex.rate_limits\"}\n\n" +
+				"data: {\"type\":\"responsesapi.websocket_timing\"}\n\n" +
+				"data: {\"type\":\"codex.response.metadata\",\"turn_id\":\"turn-1\"}\n\n" +
+				"data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"item-1\",\"type\":\"message\"}}\n\n" +
+				"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"output\":[]}}\n\n")
+			close(data)
+			errs := make(chan *interfaces.ErrorMessage)
+			close(errs)
+			var canceled error
+			h.forwardResponsesStream(c, flusher, func(err error) { canceled = err }, data, errs, nil)
+			body := recorder.Body.String()
+			if canceled != nil || strings.Contains(body, "codex.rate_limits") || strings.Contains(body, "responsesapi.") {
+				t.Fatalf("stream error or private telemetry leak: error=%v body=%q", canceled, body)
+			}
+			if strings.Contains(body, "codex.response.metadata") != tc.wantMetadata {
+				t.Fatalf("unexpected metadata visibility: %q", body)
+			}
+			parts := strings.Split(strings.TrimSpace(body), "\n\n")
+			completed := strings.TrimPrefix(parts[len(parts)-1], "data: ")
+			if gjson.Get(completed, "response.output.0.id").String() != "item-1" {
+				t.Fatalf("completed output repair lost: %q", body)
+			}
+		})
+	}
+}
+
 func TestResponsesSSEFramerWaitsForEventFieldAfterData(t *testing.T) {
 	var output bytes.Buffer
 	framer := &responsesSSEFramer{}

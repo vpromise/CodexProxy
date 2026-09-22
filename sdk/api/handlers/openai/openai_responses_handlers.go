@@ -57,6 +57,7 @@ type responsesSSEFramer struct {
 	terminalEvent        string
 	terminalError        *interfaces.ErrorMessage
 	failureEvent         string
+	isCodexClient        bool
 	dataFrames           int
 }
 
@@ -119,39 +120,59 @@ func (f *responsesSSEFramer) writeFrame(w io.Writer, frame []byte) {
 	writeResponsesSSEChunk(w, f.repairFrame(frame))
 }
 
+// shouldFilterPrivateEvent applies only after checking for upstream errors.
+func (f *responsesSSEFramer) shouldFilterPrivateEvent(streamEvent, payloadType string) bool {
+	for _, name := range []string{streamEvent, payloadType} {
+		name = strings.TrimSpace(name)
+		if strings.HasPrefix(name, "responsesapi.") {
+			return true
+		}
+		// Official Codex clients use private metadata, but not rate-limit SSE events.
+		if strings.HasPrefix(name, "codex.") && (!f.isCodexClient || name == "codex.rate_limits") {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *responsesSSEFramer) repairFrame(frame []byte) []byte {
 	payload, ok := responsesSSEDataPayload(frame)
-	if !ok || len(payload) == 0 {
+	streamEvent := responsesSSEEventName(frame)
+	if !ok || len(payload) == 0 || !json.Valid(payload) {
+		if f.shouldFilterPrivateEvent(streamEvent, "") {
+			return nil
+		}
+		if bytes.Equal(payload, []byte("[DONE]")) {
+			f.dataFrames++
+		}
 		return frame
 	}
-	if bytes.Equal(payload, []byte("[DONE]")) {
-		f.dataFrames++
-		return frame
-	}
-	if !json.Valid(payload) {
-		return frame
-	}
-	f.dataFrames++
 
 	payloadType := gjson.GetBytes(payload, "type").String()
 	if responsesSSEErrorEvent(payloadType) || responsesSSEPayloadHasError(payload) {
+		f.dataFrames++
 		if payloadType != "" {
 			f.lastEvent = sanitizeResponsesStreamEventName(payloadType)
 		}
 		return f.repairErrorPayload(payload)
 	}
-	streamEvent := responsesSSEEventName(frame)
 	eventType := payloadType
 	if responsesSSETerminalEvent(streamEvent) {
 		eventType = streamEvent
 	} else if eventType == "" {
 		eventType = streamEvent
 	}
+	if responsesSSEErrorEvent(eventType) {
+		f.dataFrames++
+		f.lastEvent = sanitizeResponsesStreamEventName(eventType)
+		return f.repairErrorPayload(payload)
+	}
+	if f.shouldFilterPrivateEvent(streamEvent, payloadType) {
+		return nil
+	}
+	f.dataFrames++
 	if eventType != "" {
 		f.lastEvent = sanitizeResponsesStreamEventName(eventType)
-	}
-	if responsesSSEErrorEvent(eventType) {
-		return f.repairErrorPayload(payload)
 	}
 	if responsesSSETerminalEvent(eventType) {
 		f.terminalEvent = eventType
@@ -643,11 +664,12 @@ func (h *OpenAIResponsesAPIHandler) handleStreamingResponse(c *gin.Context, rawJ
 		c.Header("Connection", "keep-alive")
 		c.Header("Access-Control-Allow-Origin", "*")
 	}
+	isCodexClient := isCodexResponsesClientRequest(c)
 	failureEvent := "error"
-	if isCodexResponsesClientRequest(c) {
+	if isCodexClient {
 		failureEvent = "response.failed"
 	}
-	framer := &responsesSSEFramer{failureEvent: failureEvent}
+	framer := &responsesSSEFramer{failureEvent: failureEvent, isCodexClient: isCodexClient}
 	var initialOutput bytes.Buffer
 
 	// Peek at the first complete SSE data frame.
@@ -908,7 +930,8 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesStream(c *gin.Context, flush
 	if framer == nil {
 		framer = &responsesSSEFramer{}
 	}
-	if isCodexResponsesClientRequest(c) {
+	framer.isCodexClient = isCodexResponsesClientRequest(c)
+	if framer.isCodexClient {
 		framer.failureEvent = "response.failed"
 	} else {
 		framer.failureEvent = "error"

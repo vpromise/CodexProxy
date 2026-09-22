@@ -1,10 +1,88 @@
 package chat_completions
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/tidwall/gjson"
 )
+
+func TestConvertOpenAIRequestToClaude_ToolResultCacheControlHoisted(t *testing.T) {
+	for _, tc := range []struct {
+		name, content, messageCache, wantCache, wantContent string
+	}{
+		{
+			name:      "text part",
+			content:   `[{"type":"text","text":"4","cache_control":{"type":"ephemeral","ttl":"1h"}}]`,
+			wantCache: `{"type":"ephemeral","ttl":"1h"}`, wantContent: `[{"type":"text","text":"4"}]`,
+		},
+		{
+			name:         "object part wins over message",
+			content:      `{"type":"text","text":"4","cache_control":{"type":"ephemeral","ttl":"5m"}}`,
+			messageCache: `{"type":"ephemeral","ttl":"1h"}`,
+			wantCache:    `{"type":"ephemeral","ttl":"5m"}`, wantContent: `[{"type":"text","text":"4"}]`,
+		},
+		{
+			name:         "first valid part wins and all nested markers removed",
+			content:      `[{"type":"text","text":"a","cache_control":{}},{"type":"text","text":"b","cache_control":{"type":"ephemeral","ttl":"5m"}},{"type":"text","text":"c","cache_control":{"type":"ephemeral","ttl":"1h"}}]`,
+			messageCache: `{"type":"ephemeral","ttl":"1h"}`,
+			wantCache:    `{"type":"ephemeral","ttl":"5m"}`, wantContent: `[{"type":"text","text":"a"},{"type":"text","text":"b"},{"type":"text","text":"c"}]`,
+		},
+		{
+			name:         "invalid part falls back to message",
+			content:      `[{"type":"text","text":"4","cache_control":{"type":true}}]`,
+			messageCache: `{"type":"ephemeral","ttl":"1h"}`,
+			wantCache:    `{"type":"ephemeral","ttl":"1h"}`, wantContent: `[{"type":"text","text":"4"}]`,
+		},
+		{
+			name:         "invalid markers omitted",
+			content:      `{"type":"text","text":"4","cache_control":{"type":"permanent"}}`,
+			messageCache: `null`, wantContent: `[{"type":"text","text":"4"}]`,
+		},
+		{
+			name:    "string uses message marker",
+			content: `"4"`, messageCache: `{"type":"ephemeral"}`,
+			wantCache: `{"type":"ephemeral"}`, wantContent: `"4"`,
+		},
+		{
+			name:        "image and document content preserved",
+			content:     `[{"type":"text","text":"result"},{"type":"image_url","image_url":{"url":"data:image/png;base64,aW1hZ2U="},"cache_control":{"type":"ephemeral","ttl":"1h"}},{"type":"image_url","image_url":{"url":"https://example.com/image.png"}},{"type":"file","file":{"file_data":"data:application/pdf;base64,cGRm"},"cache_control":{"type":"ephemeral"}}]`,
+			wantCache:   `{"type":"ephemeral","ttl":"1h"}`,
+			wantContent: `[{"type":"text","text":"result"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aW1hZ2U="}},{"type":"image","source":{"type":"url","url":"https://example.com/image.png"}},{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"cGRm"}}]`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			messageCache := ""
+			if tc.messageCache != "" {
+				messageCache = `,"cache_control":` + tc.messageCache
+			}
+			input := []byte(fmt.Sprintf(`{"messages":[
+				{"role":"user","content":[{"type":"text","text":"calculate","cache_control":{"type":"ephemeral","ttl":"5m"}}]},
+				{"role":"assistant","tool_calls":[{"id":"call_calc","type":"function","function":{"name":"calc","arguments":"{}"}}]},
+				{"role":"tool","tool_call_id":"call_calc","content":%s%s}
+			]}`, tc.content, messageCache))
+			for _, convert := range []func(string, []byte, bool) []byte{ConvertOpenAIRequestToClaude, ConvertOpenAIRequestToClaudeWithCompat} {
+				out := convert("claude-sonnet-5", input, false)
+				if got := gjson.GetBytes(out, "messages.0.content.0.cache_control.ttl").String(); got != "5m" {
+					t.Fatalf("ordinary user cache TTL = %q, want 5m; out=%s", got, out)
+				}
+				if got := gjson.GetBytes(out, "messages.1.content.0.id").String(); got != "call_calc" {
+					t.Fatalf("tool-use ID = %q, want call_calc; out=%s", got, out)
+				}
+				block := gjson.GetBytes(out, "messages.2.content.0")
+				if block.Get("type").String() != "tool_result" || block.Get("tool_use_id").String() != "call_calc" {
+					t.Fatalf("tool result pairing changed: %s", out)
+				}
+				if got := block.Get("cache_control").Raw; got != tc.wantCache {
+					t.Fatalf("block cache_control = %s, want %s; out=%s", got, tc.wantCache, out)
+				}
+				if got := block.Get("content").Raw; got != tc.wantContent {
+					t.Fatalf("tool content = %s, want %s", got, tc.wantContent)
+				}
+			}
+		})
+	}
+}
 
 func TestConvertOpenAIRequestToClaude_ToolChoiceDoesNotBroadenConstraints(t *testing.T) {
 	tests := []struct {

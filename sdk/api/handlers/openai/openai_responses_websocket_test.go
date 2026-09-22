@@ -4230,6 +4230,135 @@ func TestResponsesWebsocketPrewarmHandledLocallyForSSEUpstream(t *testing.T) {
 	}
 }
 
+func TestResponsesWebsocketMidConnectionPrewarm(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, warmInput, followupInput                 string
+		incremental, invalidFirst, wrongParent, native bool
+		wantIDs                                        string
+	}{
+		{name: "self contained replacement", warmInput: `[{"type":"message","id":"warm"}]`, followupInput: `[{"type":"message","id":"next"}]`, wantIDs: "warm,next"},
+		{name: "empty followup", warmInput: `[{"type":"message","id":"warm"}]`, followupInput: `[]`, wantIDs: "warm"},
+		{name: "empty prewarm", warmInput: `[]`, followupInput: `[{"type":"message","id":"next"}]`, wantIDs: "next"},
+		{name: "omitted prewarm input", followupInput: `[{"type":"message","id":"next"}]`, wantIDs: "next"},
+		{name: "incremental continuation", warmInput: `[{"type":"message","id":"warm"}]`, followupInput: `[{"type":"message","id":"next"}]`, incremental: true, wantIDs: "initial,out-1,warm,next"},
+		{name: "invalid input does not replace history", warmInput: `[{"type":"message","id":"warm"}]`, followupInput: `[]`, incremental: true, invalidFirst: true, wantIDs: "initial,out-1,warm"},
+		{name: "unknown synthetic parent does not replace history", warmInput: `[{"type":"message","id":"warm"}]`, followupInput: `[]`, incremental: true, wrongParent: true, wantIDs: "initial,out-1,warm"},
+		{name: "native websocket remains passthrough", warmInput: `[{"type":"message","id":"warm"}]`, native: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := &websocketDirectCaptureExecutor{provider: "codex"}
+			manager := coreauth.NewManager(nil, nil, nil)
+			manager.RegisterExecutor(executor)
+			auth := &coreauth.Auth{ID: "mid-prewarm-auth", Provider: "codex", Status: coreauth.StatusActive, Attributes: map[string]string{"websockets": strconv.FormatBool(tc.native)}}
+			if _, errRegister := manager.Register(context.Background(), auth); errRegister != nil {
+				t.Fatal(errRegister)
+			}
+			registry.GetGlobalRegistry().RegisterClient(auth.ID, auth.Provider, []*registry.ModelInfo{{ID: "mid-prewarm-model"}})
+			t.Cleanup(func() { registry.GetGlobalRegistry().UnregisterClient(auth.ID) })
+			h := NewOpenAIResponsesAPIHandler(handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{}, manager))
+			router := gin.New()
+			router.GET("/v1/responses/ws", h.ResponsesWebsocket)
+			server := httptest.NewServer(router)
+			defer server.Close()
+			conn, _, errDial := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http")+"/v1/responses/ws", nil)
+			if errDial != nil {
+				t.Fatal(errDial)
+			}
+			defer func() {
+				if errClose := conn.Close(); errClose != nil {
+					t.Error(errClose)
+				}
+			}()
+			if errDeadline := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); errDeadline != nil {
+				t.Fatal(errDeadline)
+			}
+			send := func(payload string) {
+				t.Helper()
+				if errWrite := conn.WriteMessage(websocket.TextMessage, []byte(payload)); errWrite != nil {
+					t.Fatal(errWrite)
+				}
+			}
+			read := func(wantType string) []byte {
+				t.Helper()
+				_, payload, errRead := conn.ReadMessage()
+				if errRead != nil {
+					t.Fatal(errRead)
+				}
+				if got := gjson.GetBytes(payload, "type").String(); got != wantType {
+					t.Fatalf("event = %q, want %q; payload=%s", got, wantType, payload)
+				}
+				return payload
+			}
+			send(`{"type":"response.create","model":"mid-prewarm-model","instructions":"base","input":[{"type":"message","id":"initial"}]}`)
+			first := read(wsEventTypeCompleted)
+			if tc.invalidFirst {
+				send(`{"type":"response.create","generate":false,"input":{}}`)
+				read("error")
+				if got := len(executor.Payloads()); got != 1 {
+					t.Fatalf("invalid prewarm reached executor: calls=%d", got)
+				}
+			}
+			parent := ""
+			if tc.incremental {
+				parent = fmt.Sprintf(`,"previous_response_id":%q`, gjson.GetBytes(first, "response.id").String())
+			}
+			input := ""
+			if tc.warmInput != "" {
+				input = `,"input":` + tc.warmInput
+			}
+			send(`{"type":"response.create","generate":false` + input + parent + `}`)
+			if tc.native {
+				read(wsEventTypeCompleted)
+				payloads := executor.Payloads()
+				if len(payloads) != 2 || gjson.GetBytes(payloads[1], "generate").Raw != "false" || gjson.GetBytes(payloads[1], "input.0.id").String() != "warm" {
+					t.Fatalf("native prewarm changed: %s", payloads)
+				}
+				return
+			}
+			created := read("response.created")
+			completed := read(wsEventTypeCompleted)
+			prewarmID := gjson.GetBytes(created, "response.id").String()
+			if !strings.HasPrefix(prewarmID, "resp_prewarm_") || gjson.GetBytes(completed, "response.id").String() != prewarmID {
+				t.Fatalf("synthetic response IDs mismatch: created=%s completed=%s", created, completed)
+			}
+			if gjson.GetBytes(completed, "response.output").Raw != "[]" || gjson.GetBytes(completed, "response.usage.total_tokens").Raw != "0" {
+				t.Fatalf("prewarm generated content or usage: %s", completed)
+			}
+			if tc.wrongParent {
+				send(`{"type":"response.create","generate":false,"previous_response_id":"unrelated","input":[]}`)
+				read("error")
+			}
+			if got := len(executor.Payloads()); got != 1 {
+				t.Fatalf("prewarm reached executor: calls=%d, want 1", got)
+			}
+			send(fmt.Sprintf(`{"type":"response.create","previous_response_id":%q,"input":%s}`, prewarmID, tc.followupInput))
+			read(wsEventTypeCompleted)
+			payloads := executor.Payloads()
+			if len(payloads) != 2 {
+				t.Fatalf("executor calls=%d, want 2", len(payloads))
+			}
+			forwarded := payloads[1]
+			if gjson.GetBytes(forwarded, "previous_response_id").Exists() || gjson.GetBytes(forwarded, "generate").Exists() {
+				t.Fatalf("local prewarm fields leaked upstream: %s", forwarded)
+			}
+			if gjson.GetBytes(forwarded, "model").String() != "mid-prewarm-model" || gjson.GetBytes(forwarded, "instructions").String() != "base" {
+				t.Fatalf("request defaults lost: %s", forwarded)
+			}
+			var ids []string
+			for _, item := range gjson.GetBytes(forwarded, "input").Array() {
+				ids = append(ids, item.Get("id").String())
+			}
+			if got := strings.Join(ids, ","); got != tc.wantIDs {
+				t.Fatalf("forwarded transcript IDs=%q, want %q; payload=%s", got, tc.wantIDs, forwarded)
+			}
+			if got := executor.AuthIDs(); len(got) != 2 || got[0] != auth.ID || got[1] != auth.ID {
+				t.Fatalf("credential pin changed: %v", got)
+			}
+		})
+	}
+}
+
 func TestResponsesWebsocketMergesTranscriptForNonPassthroughUpstream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

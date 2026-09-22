@@ -29,6 +29,7 @@ const (
 	directInitialErrorResponsesModel    = "direct-initial-error-responses-model"
 	crossChunkMultilineResponsesModel   = "cross-chunk-multiline-responses-model"
 	validThenMalformedResponsesModel    = "valid-then-malformed-responses-model"
+	privateThenFailureResponsesModel    = "private-then-failure-responses-model"
 )
 
 type prematureResponsesStreamExecutor struct{}
@@ -48,6 +49,13 @@ func (*prematureResponsesStreamExecutor) ExecuteStream(_ context.Context, _ *cor
 		}
 	}
 	chunks := make(chan coreexecutor.StreamChunk, 2)
+	if req.Model == privateThenFailureResponsesModel {
+		chunks <- coreexecutor.StreamChunk{Payload: []byte("event: codex.rate_limits\ndata: {\"type\":\"codex.rate_limits\"}\n\n" +
+			"data: {\"type\":\"responsesapi.websocket_timing\"}\n\n")}
+		chunks <- coreexecutor.StreamChunk{Err: websocketPinnedFailoverStatusError{status: http.StatusTooManyRequests, msg: "quota fixture exhausted"}}
+		close(chunks)
+		return &coreexecutor.StreamResult{Chunks: chunks}, nil
+	}
 	if req.Model == validThenMalformedResponsesModel {
 		chunks <- coreexecutor.StreamChunk{Payload: []byte("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n" +
 			"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\"\n\n")}
@@ -384,6 +392,37 @@ func TestResponsesHandlerDoesNotCommitHeadersForIncompleteFirstFrame(t *testing.
 	}
 	if !strings.Contains(recorder.Body.String(), "upstream failed before first complete frame") {
 		t.Fatalf("initial frame error was lost: status=%d body=%q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestResponsesHandlerPrivateFramesPreserveInitialHTTPErrorStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, userAgent := range []string{"OpenAI/Python", "codex_cli_rs/0.154.0"} {
+		t.Run(userAgent, func(t *testing.T) {
+			executor := &prematureResponsesStreamExecutor{}
+			manager := coreauth.NewManager(nil, nil, nil)
+			manager.RegisterExecutor(executor)
+			auth := &coreauth.Auth{ID: "private-first-frame-auth", Provider: executor.Identifier(), Status: coreauth.StatusActive}
+			if _, errRegister := manager.Register(context.Background(), auth); errRegister != nil {
+				t.Fatal(errRegister)
+			}
+			registry.GetGlobalRegistry().RegisterClient(auth.ID, auth.Provider, []*registry.ModelInfo{{ID: privateThenFailureResponsesModel}})
+			t.Cleanup(func() { registry.GetGlobalRegistry().UnregisterClient(auth.ID) })
+			h := NewOpenAIResponsesAPIHandler(handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{}, manager))
+			router := gin.New()
+			router.POST("/v1/responses", h.Responses)
+			request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"private-then-failure-responses-model","input":"hi","stream":true}`))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("User-Agent", userAgent)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusTooManyRequests || strings.Contains(recorder.Header().Get("Content-Type"), "text/event-stream") {
+				t.Fatalf("private frames committed SSE: status=%d headers=%v body=%q", recorder.Code, recorder.Header(), recorder.Body.String())
+			}
+			if body := recorder.Body.String(); !strings.Contains(body, "quota fixture exhausted") || strings.Contains(body, "codex.rate_limits") || strings.Contains(body, "responsesapi.") {
+				t.Fatalf("initial error lost or private frame leaked: %q", body)
+			}
+		})
 	}
 }
 
@@ -753,39 +792,61 @@ func TestForwardResponsesStreamSanitizesPayloadErrorsAndStopsAtFailure(t *testin
 			name:  "top level error fields",
 			frame: "data: {\"code\":\"failed\",\"message\":\"token=payload-secret\"}\n\n",
 		},
+		{
+			name:  "private event with explicit failure payload",
+			frame: "event: codex.rate_limits\ndata: {\"type\":\"response.failed\",\"error\":{\"message\":\"token=payload-secret\"}}\n\n",
+		},
+		{
+			name:  "error event with private payload type",
+			frame: "event: error\ndata: {\"type\":\"codex.private_error\",\"message\":\"token=payload-secret\"}\n\n",
+		},
+		{
+			name:  "telemetry type with nested response error",
+			frame: "data: {\"type\":\"responsesapi.private_error\",\"response\":{\"error\":{\"message\":\"token=payload-secret\"}}}\n\n",
+		},
+		{
+			name:  "private type with top level error fields",
+			frame: "data: {\"type\":\"codex.rate_limits\",\"code\":\"failed\",\"message\":\"token=payload-secret\"}\n\n",
+		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			base := handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{RequestLog: true}, nil)
-			h := NewOpenAIResponsesAPIHandler(base)
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			c.Request.Header.Set("User-Agent", "Codex Desktop/26.803.41515")
-			flusher, ok := c.Writer.(http.Flusher)
-			if !ok {
-				t.Fatal("expected gin writer to implement http.Flusher")
-			}
+		for _, userAgent := range []string{"Codex Desktop/26.803.41515", "OpenAI/Python"} {
+			t.Run(tc.name+"/"+userAgent, func(t *testing.T) {
+				gin.SetMode(gin.TestMode)
+				base := handlers.NewBaseAPIHandlers(&sdkconfig.SDKConfig{RequestLog: true}, nil)
+				h := NewOpenAIResponsesAPIHandler(base)
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+				c.Request.Header.Set("User-Agent", userAgent)
+				flusher, ok := c.Writer.(http.Flusher)
+				if !ok {
+					t.Fatal("expected gin writer to implement http.Flusher")
+				}
 
-			data := make(chan []byte, 1)
-			data <- []byte(tc.frame + "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n")
-			close(data)
-			errs := make(chan *interfaces.ErrorMessage)
-			close(errs)
-			var canceled error
+				data := make(chan []byte, 1)
+				data <- []byte(tc.frame + "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n")
+				close(data)
+				errs := make(chan *interfaces.ErrorMessage)
+				close(errs)
+				var canceled error
 
-			h.forwardResponsesStream(c, flusher, func(err error) { canceled = err }, data, errs, &responsesSSEFramer{})
-			body := recorder.Body.String()
-			if canceled == nil {
-				t.Fatalf("payload error canceled with nil: %q", body)
-			}
-			if strings.Contains(body, "payload-secret") || strings.Contains(body, "event: response.completed") {
-				t.Fatalf("payload error leaked or accepted later completion: %q", body)
-			}
-			if strings.Count(body, "event: response.failed") != 1 || !strings.Contains(body, "[REDACTED]") {
-				t.Fatalf("payload error was not converted to one sanitized response.failed: %q", body)
-			}
-		})
+				h.forwardResponsesStream(c, flusher, func(err error) { canceled = err }, data, errs, &responsesSSEFramer{})
+				body := recorder.Body.String()
+				if canceled == nil {
+					t.Fatalf("payload error canceled with nil: %q", body)
+				}
+				if strings.Contains(body, "payload-secret") || strings.Contains(body, "event: response.completed") {
+					t.Fatalf("payload error leaked or accepted later completion: %q", body)
+				}
+				wantEvent := "error"
+				if userAgent == "Codex Desktop/26.803.41515" {
+					wantEvent = "response.failed"
+				}
+				if strings.Count(body, "event: "+wantEvent) != 1 || !strings.Contains(body, "[REDACTED]") {
+					t.Fatalf("payload error was not converted to one sanitized %s: %q", wantEvent, body)
+				}
+			})
+		}
 	}
 }
 

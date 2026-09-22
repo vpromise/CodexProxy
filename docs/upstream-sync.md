@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-09-21. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-09-22. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -8,17 +8,49 @@ Updated: 2026-09-21. This is the checkpoint for selective backports from `router
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [a5ab6952](https://github.com/router-for-me/CLIProxyAPI/commit/a5ab69521f7b4e0f244836d0419da8fcd89408ea) (`a5ab69521f7b4e0f244836d0419da8fcd89408ea`) |
-| Release at that review | [v7.3.10](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.10), published 2026-09-20 23:05:09 UTC |
+| Last reviewed upstream main | [ffe6ad3c](https://github.com/router-for-me/CLIProxyAPI/commit/ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063) (`ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`) |
+| Release at that review | [v7.3.11](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.11), published 2026-09-21 14:43:42 UTC |
 | Latest verified published implementation | [4208d16c](https://github.com/vpromise/CodexProxy/commit/4208d16c32aeb362f94ad0fdb92677944c8f6324) (`4208d16c32aeb362f94ad0fdb92677944c8f6324`) on `main` |
 | Published source tree | `5f42fc5afbbad8c1229a98f647f7f39d45d99b3c` |
 | Latest publication | Three selected v7.3.9/v7.3.10 compatibility groups; fifteen source/test paths plus this ledger |
-| Unpublished selected fixes | None; all three selected v7.3.9/v7.3.10 groups and the earlier selected batches are published |
-| Deployment | The September 17, 18, 19 and 21 publications were not deployed in these workflows; this ledger does not assert the current server version |
+| Unpublished selected fixes | Four selected v7.3.11 groups implemented and validated locally on top of `7c96a1cc`; not yet committed or pushed |
+| Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22 work did not deploy changes |
 | Client fingerprints | Claude Code **2.1.258**; Codex **0.154.0** |
-| Current selection policy | Three narrow client/protocol groups selected; cooldown display, scheduler restructuring and conditional features remain deferred |
+| Current selection policy | Four narrow v7.3.11 repairs selected and adapted; usage-plugin metadata remains deferred, and xAI/Gemini changes remain excluded |
 
 The latest published implementation is `4208d16c`; its tree excludes the separate publication-ledger update. The prior published checkpoint was `8bf0c982`, with implementation `76e86745`. The September 21 review covered 21 commits (19 non-merge commits) after `c93978c4ea2e908255a2a06c37599fda3651554a`. Advancing the review checkpoint does not merge their ancestry or imply their full inclusion.
+
+## Implemented locally on 2026-09-22 — selected v7.3.11 repairs
+
+All four groups in the review table below are implemented in the working tree based on `7c96a1cc099634c46807aec88b24c4d0a906add2`: six production paths and seven test paths, plus this ledger. They are not yet committed, published or deployed.
+
+- Generated Claude CLI headers now add `fallback-credit` only for an explicitly requested beta, a `fallback_credit_token`, or OAuth with `fallbacks`. Native caller beta headers and the separate count_tokens profile retain their existing policies.
+- Chat Completions-to-Claude tool results move the first valid part-level cache marker, or the message-level fallback, onto the enclosing tool-result block. Nested text, image and document parts retain their content without nested cache markers. Part precedence, TTL and tool IDs are covered; validation changes are restricted to this tool-result helper, leaving ordinary message/tool-definition cache handling unchanged.
+- Responses SSE filters `responsesapi.*` telemetry and private `codex.*` events for generic clients. Official Codex clients retain their private metadata; rate-limit events are suppressed for both client groups. Explicit event/payload errors take precedence over filtering, retain sanitization and stop later completion output. Suppressed frames do not commit HTTP 200 before a subsequent initial error. Executor-side quota observation and native WebSocket output remain unchanged.
+- WebSocket-to-HTTP/SSE prewarm now works after a completed turn. A prewarm without a parent starts a replacement transcript; incremental prewarm and follow-up materialize the existing chain. Tests cover empty/omitted input, inherited defaults, invalid-input recovery, synthetic parent-ID rejection, credential pinning and native WebSocket passthrough. This retains the existing completed-turn compatibility normalization rather than adding a new parent-ID validation policy.
+
+No client fingerprint, provider, configuration, dependency, timeout, credential lifecycle, cooldown, disable or scheduling policy changed. Claude Code remains **2.1.258** and Codex remains **0.154.0**. SSE regression fixtures use the executor's existing field/frame interface, including incomplete JSON and multiline data; this change does not redesign that interface into an arbitrary-byte parser.
+
+Validation passed with Go **1.27.1** on macOS arm64: focused regressions; `go test -count=1 ./...` with the two existing exclusions below (**67** test packages passed, **25** packages had no tests); `go test -race -count=1` for `internal/runtime/executor`, `internal/translator/common`, `internal/translator/claude/openai/chat-completions` and `sdk/api/handlers/openai` (**4** packages passed); `go build -o <temporary-path>/test-output ./cmd/server`; formatting and `git diff --check`.
+
+The command-level exclusions were `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS`, using `-skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$'` for the existing macOS 127.0.0.2 binding limitation. `TestClaudeCodeTLSClientHelloCapture` skipped itself because `CPA_TLS_FP_PROXY` was unset. The three existing WebSocket allocation-budget tests skipped themselves under the race detector and passed in the ordinary full suite. No live provider inference or server operation was performed. Dedicated temporary test/build caches, logs and the verification binary were removed after validation.
+
+## Reviewed on 2026-09-22 — v7.3.11 selection
+
+Reviewed all **8 non-merge commits** after `a5ab69521f7b4e0f244836d0419da8fcd89408ea` through `ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063`, which was both upstream main and the v7.3.11 release commit at review time. The fork remains at `7c96a1cc`. Upstream's client baselines remain Claude Code **2.1.258** and Codex **0.154.0**; there is no additional version bump or model-catalog change in this range.
+
+| Selected batch | Upstream source | Baseline finding and adaptation boundary |
+| --- | --- | --- |
+| 1: Claude beta scope | [ed751ea0](https://github.com/router-for-me/CLIProxyAPI/commit/ed751ea08af812758282e855ec6d8f7a49f6a7b3) | The generated CLI beta profile still adds `fallback-credit` to every OAuth request and misses an explicit fallback token with an API-key profile. Gate it on an explicit requested beta, `fallback_credit_token`, or OAuth plus `fallbacks`. Preserve native caller beta headers, measured helper profiles, existing known-beta retention and the 2.1.258 baseline; do not change quota, billing or cooldown policy. |
+| 1: Claude tool-result cache placement | [bcd13ca9](https://github.com/router-for-me/CLIProxyAPI/commit/bcd13ca91c873ae2274c8c5b374ab344ce09a7df), [50585bf2](https://github.com/router-for-me/CLIProxyAPI/commit/50585bf208a8715ec6f5e85a8084a539dcefa72f) | The Chat Completions-to-Claude converter leaves a source part's `cache_control` inside `tool_result.content`, reproducing the invalid shape described in [issue 5429](https://github.com/router-for-me/CLIProxyAPI/issues/5429). Move it to the enclosing tool-result block, preserving part/message precedence, TTL, media and tool IDs. Avoid bundling the refactor's global tightening of cache validation for unrelated messages. This is separate from the earlier empty-system-content incident and does not require rewriting native Claude requests. |
+| 2: Responses SSE compatibility | [dd013f9e](https://github.com/router-for-me/CLIProxyAPI/commit/dd013f9e2993ccb840ce9da74308dfe30ecce15c) | The local framer forwards and counts private telemetry as a visible data frame. Filtering helps strict Responses clients ([issue 6007](https://github.com/router-for-me/CLIProxyAPI/issues/6007)), but the raw upstream patch drops explicit errors when either the event name or payload type matches a private prefix. Adapt error precedence before filtering, retain official Codex metadata, and preserve initial HTTP error status, terminal handling and upstream quota observation. Do not blanket-filter the native WebSocket path. |
+| 2: WebSocket mid-connection prewarm | [7b6fafce](https://github.com/router-for-me/CLIProxyAPI/commit/7b6fafce1b32f18ab17776c04fd065bc4f728c30) | A second `generate:false` after a completed turn reaches the mock executor and returns generated output instead of a local prewarm acknowledgement. The affected path is WebSocket-to-HTTP/SSE compatibility; native upstream WebSocket passthrough is outside this repair. Preserve existing parent-ID validation, self-contained transcript replacement, incremental continuation, input materialization and credential pinning. [Issue 6006](https://github.com/router-for-me/CLIProxyAPI/issues/6006) describes real upstream work being triggered by this path; this review made no real inference request. |
+
+Defer [ac3849e5](https://github.com/router-for-me/CLIProxyAPI/commit/ac3849e5d981e85dd3f713aae0691d23d7b3a56c): it adds response-model, response-tier and streaming fields for usage plugins; plugins were disabled on all three servers at the last deployment inspection. Exclude the xAI-only test change [fd5cd228](https://github.com/router-for-me/CLIProxyAPI/commit/fd5cd228a80462c74f005603da66b494d4e1c45a) and Gemini schema change [ffe6ad3c](https://github.com/router-for-me/CLIProxyAPI/commit/ffe6ad3c5fcf0a5eedd2198cd2e04b0249dc5063) under the supported-provider policy.
+
+Initial review evidence: focused probes in an isolated snapshot of unchanged `7c96a1cc` reproduced all four groups across three packages. The existing SSE error-preservation behavior passed on the baseline. Applying only `dd013f9e` in that temporary snapshot made telemetry filtering pass but made both error-precedence probes fail: `event: codex.rate_limits` with a `response.failed` error payload, and `event: error` with a `codex.private_error` error payload, were discarded with no terminal error recorded. These are synthetic boundary cases, not observed production incidents. The initial review changed only this ledger and removed its temporary snapshot and dedicated caches. The later implementation and validation are recorded above.
+
+The September 21 deployment remains the last verified runtime checkpoint: dmit retained its CGO build and Docker service `cpa`; dmit2 retained its static build and Compose service `codexproxy`; bawg retained its static build and `codexproxy.service`. All three returned HTTP 200 from `/healthz` and HTTP 204 from `HEAD /api/hello`. Gateway-to-proxy health checks passed on dmit and dmit2. Configuration hashes, container runtime settings and unrelated gateway services were preserved. Per-server `LATEST_DEPLOYMENT.json` and `releases/20260921-7c96a1cc` contain the deployment and rollback records. Those checks establish the September 21 state, not continuous health since then.
 
 ## Published on 2026-09-21 — selected v7.3.9/v7.3.10 repairs
 

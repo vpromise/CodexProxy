@@ -20,6 +20,64 @@ import (
 
 const claudeRaceProbeOAuthKey = "sk-ant-oat-beta-policy"
 
+func TestClaudeCodeCLIBetas_FallbackCreditScope(t *testing.T) {
+	for _, tc := range []struct {
+		name, body             string
+		oauth, requested, want bool
+	}{
+		{name: "ordinary OAuth", body: `{"model":"claude-sonnet-5"}`, oauth: true},
+		{name: "ordinary API key", body: `{"model":"claude-sonnet-5"}`},
+		{name: "OAuth fallback token", body: `{"fallback_credit_token":"fixture"}`, oauth: true, want: true},
+		{name: "API key fallback token", body: `{"fallback_credit_token":"fixture"}`, want: true},
+		{name: "OAuth fallbacks", body: `{"fallbacks":[{"model":"claude-opus-5"}]}`, oauth: true, want: true},
+		{name: "API key fallbacks", body: `{"fallbacks":[{"model":"claude-opus-5"}]}`},
+		{name: "explicit OAuth beta", body: `{}`, oauth: true, requested: true, want: true},
+		{name: "explicit API key beta", body: `{}`, requested: true, want: true},
+		{name: "OAuth probe", body: `{"model":"claude-sonnet-5","max_tokens":1}`, oauth: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			betas := claudeCodeCLIBetas([]byte(tc.body), map[string]bool{claudeFallbackCreditBeta: tc.requested}, tc.oauth)
+			if got := strings.Contains(betas, claudeFallbackCreditBeta); got != tc.want {
+				t.Fatalf("fallback-credit present = %v, want %v; betas = %q", got, tc.want, betas)
+			}
+		})
+	}
+}
+
+func TestApplyClaudeHeaders_FallbackCreditScope(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, incoming         string
+		confirmed, countTokens, want bool
+	}{
+		{name: "ordinary OAuth", body: `{"model":"claude-sonnet-5"}`},
+		{name: "fallback token", body: `{"model":"claude-sonnet-5","fallback_credit_token":"fixture"}`, want: true},
+		{name: "fallbacks", body: `{"model":"claude-sonnet-5","fallbacks":[{"model":"claude-opus-5"}]}`, want: true},
+		{name: "explicit beta", body: `{"model":"claude-sonnet-5"}`, incoming: claudeFallbackCreditBeta, want: true},
+		{name: "native caller without beta", body: `{"model":"claude-sonnet-5","fallback_credit_token":"fixture"}`, incoming: claudeCodeBeta, confirmed: true},
+		{name: "native caller with beta", body: `{"model":"claude-sonnet-5"}`, incoming: claudeCodeBeta + "," + claudeFallbackCreditBeta, confirmed: true, want: true},
+		{name: "native probe with beta", body: `{"model":"claude-sonnet-5","max_tokens":1}`, incoming: claudeCodeBeta + "," + claudeFallbackCreditBeta, confirmed: true, want: true},
+		{name: "count tokens keeps its own profile", body: `{"model":"claude-sonnet-5","fallback_credit_token":"fixture"}`, countTokens: true},
+	} {
+		for _, stream := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/stream=%v", tc.name, stream), func(t *testing.T) {
+				req := newClaudeHeaderTestRequest(t, nil)
+				if tc.countTokens {
+					req.URL.Path += "/count_tokens"
+				}
+				incoming := http.Header{"Anthropic-Beta": {tc.incoming}}
+				if errHeaders := applyClaudeHeaders(req, claudeOAuthAuthForBetaPolicy(), claudeRaceProbeOAuthKey, stream, nil,
+					[]byte(tc.body), nil, incoming, tc.confirmed); errHeaders != nil {
+					t.Fatal(errHeaders)
+				}
+				betas := req.Header.Get("Anthropic-Beta")
+				if got := strings.Contains(betas, claudeFallbackCreditBeta); got != tc.want {
+					t.Fatalf("fallback-credit present = %v, want %v; betas = %q", got, tc.want, betas)
+				}
+			})
+		}
+	}
+}
+
 func claudeOAuthAuthForBetaPolicy() *cliproxyauth.Auth {
 	return &cliproxyauth.Auth{
 		ID:       "claude-beta-policy",

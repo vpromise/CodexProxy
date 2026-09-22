@@ -1,10 +1,55 @@
 package common
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/tidwall/gjson"
 )
+
+func TestAttachToolMessageCacheControlTargetsOnlyToolResult(t *testing.T) {
+	src := gjson.Parse(`{"content":[{"cache_control":{"type":"ephemeral","ttl":"1h"}}]}`)
+	for _, tc := range []struct {
+		name, message, path string
+	}{
+		{"tool after text", `{"content":[{"type":"text","text":"hello"},{"type":"tool_result","tool_use_id":"call_1","content":"result"}]}`, "content.1.cache_control.ttl"},
+		{"only first tool result", `{"content":[{"type":"tool_result","tool_use_id":"call_1","content":"one"},{"type":"tool_result","tool_use_id":"call_2","content":"two"}]}`, "content.0.cache_control.ttl"},
+		{"no tool result", `{"content":[{"type":"text","text":"hello"}]}`, ""},
+		{"empty content", `{"content":[]}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := AttachToolMessageCacheControl([]byte(tc.message), src)
+			if tc.path == "" {
+				if !bytes.Equal(out, []byte(tc.message)) {
+					t.Fatalf("message without a tool result changed: %s", out)
+				}
+				return
+			}
+			if got := gjson.GetBytes(out, tc.path).String(); got != "1h" {
+				t.Fatalf("%s = %q, want 1h; out=%s", tc.path, got, out)
+			}
+			count := 0
+			for _, block := range gjson.GetBytes(out, "content").Array() {
+				if block.Get("cache_control").Exists() {
+					count++
+				}
+			}
+			if count != 1 {
+				t.Fatalf("marked %d blocks, want 1; out=%s", count, out)
+			}
+		})
+	}
+}
+
+func TestCacheControlToolValidationDoesNotChangeOtherMessages(t *testing.T) {
+	src := gjson.Parse(`{"cache_control":{"type":"future-policy","ttl":"5m"}}`)
+	part := AttachCacheControl([]byte(`{"type":"text","text":"hi"}`), src)
+	message := AttachMessageCacheControl([]byte(`{"role":"user","content":"hi"}`), src)
+	if gjson.GetBytes(part, "cache_control").Raw != src.Get("cache_control").Raw ||
+		gjson.GetBytes(message, "content.0.cache_control").Raw != src.Get("cache_control").Raw {
+		t.Fatalf("unrelated cache-control policy changed: part=%s message=%s", part, message)
+	}
+}
 
 func TestAttachCacheControl_CopiesObject(t *testing.T) {
 	src := gjson.Parse(`{"text":"hi","cache_control":{"type":"ephemeral","ttl":"5m"}}`)
