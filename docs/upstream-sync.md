@@ -10,17 +10,19 @@ Updated: 2026-09-23. This is the checkpoint for selective backports from `router
 | --- | --- |
 | Last reviewed upstream main | [673131f5](https://github.com/router-for-me/CLIProxyAPI/commit/673131f57484517c3a1eae7e36c4cfa7b9bb4efc) (`673131f57484517c3a1eae7e36c4cfa7b9bb4efc`) |
 | Release at that review | [v7.3.15](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.15), published 2026-09-23 00:55:44 UTC; tag resolves to `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` |
-| Latest verified published implementation | [6b6d721f](https://github.com/vpromise/CodexProxy/commit/6b6d721f33ed274a4dc28664eb62b6d152409fc7) (`6b6d721f33ed274a4dc28664eb62b6d152409fc7`) on `main` |
-| Published source tree | `63af90e7fdf000bf6e93866854e1975c5d2a3841` |
-| Latest publication | Four selected v7.3.12 groups; ten production/data/test paths plus this ledger |
-| Unpublished selected fixes | Four selected groups from v7.3.13-v7.3.15 plus the local WebSocket terminal-error ordering repair below, adapted locally on `2a6daac16c10e5e044596650e93d039b1d6e327f`; not committed or pushed |
+| Latest verified published implementation | [2067d9f3](https://github.com/vpromise/CodexProxy/commit/2067d9f333d49278b2ff7a50d62797cdad9c14c4) (`2067d9f333d49278b2ff7a50d62797cdad9c14c4`) on `main` |
+| Published source tree | `f3138409f9ff94ad7b3dbbda13ffd652ed833d6e` |
+| Latest publication | Four selected v7.3.13-v7.3.15 groups plus the local WebSocket terminal-error ordering repair; 25 production/data/test paths plus this ledger |
+| Unpublished selected fixes | None from the completed September 23 batch; earlier deferred groups remain deferred |
 | Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22-23 work did not deploy changes |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Prior deferred groups remain deferred |
 
-The latest published implementation remains `6b6d721f`; `2a6daac1` is its subsequent publication-ledger commit and the base of this local batch. The September 23 review accounts for all **16 commits** after `555662940411a07460e9d24d14477a5f50dffdb5` through `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` (**15 non-merge commits, 1 merge**). Upstream main matched the v7.3.15 release commit at inspection; there was no separate main-only range. Advancing this checkpoint does not import upstream ancestry or complete earlier deferred work.
+The latest published implementation is `2067d9f3`, based on `2a6daac1`, the preceding publication-ledger commit for `6b6d721f`. The September 23 review accounts for all **16 commits** after `555662940411a07460e9d24d14477a5f50dffdb5` through `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` (**15 non-merge commits, 1 merge**). Upstream main matched the v7.3.15 release commit at inspection; there was no separate main-only range. Advancing this checkpoint does not import upstream ancestry or complete earlier deferred work.
 
-## Local synchronization on 2026-09-23 — v7.3.13 through v7.3.15
+## Published on 2026-09-23 — selected v7.3.13 through v7.3.15 repairs
+
+The four selected groups below and the subsequent WebSocket terminal-error ordering repair are published together in [2067d9f3](https://github.com/vpromise/CodexProxy/commit/2067d9f333d49278b2ff7a50d62797cdad9c14c4). This covers all 26 pending paths, including the regression tests and ledger. GitHub's `refs/heads/main` was read back as `2067d9f333d49278b2ff7a50d62797cdad9c14c4` after a normal push, before this publication-ledger update. Publication reused the completed validation after verifying the exact combined source manifest below; no Go checks were rerun or build caches regenerated. No Release or server deployment was performed.
 
 Resolved the official release tags to immutable commit objects, rather than relying on `target_commitish`:
 
@@ -55,7 +57,7 @@ No credential refresh/lifecycle, cooldown deadlines, warning-versus-exhaustion, 
 | [fc914b9d](https://github.com/router-for-me/CLIProxyAPI/commit/fc914b9debb9c3a46e484ec97c51f8350cf75e4a) | Excluded: Grok 4.7 catalog changes are outside the native-provider surface. |
 | [6ed58a7c](https://github.com/router-for-me/CLIProxyAPI/commit/6ed58a7c554842fef6b284cafeb8de9321c8beb7), [e01806f9](https://github.com/router-for-me/CLIProxyAPI/commit/e01806f971b1758b23bb067d93f7d2acd73d2c70), merge [1efd01dc](https://github.com/router-for-me/CLIProxyAPI/commit/1efd01dc72881983a3416e4634d234c86016c016) | Excluded: community-project promotion in upstream READMEs. `git show --remerge-diff 1efd01dc` shows no additional merge resolution. |
 
-### Validation and local state
+### Validation and publication state
 
 The unchanged production baseline failed the new Responses-string, required-null-option and 2.1.280 beta regressions, while the upstream credential-quota regression and existing model-projection tests passed. Baseline plus these first regression inputs: **1548** regular files, manifest SHA-256 `17050f9923b2f05e9bd841337e74178b3277ead9ae55a2142d609ab0c64e205d`.
 
@@ -67,7 +69,7 @@ Initial follow-up ran the unchanged local base and the final candidate in separa
 
 The two command-level exclusions were reconfirmed by a local bind to `127.0.0.2` failing with `EADDRNOTAVAIL`. `TestClaudeCodeTLSClientHelloCapture` skipped because `CPA_TLS_FP_PROXY` was unset. Race instrumentation intentionally skipped three WebSocket allocation-budget tests (`TestMergeResponsesWebsocketInputBoundsLargeTranscriptAllocations`, `TestNormalizeResponseSubsequentRequestBoundsTranscriptAllocations`, `TestResponsesWebsocketFallbackTurnBoundsTranscriptAllocations`); they passed in the ordinary full suite. No Linux run, live inference call or server operation was performed.
 
-The upstream-batch input manifest SHA-256 was `d831f1d69fdfa6983fc44f88f57f0fa9a88b9723fa06b2db986db0156d251012`, covering **1550** tracked or non-ignored untracked regular files, excluding only this ledger. Use the manifest algorithm recorded for the September 22 batch. Inputs matched before and after those checks and after integration into the unchanged local base. The pinned Codex client catalog SHA-256 is `7b15fec55ed279c2a0f4b6dfd1f7d2617d7c9f22e94d385242a8cd9534411d38`. Production/tool Go changes in that batch touch eight existing files plus one request-feature helper; the two JSON catalogs carry the model-data update. No changes have been committed, pushed, released or deployed. Both temporary worktrees, build output, scratch logs and dedicated caches for that batch were removed after local integration and snapshot verification. The shared module cache was retained. The subsequent WebSocket repair changes the current tested snapshot as recorded next.
+The upstream-batch input manifest SHA-256 was `d831f1d69fdfa6983fc44f88f57f0fa9a88b9723fa06b2db986db0156d251012`, covering **1550** tracked or non-ignored untracked regular files, excluding only this ledger. Use the manifest algorithm recorded for the September 22 batch. Inputs matched before and after those checks and after integration into the unchanged local base. The pinned Codex client catalog SHA-256 is `7b15fec55ed279c2a0f4b6dfd1f7d2617d7c9f22e94d385242a8cd9534411d38`. Production/tool Go changes in that batch touch eight existing files plus one request-feature helper; the two JSON catalogs carry the model-data update. These changes were subsequently published with the WebSocket repair in `2067d9f3`; no Release or deployment was performed. Both temporary worktrees, build output, scratch logs and dedicated caches for that batch were removed after local integration and snapshot verification. The shared module cache was retained. The subsequent WebSocket repair changes the current tested snapshot as recorded next.
 
 ### Follow-up: WebSocket terminal-error ordering on 2026-09-23
 
@@ -86,7 +88,7 @@ Validation of the combined upstream batch and local repair used Go **1.27.1**, m
 - `go test -race -count=1 -json` with the same two exclusions passed all **9** packages: the seven from the upstream-batch race check plus `sdk/api/handlers` and `sdk/cliproxy/auth`. No race-detector report occurred.
 - `go build -o <task-directory>/test-output ./cmd/server`, formatting and `git diff --check` passed. The local bind to `127.0.0.2` again failed with `EADDRNOTAVAIL`, justifying the two existing exclusions. The optional TLS capture and three race-only allocation-budget skips remain as described above; ordinary allocation tests passed. There was no Linux run, live inference call or server operation.
 
-The final combined input manifest SHA-256 is **`99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b`**, covering **1551** tracked or non-ignored untracked regular files, excluding only this ledger. Source inputs matched before and after validation and after local integration. All earlier pending changes were preserved. Both investigation worktrees, temporary probes, binary, logs and dedicated caches were removed after preserving these results; the shared module cache was retained. This repair is local only: not committed, pushed, released or deployed.
+The final combined input manifest SHA-256 is **`99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b`**, covering **1551** tracked or non-ignored untracked regular files, excluding only this ledger. Source inputs matched before and after validation, after local integration and before publication. All earlier pending changes were preserved. Both investigation worktrees, temporary probes, binary, logs and dedicated caches were removed after preserving these results; the shared module cache was retained. This repair is committed and published in `2067d9f3`; no Release or deployment was performed.
 
 ## Published on 2026-09-22 — selected v7.3.12 updates
 
