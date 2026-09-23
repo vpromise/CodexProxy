@@ -570,7 +570,12 @@ func (s *Server) handleHomeCodexClientModels(c *gin.Context, clientVersion strin
 		models = append(models, model)
 	}
 
-	c.JSON(http.StatusOK, codexmodels.BuildResponseForClient(models, nil, s.cfg.Codex.OptimizeMultiAgentV2, clientVersion))
+	body, errMarshal := codexmodels.MarshalCompact(codexmodels.BuildResponseForClient(models, nil, s.cfg.Codex.OptimizeMultiAgentV2, clientVersion))
+	if errMarshal != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errMarshal.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
 type homeModelEntry struct {

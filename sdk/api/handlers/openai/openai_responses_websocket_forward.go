@@ -52,6 +52,35 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 		downstreamSessionKey = websocketDownstreamSessionKey(c.Request)
 	}
 
+	forwardError := func(errMsg *interfaces.ErrorMessage) ([]byte, string, []string, *interfaces.ErrorMessage, error) {
+		h.LoggingAPIResponseError(context.WithValue(context.Background(), "gin", c), errMsg)
+		if opts.suppressError != nil && opts.suppressError(errMsg) {
+			cancel(errMsg.Error)
+			return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, nil
+		}
+		markAPIResponseTimestamp(c)
+		if matched, errClose := writer.closeForUpstreamError(errMsg.Error); matched {
+			cancel(errMsg.Error)
+			if errClose != nil {
+				return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, errClose
+			}
+			return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, websocket.ErrCloseSent
+		}
+
+		errorPayload, wrote, errTerminate := writeResponsesWebsocketTerminalError(writer, wsTimelineLog, errMsg, nil)
+		if wrote {
+			log.Infof(
+				"responses websocket: downstream_out id=%s type=%d event=%s payload=%s",
+				sessionID,
+				websocket.TextMessage,
+				websocketPayloadEventType(errorPayload),
+				websocketPayloadPreview(errorPayload),
+			)
+		}
+		cancel(errMsg.Error)
+		return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, errTerminate
+	}
+
 	for {
 		select {
 		case <-c.Request.Context().Done():
@@ -67,34 +96,14 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 				return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), nil, nil
 			}
 
-			h.LoggingAPIResponseError(context.WithValue(context.Background(), "gin", c), errMsg)
-			if opts.suppressError != nil && opts.suppressError(errMsg) {
-				cancel(errMsg.Error)
-				return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, nil
-			}
-			markAPIResponseTimestamp(c)
-			if matched, errClose := writer.closeForUpstreamError(errMsg.Error); matched {
-				cancel(errMsg.Error)
-				if errClose != nil {
-					return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, errClose
-				}
-				return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, websocket.ErrCloseSent
-			}
-
-			errorPayload, wrote, errTerminate := writeResponsesWebsocketTerminalError(writer, wsTimelineLog, errMsg, nil)
-			if wrote {
-				log.Infof(
-					"responses websocket: downstream_out id=%s type=%d event=%s payload=%s",
-					sessionID,
-					websocket.TextMessage,
-					websocketPayloadEventType(errorPayload),
-					websocketPayloadPreview(errorPayload),
-				)
-			}
-			cancel(errMsg.Error)
-			return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), errMsg, errTerminate
+			return forwardError(errMsg)
 		case chunk, ok := <-data:
 			if !ok {
+				// Error publication precedes channel closure, but select can observe
+				// the closed data channel first. Preserve the pending terminal error.
+				if errMsg, pending := handlers.PendingStreamError(errs); pending {
+					return forwardError(errMsg)
+				}
 				if !completed {
 					errMsg := &interfaces.ErrorMessage{
 						StatusCode: http.StatusRequestTimeout,

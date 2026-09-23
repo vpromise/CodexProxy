@@ -282,7 +282,16 @@ func measuredClaudeCodeHelperHeadersMatch(headers http.Header, cfg *config.Confi
 		candidate.version = version
 		candidate.hasVersion = true
 	}
-	if !meetsClaudeDeviceProfileBaseline(candidate, profile) {
+	matchesSoftware := meetsClaudeDeviceProfileBaseline(candidate, profile)
+	if !matchesSoftware && (cfg == nil || strings.TrimSpace(cfg.ClaudeHeaderDefaults.UserAgent) == "") {
+		// The previously measured helper tuple remains valid independently of
+		// the generated fingerprint. Keep the exact SDK/runtime checks.
+		previousProfile := profile
+		previousProfile.UserAgent = "claude-cli/2.1.258 (external, cli)"
+		previousProfile.version = claudeCLIVersion{major: 2, minor: 1, patch: 258}
+		matchesSoftware = meetsClaudeDeviceProfileBaseline(candidate, previousProfile)
+	}
+	if !matchesSoftware {
 		return false
 	}
 	// The 2.1.252 title helper sends no X-Stainless-Async; the 2.1.220
@@ -474,7 +483,13 @@ func plausibleClaudeCodeUserAgent(userAgent string, cfg *config.Config) bool {
 		return false
 	}
 	candidate, okCandidate := parseClaudeCLIVersion(userAgent)
-	baseline, okBaseline := parseClaudeCLIVersion(defaultClaudeDeviceProfile(cfg).UserAgent)
+	// Preserve previously accepted native clients when the generated wire profile
+	// advances. An explicit operator profile still controls the recognition floor.
+	baselineUserAgent := "claude-cli/2.1.258 (external, cli)"
+	if cfg != nil && strings.TrimSpace(cfg.ClaudeHeaderDefaults.UserAgent) != "" {
+		baselineUserAgent = cfg.ClaudeHeaderDefaults.UserAgent
+	}
+	baseline, okBaseline := parseClaudeCLIVersion(baselineUserAgent)
 	// Patch releases (>= baseline.patch) within the release line preserve native passthrough.
 	return okCandidate && okBaseline && plausibleClaudeCLIVersion(candidate, baseline)
 }

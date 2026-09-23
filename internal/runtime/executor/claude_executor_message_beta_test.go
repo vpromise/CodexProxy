@@ -27,7 +27,7 @@ func TestApplyClaudeHeaders_MessageFeatureBetasFollowCaller(t *testing.T) {
 		confirmed bool
 		want      []string
 	}{
-		{name: "not inferred from body", extra: []string{unknown}},
+		{name: "new model baseline", extra: []string{unknown}},
 		{name: "per turn only", header: []string{perTurn + "," + unknown}, want: []string{perTurn}},
 		{name: "tool changes only", header: []string{toolChanges}, want: []string{toolChanges}},
 		{name: "multiple header values", header: []string{perTurn, toolChanges}, want: []string{perTurn, toolChanges}},
@@ -52,9 +52,13 @@ func TestApplyClaudeHeaders_MessageFeatureBetasFollowCaller(t *testing.T) {
 				for _, beta := range strings.Split(got, ",") {
 					counts[strings.TrimSpace(beta)]++
 				}
+				wantFeatures := tt.want
+				if mode != "count_tokens" && !tt.confirmed {
+					wantFeatures = []string{perTurn, toolChanges}
+				}
 				for _, beta := range []string{perTurn, toolChanges} {
 					want := 0
-					for _, requested := range tt.want {
+					for _, requested := range wantFeatures {
 						if requested == beta {
 							want = 1
 						}
@@ -66,14 +70,14 @@ func TestApplyClaudeHeaders_MessageFeatureBetasFollowCaller(t *testing.T) {
 				if counts[unknown] != 0 {
 					t.Errorf("unknown beta reached reconstructed upstream header: %q", got)
 				}
-				if mode != "count_tokens" && !tt.confirmed && len(tt.want) > 0 {
-					wantOrder := claudeMidConvSystemBeta + "," + strings.Join(tt.want, ",") + ","
+				if mode != "count_tokens" && !tt.confirmed && len(wantFeatures) > 0 {
+					wantOrder := claudeMidConvSystemBeta + "," + strings.Join(wantFeatures, ",") + ","
 					if !strings.Contains(got, wantOrder) {
 						t.Errorf("header = %q, want feature betas in observed order after mid-conversation-system: %q", got, wantOrder)
 					}
 				}
-				if !tt.confirmed && req.Header.Get("User-Agent") != "claude-cli/2.1.258 (external, cli)" {
-					t.Errorf("User-Agent = %q, want the unchanged 2.1.258 baseline", req.Header.Get("User-Agent"))
+				if !tt.confirmed && req.Header.Get("User-Agent") != "claude-cli/2.1.280 (external, cli)" {
+					t.Errorf("User-Agent = %q, want the 2.1.280 baseline", req.Header.Get("User-Agent"))
 				}
 			})
 		}
@@ -171,7 +175,7 @@ func TestClaudeExecutor_MessageFeatureBetasPreserveEffortControl(t *testing.T) {
 			if gjson.GetBytes(upstreamBody, "betas").Exists() {
 				t.Error("body betas were not lifted to the header")
 			}
-			wantUserAgent := "claude-cli/2.1.258 (external, cli)"
+			wantUserAgent := "claude-cli/2.1.280 (external, cli)"
 			if mode == "count_tokens" {
 				// Count-token requests do not require metadata identity. Messages
 				// without that signal must still use the configured baseline.

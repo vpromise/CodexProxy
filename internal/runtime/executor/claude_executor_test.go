@@ -789,7 +789,7 @@ func TestApplyClaudeHeaders_EmptyAPIKey_OmitsAuthHeaders(t *testing.T) {
 	}
 }
 
-func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode258CLIFingerprint(t *testing.T) {
+func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode280CLIFingerprint(t *testing.T) {
 	var seenBody []byte
 	var seenHeaders http.Header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -816,7 +816,7 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode258CLIFingerprint(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.258 (external, cli)", "0.112.1", "v26.3.0", "MacOS", "arm64")
+	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.280 (external, cli)", "0.112.1", "v26.3.0", "MacOS", "arm64")
 	if got := seenHeaders.Get("X-App"); got != "cli" {
 		t.Fatalf("X-App = %q, want cli", got)
 	}
@@ -828,8 +828,8 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode258CLIFingerprint(t *testi
 	if len(system) != 2 {
 		t.Fatalf("system block count = %d, want 2: %s", len(system), seenBody)
 	}
-	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.258.1e2; cc_entrypoint=cli;" {
-		t.Fatalf("billing header = %q, want 2.1.258 CLI fingerprint", got)
+	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.280.d7b; cc_entrypoint=cli;" {
+		t.Fatalf("billing header = %q, want 2.1.280 CLI fingerprint", got)
 	}
 	if got := system[1].Get("text").String(); got != claudeCodeCLIIdentity {
 		t.Fatalf("system[1].text = %q, want official CLI identity", got)
@@ -1176,7 +1176,7 @@ func TestClaudeExecutor_CopiedVSCodeAgentSDKHeadersWithoutMetadataAreCloaked(t *
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.258 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.#").Int(); got != 2 {
@@ -1225,7 +1225,7 @@ func TestClaudeExecutor_AgentSDKEntrypointWithStrongSignalsUsesCLICloak(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.258 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.0.text").String(); !strings.Contains(got, "cc_entrypoint=cli;") {
@@ -7774,7 +7774,7 @@ func TestClaudeExecutor_ExecuteOAuthCustomToolMCPAliasRoundTrip(t *testing.T) {
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.258 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
 		t.Fatalf("Messages User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)
@@ -7851,7 +7851,7 @@ func TestClaudeExecutor_ExecuteStreamOAuthCustomToolMCPAliasRoundTrip(t *testing
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("streaming Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.258 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
 		t.Fatalf("streaming User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)
@@ -7986,7 +7986,7 @@ func TestInsertClaudeMidConversationSystemMessages_IsIdempotent(t *testing.T) {
 	assertClaudeMidConversationSystemMessage(t, first, 2, texts[1], "")
 }
 
-// TestClaudeCodeCLIBetas_MatchesObservedClientMatrix covers the 2.1.258 dynamic
+// TestClaudeCodeCLIBetas_MatchesObservedClientMatrix covers the 2.1.280 dynamic
 // beta policy while retaining local context-window and tool-profile behavior.
 func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 	const constants = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24"
@@ -8024,7 +8024,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24,server-side-fallback-2026-06-01," +
 				"fallback-credit-2026-06-01",
 		},
@@ -8053,17 +8053,17 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 		{
 			name: "claude-sonnet-5 carries the constant baseline",
 			body: `{"model":"claude-sonnet-5"}`,
-			want: constants,
+			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
 		},
 		{
 			name: "claude-opus-4-8 carries the constant baseline",
 			body: `{"model":"claude-opus-4-8"}`,
-			want: constants,
+			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
 		},
 		{
 			name: "claude-fable-5 carries the constant baseline",
 			body: `{"model":"claude-fable-5"}`,
-			want: constants,
+			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
 		},
 		{
 			name: "claude-opus-4-7 carries the constant baseline",
@@ -8092,7 +8092,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,oauth-2025-04-20,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24,server-side-fallback-2026-06-01," +
 				"fallback-credit-2026-06-01,extended-cache-ttl-2025-04-11",
 		},
@@ -8112,7 +8112,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8121,7 +8121,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8132,14 +8132,14 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 		{
 			name: "unknown future model keeps the constant baseline",
 			body: `{"model":"claude-future-9"}`,
-			want: constants,
+			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
 		},
 		{
 			name: "thinking display summarized drops redact-thinking",
 			body: `{"model":"claude-opus-5","thinking":{"type":"adaptive","display":"summarized"}}`,
 			want: "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8165,13 +8165,13 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			body: `{"model":"claude-fable-5-1","thinking":{"type":"adaptive","display":"updates"}}`,
 			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24,thinking-display-updates-2026-08-18",
 		},
 		{
 			name: "body with fallbacks automatically adds server-side-fallback beta",
 			body: `{"model":"claude-fable-5-1","fallbacks":[{"model":"claude-opus-5"}]}`,
-			want: constants + ",server-side-fallback-2026-06-01",
+			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01", 1) + ",server-side-fallback-2026-06-01",
 		},
 		{
 			name:  "subagent request omits extended-cache-ttl beta",
@@ -8180,7 +8180,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8190,7 +8190,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07",
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01",
 		},
 		{
 			name:      "haiku model omits effort beta even if requested",
@@ -8211,7 +8211,7 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
 				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
 				"extended-cache-ttl-2025-04-11",
 		},
 	}

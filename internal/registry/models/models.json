@@ -250,6 +250,65 @@
       ]
     },
     {
+      "id": "claude-fable-5-1",
+      "object": "model",
+      "created": 1788220800,
+      "owned_by": "anthropic",
+      "type": "claude",
+      "display_name": "Claude Fable 5.1",
+      "description": "Claude Fable 5.1 extends Claude Fable 5 at the same input and output prices, with cache reads at a quarter of the cost, and brings stronger long-running agentic coding, multistep research, and document, spreadsheet, and slide work.",
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "thinking": {
+        "min": 1024,
+        "max": 128000,
+        "zero_allowed": true,
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "claude-opus-5-5",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "anthropic",
+      "type": "claude",
+      "display_name": "Claude Opus 5.5",
+      "description": "Latest premium model combining maximum intelligence with practical performance",
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "thinking": {
+        "zero_allowed": true,
+        "dynamic_allowed": true,
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
       "id": "claude-opus-4-5-20251101",
       "object": "model",
       "created": 1761955200,
@@ -369,15 +428,15 @@
   ],
   "codex-free": [
     {
-      "id": "gpt-5.4-mini",
+      "id": "gpt-6-luna",
       "object": "model",
-      "created": 1773705600,
+      "created": 1790035200,
       "owned_by": "openai",
       "type": "openai",
-      "display_name": "GPT 5.4 Mini",
-      "version": "gpt-5.4-mini",
-      "description": "GPT-5.4 mini brings the strengths of GPT-5.4 to a faster, more efficient model designed for high-volume workloads.",
-      "context_length": 400000,
+      "display_name": "GPT 6.0 Luna",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Luna Codex model.",
+      "context_length": 272000,
       "max_completion_tokens": 128000,
       "supported_parameters": [
         "tools"
@@ -387,7 +446,8 @@
           "low",
           "medium",
           "high",
-          "xhigh"
+          "xhigh",
+          "max"
         ]
       },
       "supportedInputModalities": [
@@ -529,66 +589,6 @@
   ],
   "codex-team": [
     {
-      "id": "gpt-5.4",
-      "object": "model",
-      "created": 1772668800,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4",
-      "version": "gpt-5.4",
-      "description": "Stable version of GPT 5.4",
-      "context_length": 1050000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gpt-5.4-mini",
-      "object": "model",
-      "created": 1773705600,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4 Mini",
-      "version": "gpt-5.4-mini",
-      "description": "GPT-5.4 mini brings the strengths of GPT-5.4 to a faster, more efficient model designed for high-volume workloads.",
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
       "id": "gpt-5.5",
       "object": "model",
       "created": 1776902400,
@@ -608,6 +608,99 @@
           "medium",
           "high",
           "xhigh"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-astra",
+      "object": "model",
+      "created": 1783616400,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Astra",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Astra is our most intelligent model yet, with state-of-the-art performance in computer use, browsing, software engineering, science, and professional work.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-sol",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Sol",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Sol Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-luna",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Luna",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Luna Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
         ]
       },
       "supportedInputModalities": [
@@ -750,66 +843,6 @@
   ],
   "codex-plus": [
     {
-      "id": "gpt-5.4",
-      "object": "model",
-      "created": 1772668800,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4",
-      "version": "gpt-5.4",
-      "description": "Stable version of GPT 5.4",
-      "context_length": 1050000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gpt-5.4-mini",
-      "object": "model",
-      "created": 1773705600,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4 Mini",
-      "version": "gpt-5.4-mini",
-      "description": "GPT-5.4 mini brings the strengths of GPT-5.4 to a faster, more efficient model designed for high-volume workloads.",
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
       "id": "gpt-5.5",
       "object": "model",
       "created": 1776902400,
@@ -829,6 +862,99 @@
           "medium",
           "high",
           "xhigh"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-astra",
+      "object": "model",
+      "created": 1783616400,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Astra",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Astra is our most intelligent model yet, with state-of-the-art performance in computer use, browsing, software engineering, science, and professional work.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-sol",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Sol",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Sol Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-luna",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Luna",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Luna Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
         ]
       },
       "supportedInputModalities": [
@@ -971,66 +1097,6 @@
   ],
   "codex-pro": [
     {
-      "id": "gpt-5.4",
-      "object": "model",
-      "created": 1772668800,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4",
-      "version": "gpt-5.4",
-      "description": "Stable version of GPT 5.4",
-      "context_length": 1050000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gpt-5.4-mini",
-      "object": "model",
-      "created": 1773705600,
-      "owned_by": "openai",
-      "type": "openai",
-      "display_name": "GPT 5.4 Mini",
-      "version": "gpt-5.4-mini",
-      "description": "GPT-5.4 mini brings the strengths of GPT-5.4 to a faster, more efficient model designed for high-volume workloads.",
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "supported_parameters": [
-        "tools"
-      ],
-      "thinking": {
-        "levels": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ]
-      },
-      "supportedInputModalities": [
-        "text",
-        "image"
-      ],
-      "supportedOutputModalities": [
-        "text"
-      ]
-    },
-    {
       "id": "gpt-5.5",
       "object": "model",
       "created": 1776902400,
@@ -1050,6 +1116,99 @@
           "medium",
           "high",
           "xhigh"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-astra",
+      "object": "model",
+      "created": 1783616400,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Astra",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Astra is our most intelligent model yet, with state-of-the-art performance in computer use, browsing, software engineering, science, and professional work.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-sol",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Sol",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Sol Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "supportedInputModalities": [
+        "text",
+        "image"
+      ],
+      "supportedOutputModalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gpt-6-luna",
+      "object": "model",
+      "created": 1790035200,
+      "owned_by": "openai",
+      "type": "openai",
+      "display_name": "GPT 6.0 Luna",
+      "version": "gpt-6.0",
+      "description": "GPT-6 Luna Codex model.",
+      "context_length": 272000,
+      "max_completion_tokens": 128000,
+      "supported_parameters": [
+        "tools"
+      ],
+      "thinking": {
+        "levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
         ]
       },
       "supportedInputModalities": [

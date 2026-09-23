@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1822,6 +1823,7 @@ func TestCodexDirectModelsReturnsClientCatalog(t *testing.T) {
 	}{
 		{name: "without client version", path: "/backend-api/codex/models"},
 		{name: "with client version", path: "/backend-api/codex/models?client_version=0.149.1"},
+		{name: "versioned v1 catalog", path: "/v1/models?client_version=0.156.0"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
@@ -1831,6 +1833,12 @@ func TestCodexDirectModelsReturnsClientCatalog(t *testing.T) {
 
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+			if bytes.Contains(rr.Body.Bytes(), []byte("\n")) || bytes.Contains(rr.Body.Bytes(), []byte(`\u003c`)) {
+				t.Fatal("Codex catalog should be compact JSON without HTML expansion")
+			}
+			if got := rr.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+				t.Fatalf("catalog content type = %q", got)
 			}
 			var response struct {
 				Models []map[string]any `json:"models"`
@@ -1959,14 +1967,14 @@ func TestModelsWithClientVersionReturnsCodexCatalog(t *testing.T) {
 	if !ok || len(customServiceTiers) != 0 {
 		t.Fatalf("expected custom model service_tiers = [], got %#v", custom["service_tiers"])
 	}
-	if _, ok := custom["apply_patch_tool_type"]; ok {
-		t.Fatal("expected custom model to omit apply_patch_tool_type")
+	if value, ok := custom["apply_patch_tool_type"]; !ok || value != nil {
+		t.Fatal("expected custom model to retain null apply_patch_tool_type")
 	}
-	if _, ok := custom["upgrade"]; ok {
-		t.Fatal("expected custom model to omit upgrade")
+	if value, ok := custom["upgrade"]; !ok || value != nil {
+		t.Fatal("expected custom model to retain null upgrade")
 	}
-	if _, ok := custom["availability_nux"]; ok {
-		t.Fatal("expected custom model to omit availability_nux")
+	if value, ok := custom["availability_nux"]; !ok || value != nil {
+		t.Fatal("expected custom model to retain null availability_nux")
 	}
 
 	hiddenModels := map[string]bool{"gpt-image-2": false}

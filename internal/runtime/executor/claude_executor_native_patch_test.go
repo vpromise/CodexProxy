@@ -22,7 +22,9 @@ func TestClaudeExecutor_OAuthNativePatchPreservesCallerSystem(t *testing.T) {
 		cloakMode  string
 		wantNative bool
 	}{
-		{"baseline", "2.1.258", "", true},
+		{"previous baseline", "2.1.258", "", true},
+		{"current baseline", "2.1.280", "", true},
+		{"next patch", "2.1.281", "", true},
 		{"newer patch", "2.1.263", "", true},
 		{"older patch", "2.1.257", "", false},
 		{"unmeasured minor", "2.2.0", "", false},
@@ -74,7 +76,7 @@ func TestClaudeExecutor_OAuthNativePatchPreservesCallerSystem(t *testing.T) {
 				t.Fatalf("Execute() error = %v", errExecute)
 			}
 			seen := <-requests
-			wantUA := "claude-cli/2.1.258 (external, cli)"
+			wantUA := "claude-cli/2.1.280 (external, cli)"
 			if tt.wantNative {
 				wantUA = userAgent
 			}

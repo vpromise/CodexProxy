@@ -2,6 +2,7 @@
 package models
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -58,6 +59,17 @@ func BuildResponseForClient(availableModels []map[string]any, providersForModel 
 	return map[string]any{
 		"models": buildCodexClientModels(availableModels, providersForModel, optimizeMultiAgentV2, clientVersion),
 	}
+}
+
+// MarshalCompact encodes catalogs without expanding instruction text into HTML escapes.
+func MarshalCompact(payload any) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	if errEncode := encoder.Encode(payload); errEncode != nil {
+		return nil, errEncode
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
 func buildCodexClientModels(models []map[string]any, providersForModel ProvidersForModelFunc, optimizeMultiAgentV2 bool, clientVersion string) []map[string]any {
@@ -291,9 +303,10 @@ func applyCodexClientModelMetadata(entry map[string]any, id string, model map[st
 		entry["multi_agent_version"] = "v2"
 	}
 	entry["service_tiers"] = []any{}
-	delete(entry, "apply_patch_tool_type")
-	delete(entry, "upgrade")
-	delete(entry, "availability_nux")
+	// Keep required nullable options in the catalog without advertising capabilities.
+	entry["apply_patch_tool_type"] = nil
+	entry["upgrade"] = nil
+	entry["availability_nux"] = nil
 
 	if contextWindow > 0 {
 		entry["context_window"] = contextWindow

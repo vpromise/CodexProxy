@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	codexmodels "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/models"
 	. "github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
@@ -96,7 +97,17 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 
 // CodexModels returns the Codex CLI model catalog.
 func (h *OpenAIAPIHandler) CodexModels(c *gin.Context) {
-	c.JSON(http.StatusOK, h.codexClientModelsResponse(c.Query("client_version")))
+	body, errMarshal := codexmodels.MarshalCompact(h.codexClientModelsResponse(c.Query("client_version")))
+	if errMarshal != nil {
+		c.JSON(http.StatusInternalServerError, handlers.ErrorResponse{
+			Error: handlers.ErrorDetail{
+				Message: fmt.Sprintf("Failed to encode model list: %v", errMarshal),
+				Type:    "server_error",
+			},
+		})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
 // ChatCompletions handles the /v1/chat/completions endpoint.

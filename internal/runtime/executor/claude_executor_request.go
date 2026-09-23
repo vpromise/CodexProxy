@@ -45,6 +45,13 @@ const (
 	claudeMidConvSystemBeta          = "mid-conversation-system-2026-04-07"
 	claudePerTurnControlBeta         = "per-turn-control-2026-07-01"
 	claudeMidConvToolChangesBeta     = "mid-conversation-tool-changes-2026-07-01"
+	claudePerTurnTimingBeta          = "timing-2026-09-09"
+	claudeInlineToolsBeta            = "inline-tools-2026-09-15"
+	claudeMidConvSystemClearAtBeta   = "mid-conversation-system-clear-at-2026-08-21"
+	claudeDangerousToolUseBeta       = "dangerous-tool-use-2026-09-03"
+	claudeThinkingBindingBeta        = "thinking-binding-controls-2026-08-01"
+	claudeThinkingResumptionBeta     = "thinking-resumption-2026-07-17"
+	claudePromptCachingEvictBeta     = "prompt-caching-evict-2026-05-12"
 	claudeAdvisorToolBeta            = "advisor-tool-2026-03-01"
 	claudeAdvancedToolUseBeta        = "advanced-tool-use-2025-11-20"
 	claudeEffortBeta                 = "effort-2025-11-24"
@@ -233,11 +240,12 @@ var claudeCodeCLIConstantBetas = []string{
 	"prompt-caching-scope-2026-01-05",
 }
 
-// claudeCodeCLIBetas applies the upstream Claude Code 2.1.258 per-request beta
+// claudeCodeCLIBetas applies the upstream Claude Code 2.1.280 per-request beta
 // policy. Preserve the local context-window detection and tool profile while
 // gating effort, fallbacks, thinking updates and cache TTL by the final body.
 func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool) string {
-	betas := make([]string, 0, len(claudeCodeCLIConstantBetas)+9)
+	features := helps.DetectClaudeBetaFeatures(body)
+	betas := make([]string, 0, len(claudeCodeCLIConstantBetas)+24)
 	betas = append(betas, claudeCodeBeta)
 	if oauthToken {
 		betas = append(betas, claudeOAuthBeta)
@@ -253,17 +261,29 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		betas = append(betas, beta)
 	}
 	betas = append(betas, claudeMidConvSystemBeta)
-	if requested[claudePerTurnControlBeta] {
+	if requested[claudePerTurnControlBeta] || features.PerTurnControl {
 		betas = append(betas, claudePerTurnControlBeta)
 	}
-	if requested[claudeMidConvToolChangesBeta] {
+	if requested[claudePerTurnTimingBeta] || features.Timing {
+		betas = append(betas, claudePerTurnTimingBeta)
+	}
+	if requested[claudeMidConvToolChangesBeta] || features.MidConversationTools {
 		betas = append(betas, claudeMidConvToolChangesBeta)
+	}
+	if requested[claudeInlineToolsBeta] || features.InlineTools {
+		betas = append(betas, claudeInlineToolsBeta)
 	}
 	if requested[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body) {
 		betas = append(betas, claudeAdvisorToolBeta)
 	}
 	if requested[claudeAdvancedToolUseBeta] || helps.ClaudeBodyUsesAdvancedToolUse(body) {
 		betas = append(betas, claudeAdvancedToolUseBeta)
+	}
+	if requested[claudeMidConvSystemClearAtBeta] || features.ClearAt {
+		betas = append(betas, claudeMidConvSystemClearAtBeta)
+	}
+	if requested[claudeDangerousToolUseBeta] || gjson.GetBytes(body, "safeguards").Exists() {
+		betas = append(betas, claudeDangerousToolUseBeta)
 	}
 	if claudeRequestSupportsEffort(body, requested) {
 		betas = append(betas, claudeEffortBeta)
@@ -282,8 +302,14 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		betas = append(betas, claudeStructuredOutputsBeta)
 	}
 	thinkingType := gjson.GetBytes(body, "thinking.type").String()
+	if requested[claudeThinkingBindingBeta] || gjson.GetBytes(body, "thinking.block_binding").Exists() {
+		betas = append(betas, claudeThinkingBindingBeta)
+	}
 	if !isProbeOrHelper && thinkingType != "disabled" && (requested[claudeThinkingDisplayUpdatesBeta] || claudeThinkingDisplayUpdates(body)) {
 		betas = append(betas, claudeThinkingDisplayUpdatesBeta)
+	}
+	if requested[claudeThinkingResumptionBeta] {
+		betas = append(betas, claudeThinkingResumptionBeta)
 	}
 	if claudeRequestUsesFastMode(body, requested) {
 		betas = append(betas, claudeFastModeBeta)
@@ -297,6 +323,9 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		if includeExtended {
 			betas = append(betas, claudeExtendedCacheTTLBeta)
 		}
+	}
+	if requested[claudePromptCachingEvictBeta] || features.CacheEviction {
+		betas = append(betas, claudePromptCachingEvictBeta)
 	}
 	if diagnostics := gjson.GetBytes(body, "diagnostics"); diagnostics.IsObject() {
 		betas = append(betas, claudeCacheDiagnosisBeta)
@@ -1152,7 +1181,11 @@ func applyClaudeHeadersWithNativeProfile(
 	if !preserveCallerFingerprint {
 		// Count-token and native profiles can replace the assembled baseline.
 		// Keep requested schema betas paired with their message-level fields.
-		for _, beta := range []string{claudePerTurnControlBeta, claudeMidConvToolChangesBeta} {
+		for _, beta := range []string{
+			claudePerTurnControlBeta, claudePerTurnTimingBeta, claudeMidConvToolChangesBeta,
+			claudeInlineToolsBeta, claudeMidConvSystemClearAtBeta, claudeDangerousToolUseBeta,
+			claudeThinkingBindingBeta, claudeThinkingResumptionBeta, claudePromptCachingEvictBeta,
+		} {
 			if requestedBetas[beta] {
 				appendBeta(beta)
 			}
@@ -1182,7 +1215,7 @@ func applyClaudeHeadersWithNativeProfile(
 		}
 	}
 	applyBetaHeader := func() {
-		// Enforce strict native Claude Code 2.1.258 model & turn beta gating:
+		// Enforce strict native Claude Code 2.1.280 model & turn beta gating:
 		if !claudeRequestSupportsEffort(body, nil) {
 			baseBetas = withoutClaudeBeta(baseBetas, claudeEffortBeta)
 		}
@@ -1273,7 +1306,7 @@ func applyClaudeHeadersWithNativeProfile(
 	identityHeader("Anthropic-Version", "2023-06-01")
 	identityHeader("Anthropic-Dangerous-Direct-Browser-Access", "true")
 	identityHeader("X-App", "cli")
-	// Values below match Claude Code 2.1.258 / @anthropic-ai/sdk 0.112.1.
+	// Values below match Claude Code 2.1.280 / @anthropic-ai/sdk 0.112.1.
 	identityHeader("X-Stainless-Retry-Count", "0")
 	identityHeader("X-Stainless-Runtime", "node")
 	identityHeader("X-Stainless-Lang", "js")
@@ -1324,7 +1357,7 @@ func applyClaudeHeadersWithNativeProfile(
 			r.Header.Set(hdr, val)
 		}
 	}
-	// Claude Code 2.1.258 attaches request IDs for the first-party base.
+	// Claude Code 2.1.280 attaches request IDs for the first-party base.
 	// Custom-base helpers preserve a caller ID without synthesizing one.
 	if isAnthropicBase || (helperProfile && helps.HeaderValueCaseInsensitive(incomingHeaders, "x-client-request-id") != "") {
 		identityHeader("x-client-request-id", uuid.New().String())
@@ -1395,7 +1428,7 @@ func doClaudeUpstreamRequest(client *http.Client, req *http.Request) (*http.Resp
 }
 
 // claudeWireHeaderCasing maps Go's canonical header name to the exact casing
-// Claude Code 2.1.258 puts on the wire. Only the names that differ are listed;
+// Claude Code 2.1.280 puts on the wire. Only the names that differ are listed;
 // the other headers already survive canonicalisation unchanged.
 var claudeWireHeaderCasing = map[string]string{
 	"X-Client-Request-Id": "x-client-request-id",
