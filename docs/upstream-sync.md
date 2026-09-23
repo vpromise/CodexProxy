@@ -14,11 +14,32 @@ Updated: 2026-09-23. This is the checkpoint for selective backports from `router
 | Published source tree | `f3138409f9ff94ad7b3dbbda13ffd652ed833d6e` |
 | Latest publication | Four selected v7.3.13-v7.3.15 groups plus the local WebSocket terminal-error ordering repair; 25 production/data/test paths plus this ledger |
 | Unpublished selected fixes | None from the completed September 23 batch; earlier deferred groups remain deferred |
-| Deployment | Last verified on 2026-09-21: `7c96a1cc099634c46807aec88b24c4d0a906add2` on dmit, dmit2 and bawg; the September 22-23 work did not deploy changes |
+| Deployment | Verified on 2026-09-23 at 03:39 UTC: `8bf1f13c090a31a4f5c1b7049d3a719828674903` on dmit, dmit2 and bawg; this published source includes implementation `2067d9f3` and its publication ledger |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Prior deferred groups remain deferred |
 
 The latest published implementation is `2067d9f3`, based on `2a6daac1`, the preceding publication-ledger commit for `6b6d721f`. The September 23 review accounts for all **16 commits** after `555662940411a07460e9d24d14477a5f50dffdb5` through `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` (**15 non-merge commits, 1 merge**). Upstream main matched the v7.3.15 release commit at inspection; there was no separate main-only range. Advancing this checkpoint does not import upstream ancestry or complete earlier deferred work.
+
+## Deployed on 2026-09-23 — dmit, dmit2 and bawg
+
+Deployed the immutable published source [8bf1f13c](https://github.com/vpromise/CodexProxy/commit/8bf1f13c090a31a4f5c1b7049d3a719828674903), tree `aa64c546526d726a7fc70cb664c01e120cb9a9d2`, including implementation `2067d9f3`. Both binaries identify version `codexproxy-20260923-8bf1f13c`, the full source commit and build date **2026-09-23T03:22:22Z**. The source/test manifest remained `99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b`; existing full/race validation was reused without source changes or catalog refreshes.
+
+| Host | Preserved runtime | Verified deployment and rollback directory |
+| --- | --- | --- |
+| dmit | Linux amd64 CGO build; Docker Compose project `cpa-production`, service/container `cpa`; image `local/codexproxy:8bf1f13c` | `/root/cpa-deploy/releases/20260923-8bf1f13c` |
+| dmit2 | Linux amd64 static build; Compose project `codex-stack`, service `codexproxy`; image `local/codexproxy:8bf1f13c` | `/opt/codex-stack/codexproxy/releases/20260923-8bf1f13c` |
+| bawg | Linux amd64 static build; `codexproxy.service`, binary `/opt/codexproxy/codexproxy` | `/opt/codexproxy/releases/20260923-8bf1f13c` |
+
+Builds completed locally with Go **1.27.1**, `-trimpath` and explicit version/commit/date metadata. The CGO build used Zig **0.15.2**, targeting `x86_64-linux-gnu.2.17`; the static build used `CGO_ENABLED=0`. Binary SHA-256 values were checked before deployment and against the installed/running files:
+
+- CGO, dmit: `0049bb5949d0d86ab0ba8cae8810632b9065967f5c0798e0141bedd16472622f`.
+- Static, dmit2 and bawg: `46c4fdf977309c8c9ced63bac822d4605ec183d90a36eb0f515751b6514423c3`.
+
+Each host passed executable preflight with an empty config before activation. Docker images retained their existing runtime base, with the compiled binary replaced. Only the proxy service was recreated or restarted, in order: dmit, dmit2, bawg. On dmit2, the legacy builder rejected `COPY --chmod` during image preparation; the existing service remained running. Retrying with an executable source file and ordinary `COPY` succeeded, without changing the binary, Docker installation or service settings. Its preparation failure remains recorded in `deployment-attempt1.json`. The persistent dmit2 image-build binary was also updated and its previous copy retained.
+
+Final verification at **03:39 UTC** found all three services running with **zero automatic restarts**, `/healthz` returning **200**, and `HEAD /api/hello` returning **204**. dmit's configured Docker healthcheck was healthy; dmit2 has no Docker healthcheck, so its running process and HTTP endpoints were checked directly. Gateway-to-proxy checks passed from sub2api on dmit and NewAPI on dmit2. Config hashes, Docker runtime settings, bawg's systemd unit and unrelated gateway/service identities were preserved. Logs since activation contained **zero warnings and zero errors** at verification. No real provider inference request was sent; these checks verify deployment and connectivity, not end-to-end inference behavior.
+
+Each host's `LATEST_DEPLOYMENT.json` and release-local `deployment.json` contain the build identifiers, checksums, before/after state and final verification. Release directories retain `BUILD.json`, config snapshots, the previous image reference or binary, and executable `ROLLBACK.sh`; rollback targets `7c96a1cc`. No old release or rollback material was deleted, and no GitHub Release was created. Local disposable source, compiler, binaries and dedicated caches were removed after preserving the deployment evidence.
 
 ## Published on 2026-09-23 — selected v7.3.13 through v7.3.15 repairs
 
@@ -167,7 +188,7 @@ Defer [ac3849e5](https://github.com/router-for-me/CLIProxyAPI/commit/ac3849e5d98
 
 Initial review evidence: focused probes in an isolated snapshot of unchanged `7c96a1cc` reproduced all four groups across three packages. The existing SSE error-preservation behavior passed on the baseline. Applying only `dd013f9e` in that temporary snapshot made telemetry filtering pass but made both error-precedence probes fail: `event: codex.rate_limits` with a `response.failed` error payload, and `event: error` with a `codex.private_error` error payload, were discarded with no terminal error recorded. These are synthetic boundary cases, not observed production incidents. The initial review changed only this ledger and removed its temporary snapshot and dedicated caches. The later implementation and validation are recorded above.
 
-The September 21 deployment remains the last verified runtime checkpoint: dmit retained its CGO build and Docker service `cpa`; dmit2 retained its static build and Compose service `codexproxy`; bawg retained its static build and `codexproxy.service`. All three returned HTTP 200 from `/healthz` and HTTP 204 from `HEAD /api/hello`. Gateway-to-proxy health checks passed on dmit and dmit2. Configuration hashes, container runtime settings and unrelated gateway services were preserved. Per-server `LATEST_DEPLOYMENT.json` and `releases/20260921-7c96a1cc` contain the deployment and rollback records. Those checks establish the September 21 state, not continuous health since then.
+The earlier September 21 runtime checkpoint was superseded by the September 23 deployment recorded above. On September 21, dmit retained its CGO build and Docker service `cpa`; dmit2 retained its static build and Compose service `codexproxy`; bawg retained its static build and `codexproxy.service`. All three returned HTTP 200 from `/healthz` and HTTP 204 from `HEAD /api/hello`. Gateway-to-proxy health checks passed on dmit and dmit2. Configuration hashes, container runtime settings and unrelated gateway services were preserved. The retained `releases/20260921-7c96a1cc` directories contain that deployment and its rollback records; per-server `LATEST_DEPLOYMENT.json` now records September 23. Those earlier checks establish the September 21 state, not continuous health since then.
 
 ## Published on 2026-09-21 — selected v7.3.9/v7.3.10 repairs
 
