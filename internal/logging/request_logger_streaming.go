@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -14,7 +14,7 @@ import (
 // It spools streaming response chunks to a temporary file to avoid retaining large responses in memory.
 // The final log file is assembled when Close is called.
 type FileStreamingLogWriter struct {
-	// logFilePath is the final log file path.
+	// logFilePath is the preferred log file path; collisions receive a unique suffix.
 	logFilePath string
 
 	// url is the request URL (masked upstream in middleware).
@@ -220,7 +220,7 @@ func (w *FileStreamingLogWriter) Close() error {
 		return nil
 	}
 
-	logFile, errOpen := fileperm.OpenPrivateFile(w.logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+	logFile, _, errOpen := createUniqueLogFile(filepath.Dir(w.logFilePath), filepath.Base(w.logFilePath))
 	if errOpen != nil {
 		w.cleanupTempFiles()
 		return fmt.Errorf("failed to create log file: %w", errOpen)

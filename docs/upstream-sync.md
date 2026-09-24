@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-09-23. This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-09-24 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -8,17 +8,87 @@ Updated: 2026-09-23. This is the checkpoint for selective backports from `router
 
 | Item | Recorded state |
 | --- | --- |
-| Last reviewed upstream main | [673131f5](https://github.com/router-for-me/CLIProxyAPI/commit/673131f57484517c3a1eae7e36c4cfa7b9bb4efc) (`673131f57484517c3a1eae7e36c4cfa7b9bb4efc`) |
-| Release at that review | [v7.3.15](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.15), published 2026-09-23 00:55:44 UTC; tag resolves to `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` |
+| Latest upstream check | 2026-09-24 09:18 Asia/Shanghai (01:18 UTC): all 10 new commits through v7.3.16 reviewed; main matches the release |
+| Last reviewed upstream main | [c404af96](https://github.com/router-for-me/CLIProxyAPI/commit/c404af96ebacedf8168b3c2bdbf4449a21cd1c1e) (`c404af96ebacedf8168b3c2bdbf4449a21cd1c1e`) |
+| Release at that review | [v7.3.16](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.16), published 2026-09-24 00:10:28 UTC; tag resolves to `c404af96ebacedf8168b3c2bdbf4449a21cd1c1e` |
 | Latest verified published implementation | [2067d9f3](https://github.com/vpromise/CodexProxy/commit/2067d9f333d49278b2ff7a50d62797cdad9c14c4) (`2067d9f333d49278b2ff7a50d62797cdad9c14c4`) on `main` |
 | Published source tree | `f3138409f9ff94ad7b3dbbda13ffd652ed833d6e` |
 | Latest publication | Four selected v7.3.13-v7.3.15 groups plus the local WebSocket terminal-error ordering repair; 25 production/data/test paths plus this ledger |
-| Unpublished selected fixes | None from the completed September 23 batch; earlier deferred groups remain deferred |
+| Unpublished selected fixes | Three verified local groups: partial logging collision repair from `e6fcfa34`, Claude adjacent text grouping from `781a203b`, and user-approved credential/model cooldown isolation from `aafa4e95` |
 | Deployment | Verified on 2026-09-23 at 03:39 UTC: `8bf1f13c090a31a4f5c1b7049d3a719828674903` on dmit, dmit2 and bawg; this published source includes implementation `2067d9f3` and its publication ledger |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Prior deferred groups remain deferred |
 
 The latest published implementation is `2067d9f3`, based on `2a6daac1`, the preceding publication-ledger commit for `6b6d721f`. The September 23 review accounts for all **16 commits** after `555662940411a07460e9d24d14477a5f50dffdb5` through `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` (**15 non-merge commits, 1 merge**). Upstream main matched the v7.3.15 release commit at inspection; there was no separate main-only range. Advancing this checkpoint does not import upstream ancestry or complete earlier deferred work.
+
+## Integrated locally on 2026-09-24 — selected v7.3.16 repairs
+
+The review covers all **10 non-merge commits** after `673131f57484517c3a1eae7e36c4cfa7b9bb4efc` through `c404af96ebacedf8168b3c2bdbf4449a21cd1c1e`. GitHub's release-tag API resolves v7.3.16 directly to that immutable commit, and its main-commit API reports the same boundary. There is no additional main-only range. The cached `/releases/latest` web response initially still showed v7.3.15; the current GitHub API and explicit v7.3.16 release page agree on the new release. Required objects were fetched without importing upstream tags or changing fork branches/remotes.
+
+Implementation used isolated worktrees at local base `dc32d876d69462ceab192626092eeee4b190e134`. Earlier uncommitted changes were preserved. These three groups are now in the user's local checkout, uncommitted and unpublished:
+
+| Source | Status and implemented scope |
+| --- | --- |
+| [e6fcfa34](https://github.com/router-for-me/CLIProxyAPI/commit/e6fcfa34bad1610a70bf9253b32af457045f8f38) | **Partial, integrated locally.** Atomically create request/error/stream logs with exclusive creation and a bounded numeric collision suffix, preserving the request-ID suffix and original log. Management request-ID lookup selects by modification time, then embedded timestamp and numeric sequence. Retain the fork's `fileperm.OpenPrivateFile`/0600 permission policy, streaming spool cleanup, Home forwarding and existing random request-ID generation. Do not import the process-local 32-bit counter: it restarts at zero, while the currently used CodexKeeper maps `request_id` directly to `event_key` for deduplication (`internal/service/redis_usage.go`). This is a file-collision repair, not a guarantee of globally unique IDs or distinct usage records across every retry. |
+| [781a203b](https://github.com/router-for-me/CLIProxyAPI/commit/781a203b99fa14b94303f52d1798821148849ab8) / [issue #6088](https://github.com/router-for-me/CLIProxyAPI/issues/6088) | **Integrated locally.** Merge consecutive Claude text blocks into one assistant message in streamed Responses output and SSE-to-nonstream aggregation. Retain citation order, message IDs, terminal events and existing usage/reasoning/tool conversion. Non-text blocks still delimit messages. Added coverage for cited text, ordinary text and tool/thinking/unknown-block boundaries in both modes. |
+| [aafa4e95](https://github.com/router-for-me/CLIProxyAPI/commit/aafa4e9549f7d77b7a361cb68fc350e8ee4185a9) / [issue #6083](https://github.com/router-for-me/CLIProxyAPI/issues/6083) | **Integrated locally after explicit user approval on September 24.** Calculate a credential-scoped 429 deadline and backoff from credential quota state, independently of model quota aggregates. Propagate only that shared deadline to other models while retaining their own longer restrictions. Preserve monotonic credential deadlines, repeated credential backoff, local quota-observation fields, Fable/overage classification, shared-window rejection, 529 handling, disabled state and lifecycle protections. Tests cover same/cross-model results, all three selectors, scheduler selection and real Claude executor error handling in streamed/nonstreamed requests. No configuration, migration, reset or runtime-state rewrite is introduced. |
+
+### Remaining commits
+
+| Source | Disposition, evidence and reevaluation trigger |
+| --- | --- |
+| [2fe9932b](https://github.com/router-for-me/CLIProxyAPI/commit/2fe9932bb9d127752564263db7bc9e934675ab94) | **Deferred.** Adds per-execution UUIDs and trace IDs across usage records, queue payloads and plugin APIs. The active Keeper decoder currently consumes `request_id` and does not consume the new fields, so importing the producer changes alone does not repair end-to-end deduplication. Revisit as an explicit producer/consumer identity and compatibility change; do not change usage semantics as a logging dependency. |
+| [855a7223](https://github.com/router-for-me/CLIProxyAPI/commit/855a722349ffedce1299fd7ec407f09f0017dd2a) / [issue #6085](https://github.com/router-for-me/CLIProxyAPI/issues/6085) | **Deferred.** Adds shared-library host HTTP operation IDs, cancellation and plugin-instance lifecycle scoping across the ABI, callback registry and stream bridge. The report concerns C-shared JSON callbacks, not native Codex/Claude HTTP context support. No active caller requiring this expanded protocol was established; revisit with a concrete plugin integration and the existing post-connection timeout restriction. |
+| [c404af96](https://github.com/router-for-me/CLIProxyAPI/commit/c404af96ebacedf8168b3c2bdbf4449a21cd1c1e) / [issue #6089](https://github.com/router-for-me/CLIProxyAPI/issues/6089) | **Deferred.** Propagates file priority through plugin parsing and refresh, adding a file-ownership attribute and touching synthesis, storage and management. Native file synthesis already reads priority locally. Revisit when plugin-parsed credentials need this path; agree on refresh/priority ownership before adapting, rather than importing a lifecycle change with this batch. |
+| [580df95a](https://github.com/router-for-me/CLIProxyAPI/commit/580df95a946b05d9171ced80667bf13cb0b60edf) | **Excluded.** Tool-ID sanitation/collision handling affects OpenAI-to-Antigravity request conversion, which is outside the supported native-provider surface. |
+| [5af6cd75](https://github.com/router-for-me/CLIProxyAPI/commit/5af6cd7582ee7c15d60c8672ea709c6be05c89b2) | **Excluded.** JSON `$ref` stringification is consumed only by Gemini/Antigravity/Interactions function-response translators. It is not a native Claude/Codex schema repair. |
+| [65459cac](https://github.com/router-for-me/CLIProxyAPI/commit/65459cace01f002e1d7c380b1e4a36f50c85ad7c) | **Excluded.** Devin-provider model definitions, including renamed Claude/GPT entries under that provider, do not update the native catalogs used by this fork. |
+| [7d888bf3](https://github.com/router-for-me/CLIProxyAPI/commit/7d888bf3cac88847f77dd6942e62d7e63f298796) | **Excluded.** Meta key-mint subscription metadata belongs to an unsupported native authenticator; the target `sdk/auth/meta.go` is absent locally. |
+
+All previous deferred and partially integrated entries remain in effect. No client fingerprint or native model-catalog change occurs in this upstream range. Local versions remain Claude Code **2.1.280**, SDK **0.112.1**, Node **v26.3.0**, Codex runtime **0.154.0**, and catalog-fetch defaults **0.155.0**.
+
+### Initial logging and translator validation
+
+The unchanged production baseline failed the new cited-text stream/nonstream regression, four management latest-log selection cases, and the separate streaming-log overwrite regression. The new unique-file helper tests also cover 20 concurrent creators. The baseline containing upstream citation, management and cooldown regressions had **1552** regular inputs with manifest SHA-256 `0b1b72b1907c4202a6f988d7ed80c8a2c365ffec08561fdaf8efd90b663efb9b`. The subsequently added streaming overwrite regression had file SHA-256 `ca59a1a3fd5ef3f328d64f4e1440862767988d530fa0a8892625ae9e62ea34e5` when it failed against unchanged logging code. Cooldown diagnostic tests were saved separately and removed from the candidate before validating the independently authorized repairs.
+
+Initial validation used Go **1.27.1**, darwin/arm64, **CGO_ENABLED=1**, a dedicated temporary worktree/cache and local fixtures only. All four commands completed with exit code 0:
+
+- `go test -count=1 -json ./internal/logging ./internal/api/handlers/management ./internal/translator/claude/openai/responses`: **3 packages passed**, including the additional non-text boundary regressions.
+- `go test -count=1 -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...`: **67 packages passed**, **24 had no tests**. A fresh bind to `127.0.0.2` failed with `EADDRNOTAVAIL`, reconfirming the two existing macOS exclusions. The optional `TestClaudeCodeTLSClientHelloCapture` skipped because its external capture proxy was not configured. No new command-level exclusions were added.
+- `go test -race -count=1 -json ./internal/logging ./internal/api/handlers/management ./internal/api/middleware ./internal/translator/claude/openai/responses`: **4 packages passed**, with no failures or skips.
+- `go build -o <task-directory>/test-output ./cmd/server`: passed. Formatting, final diff review and `git diff --check` passed.
+
+The initial source/test/build manifest was **`29c210139f20df225e6f5f455513a5a6b8687a6d2bf8b69dd26b9ba044a7c629`**, covering **1554** regular files excluding this ledger, using the existing manifest algorithm below. It matched before/after validation and after applying the exact candidate to the unchanged local base; the user's existing ledger edit and empty index were preserved. That patch contained **4 production paths and 4 test paths**, plus this ledger. No Linux validation, live provider call, server operation, commit, push or Release occurred.
+
+The initial disposable worktree, build output, logs and dedicated caches were removed after preserving these results. Cooldown diagnostic evidence was initially retained separately, then reused for the approved follow-up below and removed after integration. The shared module cache was retained.
+
+### Approved cooldown repair and combined validation
+
+After discussing the scope, the user explicitly requested the cooldown repair on September 24. A fresh isolated worktree included all earlier pending logging/translator/ledger changes. Manager regressions on unchanged cooldown code reproduced both the same-model and cross-model eight-day-to-three-hour contamination, inherited model backoff, lost credential backoff progression, and healthy-model rejection after the shared window elapsed. That baseline manifest was `d7569bd0918a6012ecb3ac361dbe6c106c0c5a3564eb9188cd616b8fdd453a28` (**1555** files). A separate executor regression also failed in both `Execute` and `ExecuteStream`: a local HTTP fixture returned a model-only eight-day 429 followed by a shared three-hour 429, but the manager recorded an eight-day credential deadline. Its unchanged-production baseline manifest was `e835b0eccc63acb4aaab333c8cc6d6df92abf6e0760e93ad7978eee88aa4a360` (**1556** files). Both baseline commands exited 1 as expected.
+
+The adaptation changes only `sdk/cliproxy/auth/conductor_cooldown.go` in production and adds three test paths, including the expanded monotonic regressions. It retains the local `applyCooldownFields` behavior instead of replacing quota records wholesale. A genuine shared rejection still blocks all models for its own duration; after that window, healthy models become selectable while the independently restricted model retains its longer deadline. No existing recorded deadline is migrated or cleared, including any credential cooldown previously contaminated by the old implementation. Rollback consists of reverting these four cooldown-specific paths; no schema or configuration rollback is needed.
+
+Validation used Go **1.27.1**, darwin/arm64, **CGO_ENABLED=1**, dedicated temporary build/test caches and local fixtures. All commands completed with exit code 0:
+
+- `go test -count=1 -json ./sdk/cliproxy/auth`: **669 top-level tests passed** after the manager repair.
+- `go test -count=1 -json -run 'TestManager_MarkResult_CredentialScope|TestCredentialCooldownIsolationPreservesModelSelection|TestClaudeExecutor_SharedCooldownDoesNotInheritModelRetry|TestClaudeExecutor_AuthManager_(FableOnly|Overage)|TestClaudeExecutor_Overage|TestLifecycle_|TestAuthManager_|TestClassifyClaudeUpstreamError|TestParseClaudeRateLimitReset|TestClaudeOverage' ./sdk/cliproxy/auth ./internal/runtime/executor ./internal/runtime/executor/helps`: **3 packages and 41 top-level tests passed**, including all new regressions, executor classification and lifecycle protections.
+- `go test -count=1 -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...`: **67 packages and 3691 top-level tests passed**, **24 packages had no tests**.
+- `go test -race -count=1 -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./sdk/cliproxy/auth ./internal/runtime/executor ./internal/runtime/executor/helps ./internal/registry`: **4 packages and 1578 top-level tests passed**.
+- `go build -o <task-directory>/test-output ./cmd/server`: passed. Changed Go files were formatted; final diff review and `git diff --check` passed.
+
+A fresh `127.0.0.2` bind again failed with `EADDRNOTAVAIL`, so the same two macOS-only command exclusions were retained. The optional `TestClaudeCodeTLSClientHelloCapture` skipped itself in full and race checks because its external capture proxy was not configured. No new exclusions were introduced.
+
+The final combined source/test/build manifest is **`57e143e1edadaeed05d6a85d426eafeea1ebe635e5845516a2159a0c3fca1608`**, covering **1556** regular files excluding this ledger. It matched before/after validation and after applying the exact cooldown patch to the main checkout. The base HEAD, prior tracked diff, untracked file hashes and empty index were verified before integration; all earlier changes were preserved. The combined local patch now contains **5 production paths and 7 test paths**, plus this ledger. No Linux validation, live provider inference, server operation, commit, push or Release occurred. Disposable worktrees, baseline evidence, logs, build output and dedicated caches were removed after preserving these results; the shared module cache was retained.
+
+## Rechecked on 2026-09-24 at 00:02 Asia/Shanghai — no new upstream changes then
+
+At that earlier check, GitHub's official release API and release page identified [v7.3.15](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.15) as the latest non-draft, non-prerelease release. The tag-ref API resolved it directly to commit `673131f57484517c3a1eae7e36c4cfa7b9bb4efc`. GitHub's main-commit API and `git ls-remote` independently confirmed that both upstream main and the release tag pointed to that same recorded boundary. The newly released and main-only ranges therefore each contained **zero commits**; no additional objects, patches or catalog refreshes were needed at that time.
+
+Local `main` and GitHub's fork `main` both resolve to `dc32d876d69462ceab192626092eeee4b190e134`; the checkout and index were clean before this documentation update. No selected work is pending from the completed September 23 batch. All earlier partial, deferred and excluded dispositions remain unchanged, including the deferred instruction-shortening portion of `673131f5`; this check does not mark them integrated.
+
+Source inspection confirms Claude Code **2.1.280**, SDK **0.112.1**, Node **v26.3.0**, Codex runtime **0.154.0**, and standalone catalog-fetch defaults **0.155.0**. No fingerprint or model-directory update was selected. The source/test/build input manifest is still `99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b` across **1551** regular files, excluding this ledger, exactly matching the final September 23 validation snapshot. The diff from implementation `2067d9f3` to the current HEAD contains only this ledger. Prior validation remains applicable with its recorded macOS exclusions; functional, race and build checks were not rerun for this documentation-only check. `git diff --check` passed. The local toolchain remains Go **1.27.1**, darwin/arm64.
+
+This run changes only the local review ledger. It does not create a commit, push, tag, Release, server operation or background job; the existing publication and deployment records below remain intact. No disposable worktree, binary or build cache was created.
 
 ## Deployed on 2026-09-23 — dmit, dmit2 and bawg
 

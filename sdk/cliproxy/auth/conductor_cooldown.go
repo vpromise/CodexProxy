@@ -853,7 +853,16 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 							}
 						case 429:
 							var next time.Time
-							backoffLevel := state.Quota.BackoffLevel
+							var credentialNext time.Time
+							quotaForFailure := state.Quota
+							if result.CredentialScope {
+								// Model quota aggregates must not seed a shared cooldown.
+								quotaForFailure = QuotaState{}
+								if auth.Quota.Exceeded && auth.Quota.Reason == "credential_quota" {
+									quotaForFailure = auth.Quota
+								}
+							}
+							backoffLevel := quotaForFailure.BackoffLevel
 							if !disableCooling {
 								if result.RetryAfter != nil {
 									cooldown := *result.RetryAfter
@@ -862,8 +871,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 									}
 									next = now.Add(cooldown).Round(0)
 								} else {
-									next, backoffLevel = quotaCooldownAfterFailure(state.Quota, now)
+									next, backoffLevel = quotaCooldownAfterFailure(quotaForFailure, now)
 								}
+								credentialNext = next
 								if state.Quota.Exceeded && state.Quota.NextRecoverAt.After(next) {
 									next = state.Quota.NextRecoverAt
 								}
@@ -880,7 +890,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 									if otherState != nil && otherState != state {
 										otherState.Unavailable = true
 										otherState.Status = StatusError
-										otherQuotaNext := next
+										otherQuotaNext := credentialNext
 										if otherState.Quota.Exceeded && otherState.Quota.NextRecoverAt.After(otherQuotaNext) {
 											otherQuotaNext = otherState.Quota.NextRecoverAt
 										}
@@ -900,13 +910,14 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 									}
 								}
 								auth.Unavailable = true
-								auth.Quota.Exceeded = true
-								auth.Quota.Reason = "credential_quota"
-								authNext := next
-								if auth.Quota.NextRecoverAt.After(authNext) {
+								authNext := credentialNext
+								if auth.Quota.Exceeded && auth.Quota.Reason == "credential_quota" && auth.Quota.NextRecoverAt.After(authNext) {
 									authNext = auth.Quota.NextRecoverAt
 								}
+								auth.Quota.Exceeded = true
+								auth.Quota.Reason = "credential_quota"
 								auth.Quota.NextRecoverAt = authNext
+								auth.Quota.BackoffLevel = backoffLevel
 								auth.NextRetryAfter = authNext
 							}
 						case claudeUpstreamOverloadedStatus:
