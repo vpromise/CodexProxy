@@ -494,3 +494,16 @@ func codexImageGenerationToolModel(body []byte) string {
 	}
 	return codexDefaultImageToolModel
 }
+
+const codexRoutingHintHeader = "X-Codex-Routing-Hint"
+
+func applyCodexRoutingHint(ctx context.Context, headers http.Header, auth *cliproxyauth.Auth, baseModel string, upstreamBody []byte, clientHeaders http.Header) {
+	if codexAuthUsesAPIKey(auth) {
+		return
+	}
+	var attrs map[string]string
+	if auth != nil {
+		attrs = auth.Attributes
+	}
+	helps.ApplyCodexOAuthRoutingHint(ctx, headers, attrs, baseModel, upstreamBody, clientHeaders)
+}

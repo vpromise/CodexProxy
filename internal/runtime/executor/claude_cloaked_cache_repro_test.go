@@ -65,14 +65,14 @@ func TestClaudeBillingFingerprintEdgeCases(t *testing.T) {
 		t.Fatalf("user message with only reminder: got %q, want empty", got)
 	}
 
-	// 5. Multiple text blocks: skips reminder, takes real text
+	// 5. Multiple text blocks: skip reminders and take the first eligible text.
 	multiPart := []byte(`{"messages":[{"role":"user","content":[
 		{"type":"text","text":"<system-reminder>date</system-reminder>"},
 		{"type":"text","text":"real user question"},
 		{"type":"text","text":"additional context"}
 	]}]}`)
-	if got := claudeBillingFingerprintMessageText(multiPart); got != "additional context" {
-		t.Fatalf("multi-part user message: got %q, want %q", got, "additional context")
+	if got := claudeBillingFingerprintMessageText(multiPart); got != "real user question" {
+		t.Fatalf("multi-part user message: got %q, want %q", got, "real user question")
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
@@ -131,17 +132,17 @@ const fingerprintSalt = "59cf53e54c78"
 // computeFingerprint computes the 3-char build fingerprint that Claude Code embeds in cc_version.
 // Algorithm: SHA256(salt + messageText[4] + messageText[7] + messageText[20] + version)[:3]
 func computeFingerprint(messageText, version string) string {
-	indices := [3]int{4, 7, 20}
-	runes := []rune(messageText)
-	var sb strings.Builder
-	for _, idx := range indices {
-		if idx < len(runes) {
-			sb.WriteRune(runes[idx])
-		} else {
-			sb.WriteRune('0')
+	// JavaScript indexes UTF-16 code units; decoding also matches its UTF-8
+	// replacement of an isolated surrogate before hashing.
+	units := utf16.Encode([]rune(messageText))
+	var sampled [3]uint16
+	for i, index := range [...]int{4, 7, 20} {
+		sampled[i] = '0'
+		if index < len(units) {
+			sampled[i] = units[index]
 		}
 	}
-	input := fingerprintSalt + sb.String() + version
+	input := fingerprintSalt + string(utf16.Decode(sampled[:])) + version
 	h := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(h[:])[:3]
 }
@@ -257,6 +258,7 @@ func claudeBillingFingerprintMessageText(payload []byte) string {
 				text := part.Get("text").String()
 				if !isClaudeCodeCurrentDateReminder(text) && !isClaudeCodeContextReminder(text) {
 					messageText = text
+					return false
 				}
 			}
 			return true
