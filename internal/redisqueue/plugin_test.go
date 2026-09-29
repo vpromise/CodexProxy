@@ -558,3 +558,21 @@ func requireHeaderField(t *testing.T, payload map[string]json.RawMessage, field,
 		}
 	}
 }
+
+func TestUsageQueuePreservesCompleteUUIDFromMiddleware(t *testing.T) {
+	withEnabledQueue(t, func() {
+		engine := gin.New()
+		engine.Use(internallogging.GinLogrusLogger())
+		var id string
+		engine.GET("/v1/models", func(c *gin.Context) {
+			id = internallogging.GetRequestID(c.Request.Context())
+			(&usageQueuePlugin{}).HandleUsage(c.Request.Context(), coreusage.Record{Provider: "codex", Model: "fixture-model", RequestedAt: time.Now()})
+			c.Status(http.StatusOK)
+		})
+		engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+		if len(id) != 36 {
+			t.Fatalf("request ID = %q, want complete UUID", id)
+		}
+		requireStringField(t, popSinglePayload(t), "request_id", id)
+	})
+}

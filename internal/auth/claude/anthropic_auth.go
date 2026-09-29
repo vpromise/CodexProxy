@@ -56,6 +56,14 @@ func (e *refreshHTTPError) Error() string {
 	return fmt.Sprintf("token refresh failed with status %d: %s", e.status, e.message)
 }
 
+// StatusCode preserves the token endpoint status through wrapped refresh errors.
+func (e *refreshHTTPError) StatusCode() int {
+	if e == nil {
+		return 0
+	}
+	return e.status
+}
+
 func (e *refreshHTTPError) Retryable() bool {
 	return e != nil && e.retryable
 }

@@ -310,14 +310,7 @@ func (l *FileRequestLogger) generateFilename(url string, requestID ...string) st
 // it avoids overwriting by injecting an incrementing sequence number before the trailing request ID component.
 func createUniqueLogFile(dir, filename string) (*os.File, string, error) {
 	ext := filepath.Ext(filename)
-	base := strings.TrimSuffix(filename, ext)
-	idx := strings.LastIndex(base, "-")
-	prefix := base
-	idPart := ""
-	if idx > 0 {
-		prefix = base[:idx]
-		idPart = base[idx+1:]
-	}
+	prefix, idPart := SplitRequestLogFilename(filename)
 
 	target := filepath.Join(dir, filename)
 	logFile, errOpen := fileperm.OpenPrivateFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY)

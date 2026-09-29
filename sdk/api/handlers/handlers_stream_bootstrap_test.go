@@ -1058,7 +1058,8 @@ func TestExecuteStreamWithAuthManager_SelectedAuthCallbackReceivesAuthID(t *test
 	recorder := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(recorder)
 	ginCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	logging.SetGinRequestID(ginCtx, "1234abcd")
+	const requestID = "019994a8-7623-7b51-9a29-0123456789ab"
+	logging.SetGinRequestID(ginCtx, requestID)
 
 	selectedAuthID := ""
 	ctx := context.WithValue(context.Background(), "gin", ginCtx)
@@ -1087,9 +1088,9 @@ func TestExecuteStreamWithAuthManager_SelectedAuthCallbackReceivesAuthID(t *test
 		t.Fatalf("selectedAuthID = %q, want %q", selectedAuthID, "auth2")
 	}
 	traceID := logging.GetGinCPATraceID(ginCtx)
-	parts := strings.Split(traceID, "-")
-	if len(parts) != 3 || parts[1] != auth2.Index || parts[2] != "1234abcd" {
-		t.Fatalf("trace ID = %q, want timestamp-%s-1234abcd", traceID, auth2.Index)
+	parts := strings.SplitN(traceID, "-", 3)
+	if len(parts) != 3 || parts[1] != auth2.Index || parts[2] != requestID {
+		t.Fatalf("trace ID = %q, want timestamp-%s-%s", traceID, auth2.Index, requestID)
 	}
 	if _, errParse := time.Parse("20060102150405", parts[0]); errParse != nil {
 		t.Fatalf("trace timestamp = %q: %v", parts[0], errParse)

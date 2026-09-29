@@ -9,7 +9,10 @@ const LOG_LATENCY_REGEX =
   /\b(?:\d+(?:\.\d+)?\s*(?:µs|us|ms|s|m))(?:\s*\d+(?:\.\d+)?\s*(?:µs|us|ms|s|m))*\b/i;
 const LOG_IPV4_REGEX = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
 const LOG_IPV6_REGEX = /\b(?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}\b/i;
-const LOG_REQUEST_ID_REGEX = /^([a-f0-9]{8}|--------)$/i;
+const LOG_REQUEST_ID_PATTERN =
+  '[a-f0-9]{8}(?:-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})?|--------';
+const LOG_REQUEST_ID_REGEX = new RegExp(`^(${LOG_REQUEST_ID_PATTERN})$`, 'i');
+const LOG_BRACKETED_REQUEST_ID_REGEX = new RegExp(`^\\[(${LOG_REQUEST_ID_PATTERN})\\]\\s*`, 'i');
 const LOG_NAMED_REQUEST_ID_REGEX = /\brequest[_-]?id=([A-Za-z0-9][A-Za-z0-9._:-]{0,127})\b/i;
 const LOG_TIME_OF_DAY_REGEX = /^\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?$/;
 const GIN_TIMESTAMP_SEGMENT_REGEX =
@@ -118,7 +121,7 @@ export const parseLogLine = (raw: string): ParsedLogLine => {
   }
 
   let requestId: string | undefined;
-  const requestIdMatch = remaining.match(/^\[([a-f0-9]{8}|--------)\]\s*/i);
+  const requestIdMatch = remaining.match(LOG_BRACKETED_REQUEST_ID_REGEX);
   if (requestIdMatch) {
     const id = requestIdMatch[1];
     if (!/^-+$/.test(id)) {

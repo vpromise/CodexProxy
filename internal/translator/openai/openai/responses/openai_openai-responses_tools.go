@@ -384,13 +384,17 @@ func rawResponsesNamespaceQualifiedName(namespaceName, childName string) string 
 	if childName == "" || namespaceName == "" || strings.HasPrefix(childName, "mcp__") {
 		return childName
 	}
-	if strings.HasPrefix(childName, namespaceName) {
+	if childName == namespaceName {
 		return childName
 	}
-	if strings.HasSuffix(namespaceName, "__") {
-		return namespaceName + childName
+	prefix := namespaceName
+	if !strings.HasSuffix(prefix, "__") {
+		prefix += "__"
 	}
-	return namespaceName + "__" + childName
+	if strings.HasPrefix(childName, prefix) {
+		return childName
+	}
+	return prefix + childName
 }
 
 // capResponsesChatToolName truncates a flattened Responses tool name to the

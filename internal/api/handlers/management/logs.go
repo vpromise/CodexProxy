@@ -297,7 +297,6 @@ func (h *Handler) GetRequestLogByID(c *gin.Context) {
 		return
 	}
 
-	suffix := "-" + requestID + ".log"
 	var matchedFile string
 	var latestModTime time.Time
 	for _, entry := range entries {
@@ -305,7 +304,8 @@ func (h *Handler) GetRequestLogByID(c *gin.Context) {
 			continue
 		}
 		name := entry.Name()
-		if strings.HasSuffix(name, suffix) {
+		_, fileRequestID := logging.SplitRequestLogFilename(name)
+		if filepath.Ext(name) == ".log" && fileRequestID == requestID {
 			info, errInfo := entry.Info()
 			if errInfo != nil {
 				if matchedFile == "" {
@@ -362,13 +362,10 @@ type logFileMeta struct {
 }
 
 func parseLogMetadata(filename string) logFileMeta {
-	ext := filepath.Ext(filename)
-	base := strings.TrimSuffix(filename, ext)
-	lastHyphen := strings.LastIndex(base, "-")
-	if lastHyphen <= 0 {
-		return logFileMeta{prefix: base}
+	beforeID, requestID := logging.SplitRequestLogFilename(filename)
+	if requestID == "" {
+		return logFileMeta{prefix: beforeID}
 	}
-	beforeID := base[:lastHyphen]
 
 	seq := 0
 	beforeSeq := beforeID

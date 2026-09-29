@@ -52,13 +52,8 @@ func TestNextRefreshCheckAt_DisabledUnschedule(t *testing.T) {
 		},
 	}
 
-	got, ok := nextRefreshCheckAt(now, auth, 15*time.Minute)
-	if !ok {
-		t.Fatalf("nextRefreshCheckAt() ok = false, want true")
-	}
-	want := expiry.Add(-lead)
-	if !got.Equal(want) {
-		t.Fatalf("nextRefreshCheckAt() = %s, want %s", got, want)
+	if next, ok := nextRefreshCheckAt(now, auth, 15*time.Minute); ok || !next.IsZero() {
+		t.Fatalf("nextRefreshCheckAt() = %s, %t; want zero, false", next, ok)
 	}
 }
 

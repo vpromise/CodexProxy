@@ -14,6 +14,7 @@ const CPATraceIDHeader = "X-CPA-TRACE-ID"
 const ginCPATraceStateKey = "__cpa_trace_state__"
 
 // FormatCPATraceID builds a CPA trace ID from the selection time, auth index, and request ID.
+// Request IDs may contain hyphens; consumers must split only the first two separators.
 func FormatCPATraceID(selectedAt time.Time, authIndex, requestID string) string {
 	authIndex = strings.TrimSpace(authIndex)
 	requestID = strings.TrimSpace(requestID)

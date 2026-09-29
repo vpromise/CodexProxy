@@ -2,10 +2,10 @@ package logging
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"io"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // requestIDKey is the context key for storing/retrieving request IDs.
@@ -14,13 +14,25 @@ type requestIDKey struct{}
 // ginRequestIDKey is the Gin context key for request IDs.
 const ginRequestIDKey = "__request_id__"
 
-// GenerateRequestID creates a new 8-character hex request ID.
-func GenerateRequestID() string {
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		return "00000000"
+// GenerateRequestID creates a complete UUIDv7 request ID.
+func GenerateRequestID() (string, error) {
+	return GenerateRequestIDFromReader(nil)
+}
+
+// GenerateRequestIDFromReader uses the default random source when reader is nil.
+// Entropy failures return an error instead of a shared fallback request ID.
+func GenerateRequestIDFromReader(reader io.Reader) (string, error) {
+	var id uuid.UUID
+	var errGenerate error
+	if reader == nil {
+		id, errGenerate = uuid.NewV7()
+	} else {
+		id, errGenerate = uuid.NewV7FromReader(reader)
 	}
-	return hex.EncodeToString(b)
+	if errGenerate != nil {
+		return "", errGenerate
+	}
+	return id.String(), nil
 }
 
 // WithRequestID returns a new context with the request ID attached.

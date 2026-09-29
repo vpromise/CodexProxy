@@ -29,12 +29,16 @@ const skipGinLogKey = "__gin_skip_request_logging__"
 // using logrus. It captures request details including method, path, status code, latency,
 // client IP, and any error messages. Request ID is only added for AI API requests.
 //
-// Output format (AI API): [2025-12-23 20:14:10] [info ] | a1b2c3d4 | 200 |       23.559s | ...
+// Output format (AI API): [2025-12-23 20:14:10] [info ] | 019994a8-7623-7b51-9a29-0123456789ab | 200 |       23.559s | ...
 // Output format (others): [2025-12-23 20:14:10] [info ] | -------- | 200 |       23.559s | ...
 //
 // Returns:
 //   - gin.HandlerFunc: A middleware handler for request logging
 func GinLogrusLogger() gin.HandlerFunc {
+	return ginLogrusLogger(GenerateRequestID)
+}
+
+func ginLogrusLogger(generateRequestID func() (string, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -43,10 +47,15 @@ func GinLogrusLogger() gin.HandlerFunc {
 		// Only generate request ID for AI API paths
 		var requestID string
 		if isAIAPIPath(path) {
-			requestID = GenerateRequestID()
-			SetGinRequestID(c, requestID)
-			ctx := WithRequestID(c.Request.Context(), requestID)
-			c.Request = c.Request.WithContext(ctx)
+			generatedID, errGenerate := generateRequestID()
+			if errGenerate != nil {
+				log.WithError(errGenerate).Error("failed to generate request ID")
+			} else {
+				requestID = generatedID
+				SetGinRequestID(c, requestID)
+				ctx := WithRequestID(c.Request.Context(), requestID)
+				c.Request = c.Request.WithContext(ctx)
+			}
 		}
 
 		c.Next()

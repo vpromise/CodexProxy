@@ -1627,7 +1627,8 @@ func restoreClaudeOAuthToolNamesFromStreamLine(line []byte, reverseMap map[strin
 // typed Anthropic tools remain unchanged.
 //
 // It operates on tools[].name, tool_choice.name, and all declared
-// tool_use/tool_reference references in messages.
+// tool_use/tool_reference references in messages, including mid-conversation
+// tool_addition/tool_removal blocks.
 //
 // The returned map is keyed on the upstream name and maps to the client-supplied
 // original name. Callers MUST pass this map to the reverse
@@ -1884,6 +1885,18 @@ func remapOAuthToolNamesWithBatchedEdits(body []byte, mcpAliases claudeMCPAliasO
 							return true
 						})
 					}
+				case "tool_addition", "tool_removal":
+					if namePath := helps.ClaudeToolChangeNamePath(part); namePath != "" {
+						nameResult := part.Get(namePath)
+						changeToolName := nameResult.String()
+						if newName, renamed := rewriteName(changeToolName); renamed {
+							if !appendStringEdit(nameResult, newName) {
+								validOffsets = false
+								return false
+							}
+							recordRename(changeToolName, newName)
+						}
+					}
 				}
 				return validOffsets
 			})
@@ -2126,6 +2139,15 @@ func remapOAuthToolNamesWithOptionsLegacy(body []byte, mcpAliases claudeMCPAlias
 							}
 							return true
 						})
+					}
+				case "tool_addition", "tool_removal":
+					if namePath := helps.ClaudeToolChangeNamePath(part); namePath != "" {
+						changeToolName := part.Get(namePath).String()
+						if newName, renamed := rewriteName(changeToolName); renamed {
+							changePath := fmt.Sprintf("messages.%d.content.%d.%s", msgIndex.Int(), contentIndex.Int(), namePath)
+							body, _ = sjson.SetBytes(body, changePath, newName)
+							recordRename(changeToolName, newName)
+						}
 					}
 				}
 				return true

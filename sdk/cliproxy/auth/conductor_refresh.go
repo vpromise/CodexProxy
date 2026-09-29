@@ -114,7 +114,7 @@ func (m *Manager) queueRefreshUnschedule(authID string) {
 }
 
 func (m *Manager) shouldRefresh(a *Auth, now time.Time) bool {
-	if a == nil {
+	if a == nil || a.Disabled || a.Status == StatusDisabled {
 		return false
 	}
 	if hasUnauthorizedAuthFailure(a) {
@@ -324,7 +324,7 @@ func lookupMetadataTime(meta map[string]any, keys ...string) (time.Time, bool) {
 func (m *Manager) markRefreshPending(id string, now time.Time) bool {
 	m.mu.Lock()
 	auth, ok := m.auths[id]
-	if !ok || auth == nil {
+	if !ok || auth == nil || auth.Disabled || auth.Status == StatusDisabled {
 		m.mu.Unlock()
 		return false
 	}
