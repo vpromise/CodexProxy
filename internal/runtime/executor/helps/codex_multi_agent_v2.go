@@ -3,8 +3,10 @@ package helps
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	multiagentv2 "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/optimize-multi-agent-v2"
+	toolschema "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/tool-schema"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	openaichatclaude "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/claude/openai/chat-completions"
@@ -65,17 +67,24 @@ func sameByteSlice(a, b []byte) bool {
 
 // TranslateRequestPairWithAPIKeyModelCompatibility reuses identical translations
 // while preserving independent buffers and stateful plugin invocations.
-func TranslateRequestPairWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream, isCompat bool) (original, working []byte) {
-	original = TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, originalPayload, stream, isCompat)
+func TranslateRequestPairWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream, isCompat bool, targetExecutor ...string) (original, working []byte) {
+	original = TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, originalPayload, stream, isCompat, targetExecutor...)
 	if sameByteSlice(originalPayload, requestPayload) && !sdktranslator.HasPluginHooks() {
 		return original, append([]byte(nil), original...)
 	}
-	return original, TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, requestPayload, stream, isCompat)
+	return original, TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, requestPayload, stream, isCompat, targetExecutor...)
 }
 
 // TranslateRequestWithAPIKeyModelCompatibility applies compatibility-aware
 // request translators when a configured API-key model enables compatibility mode.
-func TranslateRequestWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream, isCompat bool) []byte {
+func TranslateRequestWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream, isCompat bool, targetExecutor ...string) []byte {
+	if len(targetExecutor) > 0 {
+		switch strings.ToLower(strings.TrimSpace(targetExecutor[0])) {
+		case "", "codex", "codex-websockets", "codex_websockets":
+		default:
+			payload = toolschema.NormalizeCodexToolIntegerTypes(payload, headers)
+		}
+	}
 	if !isCompat {
 		return TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, payload, stream)
 	}

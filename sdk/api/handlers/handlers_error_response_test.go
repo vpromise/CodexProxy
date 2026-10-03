@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -276,5 +277,28 @@ func TestWriteErrorResponse_ContextCanceledUses499(t *testing.T) {
 
 	if recorder.Code != clienterror.StatusClientClosedRequest {
 		t.Fatalf("status = %d, want %d", recorder.Code, clienterror.StatusClientClosedRequest)
+	}
+}
+
+func TestBuildErrorResponseBodyWithError_RequestTimeoutIsServerError(t *testing.T) {
+	body := BuildErrorResponseBody(http.StatusRequestTimeout, "upstream request timeout")
+	var payload struct {
+		Error struct {
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if errUnmarshal := json.Unmarshal(body, &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal error body: %v", errUnmarshal)
+	}
+	if payload.Error.Type != "server_error" {
+		t.Fatalf("type = %q, want server_error", payload.Error.Type)
+	}
+	if payload.Error.Code != "request_timeout" {
+		t.Fatalf("code = %q, want request_timeout", payload.Error.Code)
+	}
+	if payload.Error.Message != "upstream request timeout" {
+		t.Fatalf("message = %q, want upstream request timeout", payload.Error.Message)
 	}
 }

@@ -78,8 +78,12 @@ func convertClaudeRequestToOpenAI(modelName string, inputRawJSON []byte, stream 
 					if effort, ok := thinking.ConvertBudgetToLevel(budget); ok && effort != "" {
 						out, _ = sjson.SetBytes(out, "reasoning_effort", effort)
 					}
+				} else if v := root.Get("output_config.effort"); v.Exists() && v.Type == gjson.String && strings.TrimSpace(v.String()) != "" {
+					// Some Claude-compatible clients pair manual thinking with output_config.effort.
+					// Preserve that explicit level when there is no legacy token budget to map.
+					out, _ = sjson.SetBytes(out, "reasoning_effort", strings.ToLower(strings.TrimSpace(v.String())))
 				} else {
-					// No budget_tokens specified, default to "auto" for enabled thinking
+					// No budget_tokens or explicit effort specified; preserve the enabled-thinking default.
 					if effort, ok := thinking.ConvertBudgetToLevel(-1); ok && effort != "" {
 						out, _ = sjson.SetBytes(out, "reasoning_effort", effort)
 					}
@@ -405,14 +409,41 @@ func convertClaudeRequestToOpenAI(modelName string, inputRawJSON []byte, stream 
 
 func normalizeObjectSchemaProperties(schema any) any {
 	switch value := schema.(type) {
+	case bool:
+		if value {
+			return map[string]any{}
+		}
+		return value
 	case map[string]any:
 		if schemaType, ok := value["type"].(string); ok && schemaType == "object" {
 			if _, ok := value["properties"]; !ok {
 				value["properties"] = map[string]any{}
 			}
 		}
-		for key, child := range value {
-			value[key] = normalizeObjectSchemaProperties(child)
+		// Data keywords such as default, enum, and examples are not schemas.
+		for _, key := range []string{"properties", "patternProperties", "$defs", "definitions", "dependentSchemas"} {
+			if children, ok := value[key].(map[string]any); ok {
+				for name, child := range children {
+					children[name] = normalizeObjectSchemaProperties(child)
+				}
+			}
+		}
+		for _, key := range []string{"items", "additionalItems", "contains", "propertyNames", "additionalProperties", "unevaluatedProperties", "unevaluatedItems", "not", "if", "then", "else", "allOf", "anyOf", "oneOf", "prefixItems"} {
+			if child, exists := value[key]; exists {
+				// Keep additionalProperties booleans used by structured outputs unchanged.
+				if _, boolean := child.(bool); key == "additionalProperties" && boolean {
+					continue
+				}
+				value[key] = normalizeObjectSchemaProperties(child)
+			}
+		}
+		// Legacy dependencies can contain either schemas or property-name arrays.
+		if children, ok := value["dependencies"].(map[string]any); ok {
+			for name, child := range children {
+				if _, names := child.([]any); !names {
+					children[name] = normalizeObjectSchemaProperties(child)
+				}
+			}
 		}
 		return value
 	case []any:
