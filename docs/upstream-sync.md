@@ -11,15 +11,45 @@ Updated: 2026-10-04 (Asia/Shanghai). This is the checkpoint for selective backpo
 | Latest upstream check | 2026-10-04 (Asia/Shanghai): all 65 new commits through v8.0.13 reviewed; main matches the release |
 | Last reviewed upstream main | [d7914afd](https://github.com/router-for-me/CLIProxyAPI/commit/d7914afdedca7af95ee974a42453dc49fc1388ce) (`d7914afdedca7af95ee974a42453dc49fc1388ce`) |
 | Release at that review | [v8.0.13](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.13), published 2026-10-03 09:02:46 UTC; tag resolves directly to `d7914afdedca7af95ee974a42453dc49fc1388ce` |
-| Latest verified published implementation | [32fd3e31](https://github.com/vpromise/CodexProxy/commit/32fd3e31e386275c13507b463dadeb0235a409fd) (`32fd3e31e386275c13507b463dadeb0235a409fd`) on `main` |
-| Published source tree | `0161bfbbe3642fa70a0ea29aad120ec552f0b4b4` (implementation commit) |
-| Latest publication | September 29 selection: Claude tool aliases, Codex empty arguments, Responses namespaces, SSE frame termination, full UUIDv7 tracing/UI and narrow native OAuth refresh repairs; 33 source/test/bundle paths plus this ledger |
-| Unpublished selected fixes | October 4: 11 locally validated protocol/schema/transport/catalog groups, based on `ae7e498a`; uncommitted |
-| Deployment | All three targets run `32fd3e31e386275c13507b463dadeb0235a409fd`: dmit (Docker/CGO), dmit2 (Docker/static), bawg (systemd/static); verified on September 29 at 02:51 UTC, 03:12 UTC and 03:26 UTC respectively |
+| Latest verified published implementation | [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) (`c52107463d54b33cac825d1514353d4a7c5d3fa3`) on `main` |
+| Published source tree | `22e40e997a6b805350f58cc288825026d3aa7a8f` (implementation commit) |
+| Latest publication | October 4 selection: 11 protocol/schema/transport/catalog groups drawn from 18 upstream commits; 41 source/test/catalog/fixture paths plus this ledger |
+| Unpublished selected fixes | None; the validated October 4 selection is published and deployed. Deferred lifecycle proposals remain unimplemented |
+| Deployment | All three targets run `c52107463d54b33cac825d1514353d4a7c5d3fa3`: dmit (Docker/CGO), dmit2 (Docker/static), bawg (systemd/static); verified on October 4 at 00:58, 01:00 and 01:01 Asia/Shanghai respectively |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 
-The latest published implementation remains `32fd3e31`; the three September 29 deployments below remain the last verified server state. The October 4 selection is validated locally on base `ae7e498a`, with source manifest `3564b0f113fd952012fd21c8ab89d3ee9c91194f03cd0c74b37df1781ea3726f`. The reviewed release boundary is v8.0.13. Advancing it does not import upstream ancestry, adopt the v8 module/configuration layout, or promote deferred changes to integrated status.
+The October 4 selection is published at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) and deployed to all three targets. Its source/test/build manifest remains `3564b0f113fd952012fd21c8ab89d3ee9c91194f03cd0c74b37df1781ea3726f`. The reviewed release boundary is v8.0.13. This does not import upstream ancestry, adopt the v8 module/configuration layout, or promote deferred changes to integrated status.
+
+## Published and deployed on 2026-10-04 — selected v8.0.5 through v8.0.13 fixes
+
+The user explicitly requested GitHub publication and server deployment. The complete selected October 4 batch below is mapped to **[c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3)** (`c52107463d54b33cac825d1514353d4a7c5d3fa3`), source tree **`22e40e997a6b805350f58cc288825026d3aa7a8f`**. The destination was verified as **`vpromise/CodexProxy`**, branch **`main`**. Its remote head was still `ae7e498aa9bd319d67ccd3c4c5e8e8875cb9ce01` before staging. Exactly **42 paths** were committed with message `fix: adapt selected upstream streaming and tool compatibility fixes`; normal push succeeded, and both `git ls-remote` and GitHub's commit API returned the implementation SHA. No tag or GitHub Release was created. This documentation update is a separate publication/deployment bookkeeping commit.
+
+The **1585-file** source/test/build manifest and source-only patch hash exactly matched the already-tested selection before commit. The manifest also matched the clean detached artifact worktree and main checkout after both Linux builds. The full **68-package / 3762-test** run, **15-package / 2275-test** race run and native build therefore remain applicable with the environment limitations recorded below. No additional source, dependency, runtime fingerprint, catalog or frontend rebuild was introduced for publication. Source was frozen at the implementation commit; no mutable catalog refresh script ran.
+
+Both Linux amd64 artifacts were built with **Go 1.27.1**, `-trimpath -buildvcs=false`, `-s -w`, version **`codexproxy-20261004-c5210746`**, the full implementation SHA and build date **`2026-10-03T16:55:43Z`**. dmit retains **CGO_ENABLED=1**, using **Zig 0.15.2**, target `x86_64-linux-gnu.2.17`; the official compiler archive matched SHA-256 `3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`. dmit2 and bawg share the exact **CGO_ENABLED=0** static artifact. ELF type, Go build metadata, before/after source manifests and artifact checksums were checked. Both builds exited 0; a local archive-extraction API mismatch was corrected before the successful CGO build and changed no source.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Linux amd64 CGO, dmit | 66,454,360 | `da0a850d0c3e16830d51a08559f7a5578ad4ab4f809c9481edbdf6077c4ead0e` |
+| Linux amd64 static, dmit2 and bawg | 60,940,448 | `f284a14cff1f4b5826b8c917ef8bebc16ab77977d54c02c00d52ff0a409ccf74` |
+| Frozen source archive | 24,401,920 | `a8429cd74e4932c01b4ad1c150dab7fae723a75094f9f1d4075ca6fce13cc626` |
+
+The version-injected bundled management page SHA-256 is **`b893468c2cf4b08cd56f54b8f494d73db80316a474be45edda35985e995fc31f`** on all three targets.
+
+Read-only preflight established that all targets were healthy on **`32fd3e31e386275c13507b463dadeb0235a409fd`**, with the expected service definitions and build variants. Rollout proceeded **dmit → dmit2 → bawg**, completing each target's independent local/public checks before the next service was changed. Docker images **`local/codexproxy:c5210746`** were built from the exact currently running local image on each host, replacing the binary and revision label. Isolated `--help` smoke checks used no production mounts or network. Only the target Compose image reference changed; existing environment, ports, mounts, networks, healthcheck and restart policy were verified unchanged. dmit2's persistent image-build binary was updated and separately backed up. bawg used an atomic binary replacement, retained ownership/mode and unchanged systemd unit/configuration, and restarted only `codexproxy.service` after its binary smoke check.
+
+| Target | Deployment | Independent verification on October 4 | Process state | Automatic restarts |
+| --- | --- | --- | --- | ---: |
+| dmit | Docker, CGO | 00:58 Asia/Shanghai | healthy | 0 |
+| dmit2 | Docker, static | 01:00 Asia/Shanghai | running; healthcheck remains unconfigured | 0 |
+| bawg | systemd, static | 01:01 Asia/Shanghai | active/running | 0 |
+
+Each installed binary and running `/proc/<pid>/exe` matched its artifact checksum. Loopback `/healthz` returned **200**, `HEAD /api/hello` **204**, and unauthenticated `/v1/models` **401**. Management headers identified the full expected commit, and `/management.html` returned **200** with the exact version-injected page hash. Existing local gateways passed. Public certificate-validated HTTPS checks passed for [dmit management](https://cpa.vpromise.fun/management.html), [dmit2 management](https://proxy.vpromise.fun/management.html) and [bawg management](https://cpa.hoperouter.com/management.html), plus dmit2/bawg `/healthz`. dmit's public page retained `private, no-store` and `x-cpa-origin: dmit`; its intentionally origin-certificate local loopback gateway retained the existing local-only certificate bypass. No gateway route or TLS setting changed. NewAPI's in-container request to `http://codexproxy:8317/healthz` returned `{"status":"ok"}`.
+
+Configuration hashes, unrelated container identities/start times on dmit/dmit2, and Keeper/NewAPI/Caddy process state on bawg remained unchanged. Startup output contained **0 errors and 0 warnings**. Subsequent application-log inspection used the actual **UTC-07** host/container timezone and activation timestamp: dmit Docker logs, dmit2 `logs/main.log` and bawg `logs/main.log` each had **0 errors**. The respective **4, 4 and 5 warnings** were all expected unauthenticated verification probes. Complete UUIDv7 log IDs were observed. No live provider inference or end-to-end Keeper accounting test was sent; these checks establish artifact, startup, routing and identity, not Linux full-suite or live-provider protocol coverage.
+
+Protected evidence and executable **`ROLLBACK.sh`** scripts are retained under **`releases/20261004-c5210746/`** in `/root/cpa-deploy` (dmit), `/opt/codex-stack/codexproxy` (dmit2) and `/opt/codexproxy` (bawg). They include build metadata, source manifest/archive, artifact, previous binary/image, configuration and Compose/unit snapshots, deployment/local/public/log verification, and the previous deployment record. Each rollback returns to **`32fd3e31`**. Each root's `LATEST_DEPLOYMENT.json` records the successful rollout; no older release material was removed. Disposable local worktree, compiler, artifacts and dedicated caches are removed after this evidence is preserved. The reviewed v8.0.13 boundary and all deferred-family decisions remain unchanged.
 
 ## Local synchronization on 2026-10-04 — v8.0.5 through v8.0.13
 
@@ -100,7 +130,7 @@ Final source/test/build manifest: **`3564b0f113fd952012fd21c8ab89d3ee9c91194f03c
 
 The selected implementation patch (excluding this ledger) has SHA-256 **`fbe6d4cf9a0d2e6bbd3fad2bb1101d5e58b8b1f09cdcee8d96decbfd66954a3a`** and changes **41 source/test/catalog/fixture paths**; this ledger is the 42nd path.
 
-Changes are **local and uncommitted**; the index is empty. No push, tag, Release or deployment occurred. Publication/deployment history below remains unchanged at implementation `32fd3e31`. The historical ignored `docs/upstream-sync 2.md` is an older September 22 duplicate, not a second active ledger, and was left untouched. This run's disposable worktree, build output, logs and dedicated caches were removed after evidence was recorded; no task artifact was intentionally retained.
+At the end of this local synchronization, changes were **uncommitted** and the index was empty; no publication or deployment had occurred. The later explicitly authorized publication/deployment is recorded above at `c5210746`. The historical ignored `docs/upstream-sync 2.md` is an older September 22 duplicate, not a second active ledger, and was left untouched. This run's disposable worktree, build output, logs and dedicated caches were removed after evidence was recorded; no task artifact was intentionally retained.
 
 ## Deployed to bawg on 2026-09-29
 
