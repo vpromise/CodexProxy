@@ -739,3 +739,20 @@ func TestClaudeCAISSignature_CachePrefixSurvivesClaudeUpstreamSanitize(t *testin
 		})
 	}
 }
+
+func TestNativeSignatureCompatibilityRejectsNestedPrefixes(t *testing.T) {
+	for _, sig := range []string{testClaudeThinkingSignature(), observedFable5Sample} {
+		for _, prefix := range []string{"", "claude#"} {
+			decision := DecideSignatureCompatibility(SignatureProviderClaude, prefix+sig, SignatureBlockKindClaudeThinking)
+			if !decision.Compatible || decision.NormalizedSignature != sig {
+				t.Fatalf("valid signature changed: %+v", decision)
+			}
+		}
+		for _, prefix := range []string{"claude#claude#", "claude#codex#", "codex#claude#"} {
+			decision := DecideSignatureCompatibility(SignatureProviderClaude, prefix+sig, SignatureBlockKindClaudeThinking)
+			if decision.Compatible || decision.NormalizedSignature != "" || decision.DetectedProvider != SignatureProviderUnknown {
+				t.Fatalf("nested prefix accepted: %s: %+v", prefix, decision)
+			}
+		}
+	}
+}

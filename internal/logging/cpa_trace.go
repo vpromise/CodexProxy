@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/httpwire"
 )
 
 // CPATraceIDHeader is the downstream response header used to correlate requests with selected credentials.
@@ -137,9 +138,11 @@ func (w *cpaTraceResponseWriter) WriteString(data string) (int, error) {
 	return w.ResponseWriter.WriteString(data)
 }
 
-func (w *cpaTraceResponseWriter) Flush() {
+func (w *cpaTraceResponseWriter) Flush() { _ = w.FlushError() }
+
+func (w *cpaTraceResponseWriter) FlushError() error {
 	w.applyTraceHeader()
-	w.ResponseWriter.Flush()
+	return httpwire.FlushResponse(w.ResponseWriter)
 }
 
 func (w *cpaTraceResponseWriter) applyTraceHeader() {

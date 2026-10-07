@@ -24,6 +24,9 @@ func PendingStreamError(errs <-chan *interfaces.ErrorMessage) (*interfaces.Error
 }
 
 type StreamForwardOptions struct {
+	// Flush optionally flushes buffered output and reports transport errors.
+	Flush func() error
+
 	// KeepAliveInterval overrides the configured streaming keep-alive interval.
 	// If nil, the configured default is used. If set to <= 0, keep-alives are disabled.
 	KeepAliveInterval *time.Duration
@@ -62,6 +65,18 @@ func (h *BaseAPIHandler) ForwardStream(c *gin.Context, flusher http.Flusher, can
 	}
 	if cancel == nil {
 		return
+	}
+
+	flush := func() bool {
+		if opts.Flush != nil {
+			if err := opts.Flush(); err != nil {
+				cancel(err)
+				return false
+			}
+		} else {
+			flusher.Flush()
+		}
+		return true
 	}
 
 	writeChunk := opts.WriteChunk
@@ -112,19 +127,25 @@ func (h *BaseAPIHandler) ForwardStream(c *gin.Context, flusher http.Flusher, can
 					if opts.WriteTerminalError != nil {
 						opts.WriteTerminalError(terminalErr)
 					}
-					flusher.Flush()
+					if !flush() {
+						return
+					}
 					cancel(terminalErr.Error)
 					return
 				}
 				if opts.WriteDone != nil {
 					opts.WriteDone()
 				}
-				flusher.Flush()
+				if !flush() {
+					return
+				}
 				cancel(nil)
 				return
 			}
 			writeChunk(chunk)
-			flusher.Flush()
+			if !flush() {
+				return
+			}
 			if opts.ChunkError != nil {
 				chunkErr := opts.ChunkError()
 				if chunkErr != nil {
@@ -151,7 +172,9 @@ func (h *BaseAPIHandler) ForwardStream(c *gin.Context, flusher http.Flusher, can
 				}
 				if opts.WriteTerminalError != nil {
 					opts.WriteTerminalError(terminalErr)
-					flusher.Flush()
+					if !flush() {
+						return
+					}
 				}
 			}
 			var execErr error
@@ -162,7 +185,9 @@ func (h *BaseAPIHandler) ForwardStream(c *gin.Context, flusher http.Flusher, can
 			return
 		case <-keepAliveC:
 			writeKeepAlive()
-			flusher.Flush()
+			if !flush() {
+				return
+			}
 		}
 	}
 }

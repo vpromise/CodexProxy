@@ -59,7 +59,7 @@ func DetectSignatureProvider(rawSignature string) SignatureProvider {
 
 func DetectSignatureProviderForBlock(rawSignature string, _ SignatureBlockKind) SignatureProvider {
 	payload := SignaturePayloadWithoutProviderPrefix(rawSignature)
-	if payload == "" {
+	if payload == "" || strings.Contains(payload, "#") {
 		return SignatureProviderUnknown
 	}
 	if IsValidClaudeThinkingSignature(payload, ClaudeSignatureValidationOptions{Strict: true}) || IsValidClaudeCAISSignature(payload) {
@@ -90,11 +90,14 @@ func DecideSignatureCompatibilityForModel(targetProvider SignatureProvider, _ st
 		BlockKind:        blockKind,
 	}
 	if targetProvider == detected && (targetProvider == SignatureProviderClaude || targetProvider == SignatureProviderGPT) {
-		decision.Compatible = true
-		decision.Action = SignatureActionPreserve
-		decision.NormalizedSignature = normalizeCompatibleSignatureForProvider(targetProvider, rawSignature)
-		decision.Reason = "signature provider matches target provider"
-		return decision
+		// A matching family still requires a payload that can be replayed.
+		if normalized := normalizeCompatibleSignatureForProvider(targetProvider, rawSignature); normalized != "" {
+			decision.Compatible = true
+			decision.Action = SignatureActionPreserve
+			decision.NormalizedSignature = normalized
+			decision.Reason = "signature provider matches target provider"
+			return decision
+		}
 	}
 	decision.Action = SignatureActionDropBlock
 	if targetProvider == SignatureProviderUnknown {

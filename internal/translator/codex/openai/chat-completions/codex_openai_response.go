@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	translatorcommon "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/common"
 	log "github.com/sirupsen/logrus"
@@ -30,6 +31,9 @@ type toolCallStreamState struct {
 
 // ConvertCliToOpenAIParams holds parameters for response conversion.
 type ConvertCliToOpenAIParams struct {
+	textPartOffsets       map[citationPartKey]int64
+	emittedTextRunes      int64
+	seenCitations         map[string]struct{}
 	ServiceTier           string
 	ResponseID            string
 	CreatedAt             int64
@@ -133,6 +137,23 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 		}
 	}
 
+	citations := p.streamCitations(rootResult)
+	if len(citations) > 0 {
+		template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
+		template, _ = sjson.SetRawBytes(template, "choices.0.delta.annotations", translatorcommon.JoinRawArray(citations))
+	}
+	if dataType == "response.content_part.added" {
+		if rootResult.Get("part.type").String() == "output_text" {
+			p.noteTextPart(rootResult, "")
+		}
+		return nil
+	}
+	if dataType == "response.output_text.annotation.added" || dataType == "response.output_text.done" || dataType == "response.content_part.done" {
+		if len(citations) == 0 {
+			return nil
+		}
+		return [][]byte{template}
+	}
 	if dataType == "response.reasoning_summary_text.delta" || dataType == "response.reasoning_text.delta" {
 		if deltaResult := rootResult.Get("delta"); deltaResult.Exists() {
 			template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
@@ -143,6 +164,7 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 		template, _ = sjson.SetBytes(template, "choices.0.delta.reasoning_content", "\n\n")
 	} else if dataType == "response.output_text.delta" {
 		if deltaResult := rootResult.Get("delta"); deltaResult.Exists() {
+			p.noteTextPart(rootResult, deltaResult.String())
 			template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
 			template, _ = sjson.SetBytes(template, "choices.0.delta.content", deltaResult.String())
 		}
@@ -308,6 +330,9 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 			return [][]byte{template}
 		}
 		if !isCodexToolCallType(itemType) {
+			if len(citations) > 0 {
+				return [][]byte{template}
+			}
 			return [][]byte{}
 		}
 
@@ -440,6 +465,8 @@ func ConvertCodexResponseToOpenAINonStream(_ context.Context, _ string, original
 	// Process the output array for content and function calls
 	var toolCalls [][]byte
 	var images [][]byte
+	var citations [][]byte
+	var contentRunes int64
 	outputResult := responseResult.Get("output")
 	if outputResult.IsArray() {
 		outputArray := outputResult.Array()
@@ -480,10 +507,14 @@ func ConvertCodexResponseToOpenAINonStream(_ context.Context, _ string, original
 					contentArray := contentResult.Array()
 					for _, contentItem := range contentArray {
 						if contentItem.Get("type").String() == "output_text" {
-							if text := contentItem.Get("text").String(); text != "" {
-								contentText += text
+							for _, annotation := range contentItem.Get("annotations").Array() {
+								if converted := chatURLCitation(annotation, contentRunes); len(converted) > 0 {
+									citations = append(citations, converted)
+								}
 							}
-							break
+							text := contentItem.Get("text").String()
+							contentText += text
+							contentRunes += int64(utf8.RuneCountInString(text))
 						}
 					}
 				}
@@ -530,6 +561,10 @@ func ConvertCodexResponseToOpenAINonStream(_ context.Context, _ string, original
 
 		if reasoningText != "" {
 			template, _ = sjson.SetBytes(template, "choices.0.message.reasoning_content", reasoningText)
+		}
+
+		if len(citations) > 0 {
+			template, _ = sjson.SetRawBytes(template, "choices.0.message.annotations", translatorcommon.JoinRawArray(citations))
 		}
 
 		// Add tool calls if any

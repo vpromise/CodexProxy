@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/optimize-multi-agent-v2"
 	. "github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/httpwire"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
@@ -27,15 +28,17 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func writeResponsesSSEChunk(w io.Writer, chunk []byte) {
+func writeResponsesSSEChunk(w io.Writer, chunk []byte) error {
 	if w == nil || len(chunk) == 0 {
-		return
+		return nil
 	}
-	if _, err := w.Write(chunk); err != nil {
-		return
+	if n, err := w.Write(chunk); err != nil {
+		return err
+	} else if n != len(chunk) {
+		return io.ErrShortWrite
 	}
 	if bytes.HasSuffix(chunk, []byte("\n\n")) || bytes.HasSuffix(chunk, []byte("\r\n\r\n")) {
-		return
+		return nil
 	}
 	suffix := []byte("\n\n")
 	if bytes.HasSuffix(chunk, []byte("\r\n")) {
@@ -43,12 +46,18 @@ func writeResponsesSSEChunk(w io.Writer, chunk []byte) {
 	} else if bytes.HasSuffix(chunk, []byte("\n")) {
 		suffix = []byte("\n")
 	}
-	if _, err := w.Write(suffix); err != nil {
-		return
+	if n, err := w.Write(suffix); err != nil {
+		return err
+	} else if n != len(suffix) {
+		return io.ErrShortWrite
 	}
+	return nil
 }
 
+func flushResponsesSSE(w http.ResponseWriter) error { return httpwire.FlushResponse(w) }
+
 type responsesSSEFramer struct {
+	writeErr             error
 	pending              []byte
 	outputItems          map[int][]byte
 	outputOrder          []int
@@ -117,7 +126,9 @@ func (f *responsesSSEFramer) Flush(w io.Writer) {
 }
 
 func (f *responsesSSEFramer) writeFrame(w io.Writer, frame []byte) {
-	writeResponsesSSEChunk(w, f.repairFrame(frame))
+	if f.writeErr == nil {
+		f.writeErr = writeResponsesSSEChunk(w, f.repairFrame(frame))
+	}
 }
 
 // shouldFilterPrivateEvent applies only after checking for upstream errors.
@@ -692,8 +703,14 @@ func (h *OpenAIResponsesAPIHandler) handleStreamingResponse(c *gin.Context, rawJ
 			if safeErrMsg != nil && framer.dataFrames > 0 {
 				setSSEHeaders()
 				handlers.WriteUpstreamHeaders(c.Writer.Header(), upstreamHeaders)
-				_, _ = c.Writer.Write(initialOutput.Bytes())
-				flusher.Flush()
+				if err := writeResponsesSSEChunk(c.Writer, initialOutput.Bytes()); err != nil {
+					cliCancel(err)
+					return
+				}
+				if err := flushResponsesSSE(c.Writer); err != nil {
+					cliCancel(err)
+					return
+				}
 				pendingErrors := make(chan *interfaces.ErrorMessage, 1)
 				pendingErrors <- safeErrMsg
 				close(pendingErrors)
@@ -729,8 +746,14 @@ func (h *OpenAIResponsesAPIHandler) handleStreamingResponse(c *gin.Context, rawJ
 				if framer.dataFrames > 0 {
 					setSSEHeaders()
 					handlers.WriteUpstreamHeaders(c.Writer.Header(), upstreamHeaders)
-					_, _ = c.Writer.Write(initialOutput.Bytes())
-					flusher.Flush()
+					if err := writeResponsesSSEChunk(c.Writer, initialOutput.Bytes()); err != nil {
+						cliCancel(err)
+						return
+					}
+					if err := flushResponsesSSE(c.Writer); err != nil {
+						cliCancel(err)
+						return
+					}
 					if framer.terminalError != nil {
 						h.logResponsesStreamError(c, framer, framer.terminalError)
 						cliCancel(framer.terminalError.Error)
@@ -764,8 +787,14 @@ func (h *OpenAIResponsesAPIHandler) handleStreamingResponse(c *gin.Context, rawJ
 
 			setSSEHeaders()
 			handlers.WriteUpstreamHeaders(c.Writer.Header(), upstreamHeaders)
-			_, _ = c.Writer.Write(initialOutput.Bytes())
-			flusher.Flush()
+			if err := writeResponsesSSEChunk(c.Writer, initialOutput.Bytes()); err != nil {
+				cliCancel(err)
+				return
+			}
+			if err := flushResponsesSSE(c.Writer); err != nil {
+				cliCancel(err)
+				return
+			}
 			if framer.terminalError != nil {
 				h.logResponsesStreamError(c, framer, framer.terminalError)
 				cliCancel(framer.terminalError.Error)
@@ -930,6 +959,10 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesStream(c *gin.Context, flush
 	if framer == nil {
 		framer = &responsesSSEFramer{}
 	}
+	if framer.writeErr != nil {
+		cancel(framer.writeErr)
+		return
+	}
 	framer.isCodexClient = isCodexResponsesClientRequest(c)
 	if framer.isCodexClient {
 		framer.failureEvent = "response.failed"
@@ -938,7 +971,7 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesStream(c *gin.Context, flush
 	}
 	writeTerminalError := func(errMsg *interfaces.ErrorMessage) {
 		framer.Flush(c.Writer)
-		if errMsg == nil {
+		if errMsg == nil || framer.writeErr != nil {
 			return
 		}
 		status := http.StatusInternalServerError
@@ -952,14 +985,25 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesStream(c *gin.Context, flush
 		}
 		if isCodexResponsesClientRequest(c) {
 			chunk := handlers.BuildOpenAIResponsesStreamFailedChunk(status, errText, 0)
-			_, _ = fmt.Fprintf(c.Writer, "\nevent: response.failed\ndata: %s\n\n", string(chunk))
+			framer.writeErr = writeResponsesSSEChunk(c.Writer, []byte(fmt.Sprintf("\nevent: response.failed\ndata: %s\n\n", chunk)))
 			return
 		}
 		chunk := handlers.BuildOpenAIResponsesStreamErrorChunk(status, errText, 0)
-		_, _ = fmt.Fprintf(c.Writer, "\nevent: error\ndata: %s\n\n", string(chunk))
+		framer.writeErr = writeResponsesSSEChunk(c.Writer, []byte(fmt.Sprintf("\nevent: error\ndata: %s\n\n", chunk)))
 	}
 
 	h.ForwardStream(c, flusher, cancel, data, errs, handlers.StreamForwardOptions{
+		Flush: func() error {
+			if framer.writeErr != nil {
+				return framer.writeErr
+			}
+			return flushResponsesSSE(c.Writer)
+		},
+		WriteKeepAlive: func() {
+			if framer.writeErr == nil {
+				framer.writeErr = writeResponsesSSEChunk(c.Writer, []byte(": keep-alive\n\n"))
+			}
+		},
 		NormalizeTerminalError: sanitizeResponsesStreamErrorMessage,
 		WriteChunk: func(chunk []byte) {
 			framer.WriteChunk(c.Writer, chunk)
@@ -990,7 +1034,13 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesStream(c *gin.Context, flush
 		},
 		WriteDone: func() {
 			framer.Flush(c.Writer)
-			_, _ = c.Writer.Write([]byte("\n"))
+			if framer.writeErr == nil {
+				if n, errWrite := c.Writer.Write([]byte("\n")); errWrite != nil {
+					framer.writeErr = errWrite
+				} else if n != 1 {
+					framer.writeErr = io.ErrShortWrite
+				}
+			}
 		},
 	})
 }
