@@ -14,13 +14,25 @@ Updated: 2026-10-07 (Asia/Shanghai). This is the checkpoint for selective backpo
 | Latest verified published implementation | [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) (`c52107463d54b33cac825d1514353d4a7c5d3fa3`) on `main` |
 | Published source tree | `22e40e997a6b805350f58cc288825026d3aa7a8f` (implementation commit) |
 | Latest publication | October 4 selection: 11 protocol/schema/transport/catalog groups drawn from 18 upstream commits; 41 source/test/catalog/fixture paths plus this ledger |
-| Unpublished selected fixes | October 5: 9 repair groups from 9 upstream commits, validated and integrated locally; 27 source/test paths plus this ledger, uncommitted |
+| Unpublished selected fixes | October 5: 9 repair groups from 9 commits, validated locally; prepared in temporary-clone commit `f67fe5728c5a77d77e12999051a2992f49730286`; main checkout remains uncommitted and GitHub publication is blocked by approval policy |
 | Pending candidate | October 7: 3 groups from 4 commits, 9 source/test paths; isolated patch retained pending full HTTP/WebSocket validation, not integrated |
 | Deployment | All three targets run `c52107463d54b33cac825d1514353d4a7c5d3fa3`: dmit (Docker/CGO), dmit2 (Docker/static), bawg (systemd/static); verified on October 4 at 00:58, 01:00 and 01:01 Asia/Shanghai respectively |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 
 The October 4 selection is published at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) and deployed to all three targets. Its source/test/build manifest remains `3564b0f113fd952012fd21c8ab89d3ee9c91194f03cd0c74b37df1781ea3726f`. The reviewed release boundary has advanced to v8.0.17; the October 5 selection remains local, and the October 7 candidate remains outside main pending full validation. This does not import upstream ancestry, adopt the v8 module/configuration layout, or promote deferred changes to integrated status.
+
+## Publication attempt on 2026-10-07 — blocked by tool approval policy
+
+The user requested GitHub publication. The selected publication scope is the already-validated **October 5 batch: 9 groups, 27 source/test paths**, together with the current review ledger. The October 7 three-group candidate remains outside main and outside this commit, pending its full integration checks.
+
+The source/test/build manifest still matches **`19f310dfa8053a6e8ade75daea6826f784f2203285f043b5132cf065bc6277f5`** (1597 files), and the exact source-only patch still matches **`4557c33763c4abf199ebde7bf0f62054ab2108cc21aa160d44c6c419a3fbfa0a`**. The recorded October 5 full **68-package / 3792-test** run, **13-package / 2017-test** race run and native build therefore remain applicable with their recorded exclusions. No code changed and no redundant Go test/build run was performed for this publication attempt. Patch whitespace checks passed.
+
+Read-only GitHub checks confirmed the destination `vpromise/CodexProxy`, branch `main` at `32294a10fc0c7b87550469937e88331a92f67be4`, available push permission, no branch protection and no rulesets. Shell GitHub access failed DNS. The connector's first mutation, `create_blob`, was rejected with **“MCP tool call requires approval, but approval policy is never”**. No alternative publication route was attempted after this approval denial. A subsequent read confirmed the remote main SHA was unchanged.
+
+An isolated temporary clone contains implementation commit **`f67fe5728c5a77d77e12999051a2992f49730286`**, message `fix: preserve native Claude responses and stream transport errors`, tree **`0b68205cfb403b6da009c95349cd553d9acd91ef`**. The main checkout's Git metadata is read-only and remains at `32294a10` with its original unstaged changes. This ledger update is recorded separately in the retained publication bundle. These temporary-clone commits are **not published**, and the latest verified published implementation/deployment remains `c5210746`.
+
+Recovery artifacts are retained at **`/private/tmp/codexproxy-publish-20261007.qh_445ai/`**: `publication.bundle`, `publication.patch`, metadata, source manifest and resumption notes. They preserve the exact commit history and do not include ignored credentials/configuration. Before resuming in a session that permits the required GitHub approval, recheck the remote head and local working state, reuse matching validation, and publish without force. No Release or server deployment was requested or performed in this attempt.
 
 ## Review on 2026-10-07 — v8.0.16 through v8.0.17; candidate pending validation
 
