@@ -55,7 +55,7 @@ func MergeRefreshedAuth(base, current, updated *Auth) *Auth {
 	if merged == nil || current == nil || updated == nil {
 		return merged
 	}
-	if base != nil && (current.RegistrationEpoch != base.RegistrationEpoch || CredentialsChanged(base, current)) {
+	if !sameCredentialSnapshot(base, current) {
 		return merged
 	}
 
@@ -168,7 +168,7 @@ func mergeAuthContent(base, current, updated *Auth) *Auth {
 	if updated == nil {
 		return current.Clone()
 	}
-	if base != nil && (current.RegistrationEpoch != base.RegistrationEpoch || CredentialsChanged(base, current)) {
+	if !sameCredentialSnapshot(base, current) {
 		// Stale update from a previous registration cycle; keep current state.
 		return current.Clone()
 	}

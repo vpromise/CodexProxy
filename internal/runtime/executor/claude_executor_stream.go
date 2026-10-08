@@ -76,7 +76,10 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	}
 
 	isCompat := helps.APIKeyModelIsCompat(req)
-	originalTranslated, body := helps.TranslateRequestPairWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, req.Payload, true, isCompat, e.Identifier())
+	originalTranslated, body, errTranslate := helps.TranslateRequestPairWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, req.Payload, true, isCompat, e.Identifier())
+	if errTranslate != nil {
+		return nil, errTranslate
+	}
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
 	nativeThinkingWire := bytes.Clone(body)
 

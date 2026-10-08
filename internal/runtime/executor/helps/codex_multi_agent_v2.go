@@ -32,7 +32,8 @@ func RewriteCodexMultiAgentV2Input(ctx context.Context, headers http.Header, pay
 // TranslateRequestWithCodexMultiAgentV2 normalizes official Codex multi-agent
 // input before translating it to a non-Codex target protocol.
 func TranslateRequestWithCodexMultiAgentV2(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream bool) []byte {
-	return multiagentv2.TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, payload, stream)
+	body, _ := TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, payload, stream)
+	return body
 }
 
 // TranslateRequestPairWithCodexMultiAgentV2 translates the untouched baseline
@@ -44,12 +45,8 @@ func TranslateRequestWithCodexMultiAgentV2(ctx context.Context, headers http.Hea
 // because they may have request-scoped output or side effects. This removes a
 // full extra pass over payloads that can reach tens of megabytes.
 func TranslateRequestPairWithCodexMultiAgentV2(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream bool) (original, working []byte) {
-	original = TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, originalPayload, stream)
-	if sameByteSlice(originalPayload, requestPayload) && !sdktranslator.HasPluginHooks() {
-		// The caller mutates the working copy, so it must not share the baseline array.
-		return original, append([]byte(nil), original...)
-	}
-	return original, TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, requestPayload, stream)
+	original, working, _ = TranslateRequestPairWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, originalPayload, requestPayload, stream)
+	return original, working
 }
 
 // sameByteSlice reports whether both slices describe the same bytes of the same
@@ -68,46 +65,15 @@ func sameByteSlice(a, b []byte) bool {
 // TranslateRequestPairWithAPIKeyModelCompatibility reuses identical translations
 // while preserving independent buffers and stateful plugin invocations.
 func TranslateRequestPairWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream, isCompat bool, targetExecutor ...string) (original, working []byte) {
-	original = TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, originalPayload, stream, isCompat, targetExecutor...)
-	if sameByteSlice(originalPayload, requestPayload) && !sdktranslator.HasPluginHooks() {
-		return original, append([]byte(nil), original...)
-	}
-	return original, TranslateRequestWithAPIKeyModelCompatibility(ctx, headers, cfg, from, to, model, requestPayload, stream, isCompat, targetExecutor...)
+	original, working, _ = TranslateRequestPairWithAPIKeyModelCompatibilityChecked(ctx, headers, cfg, from, to, model, originalPayload, requestPayload, stream, isCompat, targetExecutor...)
+	return original, working
 }
 
 // TranslateRequestWithAPIKeyModelCompatibility applies compatibility-aware
 // request translators when a configured API-key model enables compatibility mode.
 func TranslateRequestWithAPIKeyModelCompatibility(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream, isCompat bool, targetExecutor ...string) []byte {
-	if len(targetExecutor) > 0 {
-		switch strings.ToLower(strings.TrimSpace(targetExecutor[0])) {
-		case "", "codex", "codex-websockets", "codex_websockets":
-		default:
-			payload = toolschema.NormalizeCodexToolIntegerTypes(payload, headers)
-		}
-	}
-	if !isCompat {
-		return TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, payload, stream)
-	}
-	if from == sdktranslator.FormatOpenAIResponse && to != sdktranslator.FormatCodex && to != sdktranslator.FormatOpenAIResponse {
-		payload = multiagentv2.RewriteCodexMultiAgentV2Input(ctx, headers, payload, cfg)
-	}
-
-	var translated []byte
-	switch {
-	case from == sdktranslator.FormatClaude && to == sdktranslator.FormatCodex:
-		translated = codexclaude.ConvertClaudeRequestToCodexWithCompat(model, payload, stream)
-	case from == sdktranslator.FormatClaude && to == sdktranslator.FormatOpenAI:
-		translated = openaiclaude.ConvertClaudeRequestToOpenAIWithCompat(model, payload, stream)
-	case from == sdktranslator.FormatOpenAI && to == sdktranslator.FormatClaude:
-		translated = openaichatclaude.ConvertOpenAIRequestToClaudeWithCompat(model, payload, stream)
-	case from == sdktranslator.FormatOpenAIResponse && to == sdktranslator.FormatClaude:
-		translated = responsesclaude.ConvertOpenAIResponsesRequestToClaudeWithCompat(model, payload, stream)
-	default:
-		return TranslateRequestWithCodexMultiAgentV2(ctx, headers, cfg, from, to, model, payload, stream)
-	}
-
-	summaryConfig := thinking.ExtractSummaryConfig(payload, from.String())
-	return thinking.ApplySummaryConfigForModel(translated, to.String(), model, summaryConfig)
+	body, _ := TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, headers, cfg, from, to, model, payload, stream, isCompat, targetExecutor...)
+	return body
 }
 
 // HasCodexMultiAgentV2NamespaceConflict reports whether the request defines
@@ -137,4 +103,66 @@ func OptimizeCodexMultiAgentV2RequestForAuth(ctx context.Context, headers http.H
 // values before an upstream response is translated and returned to the client.
 func RestoreCodexMultiAgentV2Response(payload []byte, optimized bool) []byte {
 	return multiagentv2.RestoreCodexMultiAgentV2Response(payload, optimized)
+}
+
+// TranslateRequestWithCodexMultiAgentV2Checked propagates request conversion errors.
+func TranslateRequestWithCodexMultiAgentV2Checked(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream bool) ([]byte, error) {
+	return multiagentv2.TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, payload, stream)
+}
+
+// TranslateRequestWithAPIKeyModelCompatibilityChecked preserves compatibility policy and conversion errors.
+func TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream, isCompat bool, targetExecutor ...string) ([]byte, error) {
+	if len(targetExecutor) > 0 {
+		switch strings.ToLower(strings.TrimSpace(targetExecutor[0])) {
+		case "", "codex", "codex-websockets", "codex_websockets":
+		default:
+			payload = toolschema.NormalizeCodexToolIntegerTypes(payload, headers)
+		}
+	}
+	if !isCompat {
+		return TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, payload, stream)
+	}
+	if from == sdktranslator.FormatOpenAIResponse && to != sdktranslator.FormatCodex && to != sdktranslator.FormatOpenAIResponse {
+		payload = multiagentv2.RewriteCodexMultiAgentV2Input(ctx, headers, payload, cfg)
+	}
+
+	var translated []byte
+	var errTranslate error
+	switch {
+	case from == sdktranslator.FormatClaude && to == sdktranslator.FormatCodex:
+		translated, errTranslate = codexclaude.ConvertClaudeRequestToCodexWithCompatChecked(model, payload, stream)
+	case from == sdktranslator.FormatClaude && to == sdktranslator.FormatOpenAI:
+		translated, errTranslate = openaiclaude.ConvertClaudeRequestToOpenAIWithCompatChecked(model, payload, stream)
+	case from == sdktranslator.FormatOpenAI && to == sdktranslator.FormatClaude:
+		translated, errTranslate = openaichatclaude.ConvertOpenAIRequestToClaudeWithCompatChecked(model, payload, stream)
+	case from == sdktranslator.FormatOpenAIResponse && to == sdktranslator.FormatClaude:
+		translated, errTranslate = responsesclaude.ConvertOpenAIResponsesRequestToClaudeWithCompatChecked(model, payload, stream)
+	default:
+		return TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, payload, stream)
+	}
+
+	summaryConfig := thinking.ExtractSummaryConfig(payload, from.String())
+	return thinking.ApplySummaryConfigForModel(translated, to.String(), model, summaryConfig), errTranslate
+}
+
+// TranslateRequestPairWithCodexMultiAgentV2Checked propagates only the working payload error.
+func TranslateRequestPairWithCodexMultiAgentV2Checked(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream bool) (original, working []byte, err error) {
+	original, originalErr := TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, originalPayload, stream)
+	if sameByteSlice(originalPayload, requestPayload) && !sdktranslator.HasPluginHooks() {
+		return original, append([]byte(nil), original...), originalErr
+	}
+	// Baseline-only failures must not reject a valid repaired working request.
+	working, err = TranslateRequestWithCodexMultiAgentV2Checked(ctx, headers, cfg, from, to, model, requestPayload, stream)
+	return original, working, err
+}
+
+// TranslateRequestPairWithAPIKeyModelCompatibilityChecked propagates only the working payload error.
+func TranslateRequestPairWithAPIKeyModelCompatibilityChecked(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, originalPayload, requestPayload []byte, stream, isCompat bool, targetExecutor ...string) (original, working []byte, err error) {
+	original, originalErr := TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, headers, cfg, from, to, model, originalPayload, stream, isCompat, targetExecutor...)
+	if sameByteSlice(originalPayload, requestPayload) && !sdktranslator.HasPluginHooks() {
+		return original, append([]byte(nil), original...), originalErr
+	}
+	// Baseline-only failures must not reject a valid repaired working request.
+	working, err = TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, headers, cfg, from, to, model, requestPayload, stream, isCompat, targetExecutor...)
+	return original, working, err
 }

@@ -63,10 +63,10 @@ func (p *Pipeline) UseResponse(mw ResponseMiddleware) {
 // TranslateRequest applies middleware and registry transformations.
 func (p *Pipeline) TranslateRequest(ctx context.Context, from, to Format, req RequestEnvelope) (RequestEnvelope, error) {
 	terminal := func(ctx context.Context, input RequestEnvelope) (RequestEnvelope, error) {
-		translated := p.registry.TranslateRequest(from, to, input.Model, input.Body, input.Stream)
+		translated, errTranslate := p.registry.TranslateRequestChecked(from, to, input.Model, input.Body, input.Stream)
 		input.Body = translated
 		input.Format = to
-		return input, nil
+		return input, errTranslate
 	}
 
 	handler := terminal

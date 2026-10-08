@@ -32,20 +32,8 @@ const (
 var dataTag = []byte("data:")
 
 func translateCodexRequestPair(from, to sdktranslator.Format, model string, originalPayload, payload []byte, stream bool, preserveEmptyThinkingBlocks ...bool) ([]byte, []byte) {
-	isCompat := len(preserveEmptyThinkingBlocks) > 0 && preserveEmptyThinkingBlocks[0]
-	translate := func(raw []byte) []byte {
-		if isCompat && from == sdktranslator.FormatClaude && to == sdktranslator.FormatCodex {
-			return helps.TranslateRequestWithAPIKeyModelCompatibility(context.Background(), nil, nil, from, to, model, raw, stream, true)
-		}
-		return sdktranslator.TranslateRequest(from, to, model, raw, stream)
-	}
-	if bytes.Equal(originalPayload, payload) {
-		body := translate(payload)
-		return body, body
-	}
-	originalTranslated := translate(originalPayload)
-	body := translate(payload)
-	return originalTranslated, body
+	original, working, _ := translateCodexRequestPairChecked(from, to, model, originalPayload, payload, stream, preserveEmptyThinkingBlocks...)
+	return original, working
 }
 
 // PrepareRequest injects Codex credentials into the outgoing HTTP request.
@@ -506,4 +494,21 @@ func applyCodexRoutingHint(ctx context.Context, headers http.Header, auth *clipr
 		attrs = auth.Attributes
 	}
 	helps.ApplyCodexOAuthRoutingHint(ctx, headers, attrs, baseModel, upstreamBody, clientHeaders)
+}
+
+func translateCodexRequestPairChecked(from, to sdktranslator.Format, model string, originalPayload, payload []byte, stream bool, preserveEmptyThinkingBlocks ...bool) ([]byte, []byte, error) {
+	isCompat := len(preserveEmptyThinkingBlocks) > 0 && preserveEmptyThinkingBlocks[0]
+	translate := func(raw []byte) ([]byte, error) {
+		if isCompat && from == sdktranslator.FormatClaude && to == sdktranslator.FormatCodex {
+			return helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(context.Background(), nil, nil, from, to, model, raw, stream, true)
+		}
+		return sdktranslator.TranslateRequestChecked(from, to, model, raw, stream)
+	}
+	if bytes.Equal(originalPayload, payload) && !sdktranslator.HasPluginHooks() {
+		body, errTranslate := translate(payload)
+		return bytes.Clone(body), body, errTranslate
+	}
+	originalTranslated, _ := translate(originalPayload)
+	body, errTranslate := translate(payload)
+	return originalTranslated, body, errTranslate
 }

@@ -267,7 +267,11 @@ func TestClaudeCloakedMultiTurnPrefixStability(t *testing.T) {
 	turn1Payload := fmt.Sprintf(`{
 		"model": "claude-opus-5",
 		"system": [{"type": "text", "text": %q, "cache_control": {"type": "ephemeral"}}],
-		"messages": [{"role": "user", "content": "turn 1 user prompt"}],
+		"messages": [
+			{"role": "user", "content": "turn 0 user prompt"},
+			{"role": "assistant", "content": "Earlier response."},
+			{"role": "user", "content": "turn 1 user prompt"}
+		],
 		"max_tokens": 100
 	}`, systemPrompt)
 
@@ -275,6 +279,8 @@ func TestClaudeCloakedMultiTurnPrefixStability(t *testing.T) {
 		"model": "claude-opus-5",
 		"system": [{"type": "text", "text": %q, "cache_control": {"type": "ephemeral"}}],
 		"messages": [
+			{"role": "user", "content": "turn 0 user prompt"},
+			{"role": "assistant", "content": "Earlier response."},
 			{"role": "user", "content": "turn 1 user prompt"},
 			{"role": "assistant", "content": "Understood."},
 			{"role": "user", "content": "turn 2 user prompt with new question"}
@@ -354,6 +360,8 @@ func TestClaudeCloakedMultiTurnPrefixStability(t *testing.T) {
 		"model": "claude-opus-5",
 		"system": [{"type": "text", "text": %q, "cache_control": {"type": "ephemeral"}}],
 		"messages": [
+			{"role": "user", "content": "turn 0 user prompt"},
+			{"role": "assistant", "content": "Earlier response."},
 			{"role": "user", "content": "turn 1 user prompt"},
 			{"role": "assistant", "content": "Understood."},
 			{"role": "user", "content": "turn 2 user prompt with new question"},

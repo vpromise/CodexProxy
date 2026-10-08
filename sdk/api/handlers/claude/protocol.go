@@ -99,11 +99,18 @@ func writeClaudeProtocolError(c *gin.Context, status int, response claudeErrorRe
 	if c == nil {
 		return
 	}
-	EnsureRequestID(c)
 	body, errMarshal := json.Marshal(response)
 	if errMarshal != nil {
 		body = []byte(`{"type":"error","error":{"type":"api_error","message":"Internal Server Error"}}`)
 	}
+	writeClaudeProtocolErrorBody(c, status, body)
+}
+
+func writeClaudeProtocolErrorBody(c *gin.Context, status int, body []byte) {
+	if c == nil {
+		return
+	}
+	EnsureRequestID(c)
 	appendClaudeAPIResponse(c, body)
 	if !c.Writer.Written() {
 		c.Writer.Header().Set("Content-Type", "application/json")

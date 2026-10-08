@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	translator.Register(
+	translator.RegisterChecked(
 		Claude,
 		Codex,
-		ConvertClaudeRequestToCodex,
+		ConvertClaudeRequestToCodexChecked,
 		interfaces.TranslateResponse{
 			Stream:     ConvertCodexResponseToClaude,
 			NonStream:  ConvertCodexResponseToClaudeNonStream,

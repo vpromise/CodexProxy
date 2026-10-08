@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -40,16 +41,16 @@ import (
 // Returns:
 //   - []byte: The transformed request data in internal client format
 func ConvertClaudeRequestToCodex(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertClaudeRequestToCodex(modelName, inputRawJSON, stream, false)
+	return convertClaudeRequestToCodex(modelName, inputRawJSON, stream, false, nil)
 }
 
 // ConvertClaudeRequestToCodexWithCompat preserves assistant thinking blocks with
 // empty signatures for configured compatibility endpoints.
 func ConvertClaudeRequestToCodexWithCompat(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertClaudeRequestToCodex(modelName, inputRawJSON, stream, true)
+	return convertClaudeRequestToCodex(modelName, inputRawJSON, stream, true, nil)
 }
 
-func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, preserveEmptyThinkingBlocks bool) []byte {
+func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, preserveEmptyThinkingBlocks bool, drops *translatorcommon.UserTurnDrops) []byte {
 	rawJSON := inputRawJSON
 
 	template := []byte(`{"model":"","instructions":"","input":[]}`)
@@ -122,6 +123,7 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 			}
 			pendingToolUseIDs = nil
 			contentItems := make([][]byte, 0, 4)
+			sendable := 0
 
 			flushMessage := func() {
 				if len(contentItems) > 0 {
@@ -134,6 +136,9 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 			}
 
 			appendTextContent := func(text string) {
+				if strings.TrimSpace(text) != "" {
+					sendable++
+				}
 				partType := "input_text"
 				if messageRole == "assistant" {
 					partType = "output_text"
@@ -145,12 +150,14 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 			}
 
 			appendImageContent := func(dataURL string) {
+				sendable++
 				content := []byte(`{"type":"input_image","image_url":""}`)
 				content, _ = sjson.SetBytes(content, "image_url", dataURL)
 				contentItems = append(contentItems, content)
 			}
 
 			appendDocumentContent := func(dataURL string) {
+				sendable++
 				content := []byte(`{"type":"input_file","file_data":"","filename":"document.pdf"}`)
 				content, _ = sjson.SetBytes(content, "file_data", dataURL)
 				contentItems = append(contentItems, content)
@@ -182,6 +189,7 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 				for j := 0; j < len(messageContentResults); j++ {
 					messageContentResult := messageContentResults[j]
 					contentType := messageContentResult.Get("type").String()
+					before := sendable
 
 					switch contentType {
 					case "text":
@@ -213,6 +221,12 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 								}
 								dataURL := fmt.Sprintf("data:%s;base64,%s", mediaType, data)
 								appendImageContent(dataURL)
+							} else if sourceResult.Get("type").String() == "url" {
+								imageURL := strings.TrimSpace(sourceResult.Get("url").String())
+								parsedURL, errParse := url.Parse(imageURL)
+								if errParse == nil && parsedURL.Host != "" && (strings.EqualFold(parsedURL.Scheme, "http") || strings.EqualFold(parsedURL.Scheme, "https")) {
+									appendImageContent(imageURL)
+								}
 							}
 						}
 					case "document":
@@ -222,11 +236,11 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 						}
 						sourceResult := messageContentResult.Get("source")
 						if sourceResult.Get("type").String() != "base64" {
-							continue
+							break
 						}
 						mediaType := strings.TrimSpace(sourceResult.Get("media_type").String())
 						if !strings.EqualFold(mediaType, "application/pdf") {
-							continue
+							break
 						}
 						data := sourceResult.Get("data").String()
 						if data == "" {
@@ -302,6 +316,10 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 						}
 
 						inputItems = append(inputItems, functionCallOutputMessage)
+						sendable++
+					}
+					if messageRole == "user" && translatorcommon.IsAttachmentPart(contentType) && sendable == before {
+						drops.Drop(contentType)
 					}
 				}
 				flushMessage()
@@ -316,6 +334,9 @@ func convertClaudeRequestToCodex(modelName string, inputRawJSON []byte, _ bool, 
 					inputItems = append(inputItems, pendingSystemReminders...)
 					pendingSystemReminders = nil
 				}
+			}
+			if messageRole == "user" {
+				drops.EndTurn(sendable)
 			}
 		}
 
@@ -669,4 +690,18 @@ func normalizeToolParameters(raw string) string {
 		schema, _ = sjson.SetRawBytes(schema, "properties", []byte(`{}`))
 	}
 	return string(schema)
+}
+
+// ConvertClaudeRequestToCodexChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertClaudeRequestToCodexChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops translatorcommon.UserTurnDrops
+	body := convertClaudeRequestToCodex(modelName, rawJSON, stream, false, &drops)
+	return body, drops.Err()
+}
+
+// ConvertClaudeRequestToCodexWithCompatChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertClaudeRequestToCodexWithCompatChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops translatorcommon.UserTurnDrops
+	body := convertClaudeRequestToCodex(modelName, rawJSON, stream, true, &drops)
+	return body, drops.Err()
 }

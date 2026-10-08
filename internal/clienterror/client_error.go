@@ -92,6 +92,9 @@ func IsRequestFault(status int, err error) bool {
 	if status == http.StatusUnauthorized && hasAuthenticationErrorBody(err) {
 		return false
 	}
+	if IsClaudeThreadNotFound(status, err) {
+		return true
+	}
 	if hasRequestFaultBody(err) {
 		return true
 	}
@@ -186,4 +189,33 @@ func IsClientCancellation(status int, err error) bool {
 		}
 	}
 	return false
+}
+
+// ErrorResponseBody prefers the upstream body carried by a wrapped error.
+func ErrorResponseBody(err error) []byte {
+	if err == nil {
+		return nil
+	}
+	var carrier interface{ ResponseBody() []byte }
+	if errors.As(err, &carrier) && carrier != nil {
+		if body := carrier.ResponseBody(); len(body) > 0 {
+			return body
+		}
+	}
+	return []byte(err.Error())
+}
+
+// IsClaudeThreadNotFound recognizes only the structured missing-continuation 404.
+// A missing thread needs client history replay, not another credential.
+func IsClaudeThreadNotFound(status int, err error) bool {
+	if status != http.StatusNotFound || err == nil {
+		return false
+	}
+	body := ErrorResponseBody(err)
+	if !json.Valid(body) || !strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "error.type").String()), "not_found_error") {
+		return false
+	}
+	message := strings.ToLower(gjson.GetBytes(body, "error.message").String())
+	return gjson.GetBytes(body, "error.details.error_code").String() == "thread_not_found" ||
+		(strings.Contains(message, "thread state") && strings.Contains(message, "previous_message_id"))
 }

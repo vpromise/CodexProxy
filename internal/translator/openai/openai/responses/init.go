@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	translator.Register(
+	translator.RegisterChecked(
 		OpenaiResponse,
 		OpenAI,
-		ConvertOpenAIResponsesRequestToOpenAIChatCompletions,
+		ConvertOpenAIResponsesRequestToOpenAIChatCompletionsChecked,
 		interfaces.TranslateResponse{
 			Stream:    ConvertOpenAIChatCompletionsResponseToOpenAIResponses,
 			NonStream: ConvertOpenAIChatCompletionsResponseToOpenAIResponsesNonStream,

@@ -529,7 +529,7 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		shouldReschedule := false
 		m.mu.Lock()
 		if current := m.auths[id]; current != nil {
-			if current.RegistrationEpoch != base.RegistrationEpoch || CredentialsChanged(base, current) || current.Disabled || current.Status == StatusDisabled {
+			if !sameCredentialSnapshot(base, current) || current.Disabled || current.Status == StatusDisabled {
 				m.mu.Unlock()
 				return nil, err
 			}

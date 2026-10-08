@@ -1002,3 +1002,22 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponsesNonStream(_ context.Co
 
 	return resp
 }
+
+// CanFinalizeResponseStream permits a clean EOF only after item completion and
+// a finish reason; usage-only chunks may still arrive before that EOF.
+func (st *oaiToResponsesState) CanFinalizeResponseStream() bool {
+	if st == nil || st.CompletedEmitted || st.FinishReason == "" || (len(st.MsgItemAdded) == 0 && len(st.FuncItemAdded) == 0) {
+		return false
+	}
+	for idx := range st.MsgItemAdded {
+		if !st.MsgItemDone[idx] {
+			return false
+		}
+	}
+	for key := range st.FuncItemAdded {
+		if !st.FuncItemDone[key] {
+			return false
+		}
+	}
+	return st.ReasoningID == ""
+}

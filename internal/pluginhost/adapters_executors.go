@@ -409,7 +409,11 @@ func (a *executorAdapter) prepareExecutorCall(req coreexecutor.Request, opts cor
 	nativeReq := req
 	nativeOpts := opts
 	if inputRequested != "" && inputRequested != inputFormat {
-		nativeReq.Payload = sdktranslator.TranslateRequest(inputRequested, inputFormat, req.Model, req.Payload, opts.Stream)
+		var errTranslate error
+		nativeReq.Payload, errTranslate = sdktranslator.TranslateRequestChecked(inputRequested, inputFormat, req.Model, req.Payload, opts.Stream)
+		if errTranslate != nil {
+			return preparedExecutorCall{}, errTranslate
+		}
 	}
 	nativeReq.Format = outputFormat
 	nativeOpts.SourceFormat = inputFormat

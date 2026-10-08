@@ -49,6 +49,9 @@ type Result struct {
 	// RegistrationEpoch binds an outcome to the selected credential registration.
 	// Zero preserves compatibility with SDK callers that do not supply a version.
 	RegistrationEpoch uint64
+	// CredentialVersion binds the outcome to the selected token material.
+	// Zero retains legacy SDK behavior; manager executions always bind a version.
+	CredentialVersion uint64
 	// authSnapshot retains the selected registration for stale-result event reporting.
 	authSnapshot *Auth
 	// Provider is copied for convenience when emitting hooks.

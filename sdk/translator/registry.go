@@ -13,7 +13,7 @@ import (
 // Registry manages translation functions across schemas.
 type Registry struct {
 	mu        sync.RWMutex
-	requests  map[Format]map[Format]RequestTransform
+	requests  map[Format]map[Format]CheckedRequestTransform
 	responses map[Format]map[Format]ResponseTransform
 	hooks     PluginHooks
 }
@@ -21,18 +21,27 @@ type Registry struct {
 // NewRegistry constructs an empty translator registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		requests:  make(map[Format]map[Format]RequestTransform),
+		requests:  make(map[Format]map[Format]CheckedRequestTransform),
 		responses: make(map[Format]map[Format]ResponseTransform),
 	}
 }
 
 // Register stores request/response transforms between two formats.
 func (r *Registry) Register(from, to Format, request RequestTransform, response ResponseTransform) {
+	var checked CheckedRequestTransform
+	if request != nil {
+		checked = func(model string, body []byte, stream bool) ([]byte, error) { return request(model, body, stream), nil }
+	}
+	r.RegisterCheckedRequest(from, to, checked, response)
+}
+
+// RegisterCheckedRequest stores a converter that can reject unrepresentable input.
+func (r *Registry) RegisterCheckedRequest(from, to Format, request CheckedRequestTransform, response ResponseTransform) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, ok := r.requests[from]; !ok {
-		r.requests[from] = make(map[Format]RequestTransform)
+		r.requests[from] = make(map[Format]CheckedRequestTransform)
 	}
 	if request != nil {
 		r.requests[from][to] = request
@@ -64,8 +73,14 @@ func (r *Registry) HasPluginHooks() bool {
 // "model" field is still updated to match the resolved model name so that
 // client-side prefixes (e.g. "copilot/gpt-5-mini") are not leaked upstream.
 func (r *Registry) TranslateRequest(from, to Format, model string, rawJSON []byte, stream bool) []byte {
+	body, _ := r.TranslateRequestChecked(from, to, model, rawJSON, stream)
+	return body
+}
+
+// TranslateRequestChecked retains normalization order and propagates conversion errors.
+func (r *Registry) TranslateRequestChecked(from, to Format, model string, rawJSON []byte, stream bool) ([]byte, error) {
 	r.mu.RLock()
-	var fn RequestTransform
+	var fn CheckedRequestTransform
 	if byTarget, ok := r.requests[from]; ok {
 		fn = byTarget[to]
 	}
@@ -75,14 +90,18 @@ func (r *Registry) TranslateRequest(from, to Format, model string, rawJSON []byt
 	body := rawJSON
 	if fn != nil {
 		summaryConfig := thinking.ExtractSummaryConfig(rawJSON, from.String())
-		body = fn(model, body, stream)
+		var errTranslate error
+		body, errTranslate = fn(model, body, stream)
 		body = thinking.ApplySummaryConfigForModel(body, to.String(), model, summaryConfig)
 		if hooks != nil {
 			// Request normalizers run after native translation and own the final
 			// provider payload, including any summary field they remove.
 			body = hooks.NormalizeRequest(context.Background(), from, to, model, body, stream)
 		}
-		return body
+		// A target normalizer cannot prove recovery of an already-lost source turn.
+		// Keep its conversion error; repaired working inputs and plugin fallback
+		// translation are validated on their own paths.
+		return body, errTranslate
 	}
 
 	if model != "" && gjson.GetBytes(body, "model").String() != model {
@@ -95,7 +114,7 @@ func (r *Registry) TranslateRequest(from, to Format, model string, rawJSON []byt
 	if hooks == nil {
 		// No translation occurred. Preserve the documented fallback shape instead
 		// of mixing target-protocol summary fields into the source payload.
-		return body
+		return body, nil
 	}
 
 	// Plugin request normalizers canonicalize the source before a plugin request
@@ -106,7 +125,7 @@ func (r *Registry) TranslateRequest(from, to Format, model string, rawJSON []byt
 	if translated, ok := hooks.TranslateRequest(context.Background(), from, to, model, body, stream); ok {
 		body = thinking.ApplySummaryConfigForModel(translated, to.String(), model, summaryConfig)
 	}
-	return body
+	return body, nil
 }
 
 // HasRequestTransformer indicates whether a request translator exists.
@@ -301,4 +320,9 @@ func TranslateTokenCount(ctx context.Context, from, to Format, count int64, rawJ
 
 func hasAnyResponseTransform(fn ResponseTransform) bool {
 	return fn.Stream != nil || fn.NonStream != nil || fn.TokenCount != nil
+}
+
+// TranslateRequestChecked uses the default registry without losing request errors.
+func TranslateRequestChecked(from, to Format, model string, body []byte, stream bool) ([]byte, error) {
+	return defaultRegistry.TranslateRequestChecked(from, to, model, body, stream)
 }

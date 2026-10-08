@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	translator.Register(
+	translator.RegisterChecked(
 		OpenAI,
 		Codex,
-		ConvertOpenAIRequestToCodex,
+		ConvertOpenAIRequestToCodexChecked,
 		interfaces.TranslateResponse{
 			Stream:    ConvertCodexResponseToOpenAI,
 			NonStream: ConvertCodexResponseToOpenAINonStream,

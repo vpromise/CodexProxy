@@ -56,6 +56,7 @@ func (m *Manager) currentRequestAuth(selected *Auth) (*Auth, error) {
 func bindResultAuth(result Result, auth *Auth) Result {
 	if auth != nil {
 		result.RegistrationEpoch = auth.RegistrationEpoch
+		result.CredentialVersion = auth.CredentialVersion
 		result.authSnapshot = auth.Clone()
 	}
 	return result
@@ -96,4 +97,17 @@ func (m *Manager) publishAuthModelStates(snapshot *Auth, expectedRegistryEpoch .
 
 func resultMatchesAvailabilityEpoch(result Result, auth *Auth) bool {
 	return auth != nil && (result.authSnapshot == nil || result.authSnapshot.availabilityEpoch == auth.availabilityEpoch)
+}
+
+// resultMatchesCredential keeps stale outcomes out of state, counters and affinity.
+// Hooks still receive the original outcome and its selected auth snapshot.
+func resultMatchesCredential(result Result, auth *Auth) bool {
+	return resultMatchesRegistration(result, auth) && (result.CredentialVersion == 0 || result.CredentialVersion == auth.CredentialVersion)
+}
+
+// sameCredentialSnapshot also accepts legacy SDK bases without a version while
+// retaining their existing registration and token-value checks.
+func sameCredentialSnapshot(base, current *Auth) bool {
+	return base == nil || (current != nil && base.RegistrationEpoch == current.RegistrationEpoch &&
+		(base.CredentialVersion == 0 || base.CredentialVersion == current.CredentialVersion) && !CredentialsChanged(base, current))
 }

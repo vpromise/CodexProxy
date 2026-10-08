@@ -38,7 +38,10 @@ func (e *ClaudeExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Aut
 
 	// Use streaming translation to preserve function calling, except for claude.
 	stream := from != to
-	body := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, stream, helps.APIKeyModelIsCompat(req), e.Identifier())
+	body, errTranslate := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, stream, helps.APIKeyModelIsCompat(req), e.Identifier())
+	if errTranslate != nil {
+		return cliproxyexecutor.Response{}, errTranslate
+	}
 	var errThinking error
 	body, errThinking = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if errThinking != nil {
@@ -143,7 +146,10 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	}
 	// Use streaming translation to preserve function calling, except for claude.
 	stream := from != to
-	body := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, stream, helps.APIKeyModelIsCompat(req), e.Identifier())
+	body, errTranslate := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, stream, helps.APIKeyModelIsCompat(req), e.Identifier())
+	if errTranslate != nil {
+		return cliproxyexecutor.Response{}, errTranslate
+	}
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
 	nativeThinkingWire := bytes.Clone(body)
 	body, errThinking := applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
@@ -170,7 +176,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 				return cliproxyexecutor.Response{}, errSystem
 			}
 		}
-		body = relocateClaudeSystemPromptForCountTokens(body, settings.strictMode)
+		body = relocateClaudeSystemPromptForCountTokensWithPolicy(body, settings.strictMode, !policy.OAuth)
 		if len(settings.sensitiveWords) > 0 {
 			body = helps.ObfuscateSensitiveWords(body, helps.BuildSensitiveWordMatcher(settings.sensitiveWords))
 		}

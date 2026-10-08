@@ -28,6 +28,10 @@ import (
 // Returns:
 //   - []byte: The transformed request data in OpenAI Responses API format
 func ConvertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream bool) []byte {
+	return convertOpenAIRequestToCodex(modelName, inputRawJSON, stream, nil)
+}
+
+func convertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream bool, drops *translatorcommon.UserTurnDrops) []byte {
 	rawJSON := inputRawJSON
 	root := gjson.ParseBytes(rawJSON)
 	tools := root.Get("tools")
@@ -219,6 +223,7 @@ func ConvertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 					for j := 0; j < len(items); j++ {
 						it := items[j]
 						t := it.Get("type").String()
+						before := len(contentItems)
 						switch t {
 						case "text":
 							partType := "input_text"
@@ -268,7 +273,13 @@ func ConvertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 								}
 							}
 						}
+						if role == "user" && translatorcommon.IsAttachmentPart(t) && len(contentItems) == before {
+							drops.Drop(t)
+						}
 					}
+				}
+				if role == "user" {
+					drops.EndTurn(translatorcommon.CountSendableParts(contentItems))
 				}
 
 				// Don't emit empty assistant messages when only tool_calls
@@ -768,4 +779,11 @@ func buildShortNameMap(names []string) map[string]string {
 		m[n] = uniq
 	}
 	return m
+}
+
+// ConvertOpenAIRequestToCodexChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIRequestToCodexChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops translatorcommon.UserTurnDrops
+	body := convertOpenAIRequestToCodex(modelName, rawJSON, stream, &drops)
+	return body, drops.Err()
 }

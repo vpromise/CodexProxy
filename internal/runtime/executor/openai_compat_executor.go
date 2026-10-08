@@ -115,8 +115,11 @@ func (e *OpenAICompatExecutor) Execute(ctx context.Context, auth *cliproxyauth.A
 	}
 	originalPayload := originalPayloadSource
 	isCompat := helps.APIKeyModelIsCompat(req)
-	originalTranslated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, opts.Stream, isCompat, e.Identifier())
-	translated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, opts.Stream, isCompat, e.Identifier())
+	originalTranslated, _ := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, opts.Stream, isCompat, e.Identifier())
+	translated, errTranslate := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, opts.Stream, isCompat, e.Identifier())
+	if errTranslate != nil {
+		return resp, errTranslate
+	}
 
 	translated, err = helps.ApplyRequestThinking(translated, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -329,8 +332,11 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 	}
 	originalPayload := originalPayloadSource
 	isCompat := helps.APIKeyModelIsCompat(req)
-	originalTranslated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, true, isCompat, e.Identifier())
-	translated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, true, isCompat, e.Identifier())
+	originalTranslated, _ := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, originalPayload, true, isCompat, e.Identifier())
+	translated, errTranslate := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, true, isCompat, e.Identifier())
+	if errTranslate != nil {
+		return nil, errTranslate
+	}
 
 	translated, err = helps.ApplyRequestThinking(translated, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -532,6 +538,18 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 		if streamFailed || streamAborted {
 			return
 		}
+		finalizer, canFinalize := param.(interface{ CanFinalizeResponseStream() bool })
+		if !seenDone && errScan == nil && responseFormat == sdktranslator.FormatOpenAIResponse && ctx.Err() == nil && canFinalize && finalizer.CanFinalizeResponseStream() {
+			chunks := helps.TranslateStreamWithClaudeInputTokens(ctx, to, responseFormat, req.Model, opts.OriginalRequest, translated, []byte("data: [DONE]"), &param, claudeInputTokens)
+			for _, chunk := range chunks {
+				select {
+				case out <- cliproxyexecutor.StreamChunk{Payload: chunk}:
+				case <-ctx.Done():
+					return
+				}
+			}
+			seenDone = len(chunks) > 0
+		}
 		if errScan != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, errScan)
 			reporter.PublishFailure(ctx, errScan)
@@ -540,8 +558,7 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 			case <-ctx.Done():
 			}
 		} else if !seenDone {
-			// Responses clients require an explicit terminal event. Treat a clean
-			// upstream EOF without [DONE] as a failed stream instead of completing it.
+			// A clean EOF without translator-confirmed completion remains an error.
 			if responseFormat == sdktranslator.FormatOpenAIResponse {
 				streamErr := statusErr{code: http.StatusBadGateway, msg: "upstream stream closed before [DONE]"}
 				helps.RecordAPIResponseError(ctx, e.cfg, streamErr)
@@ -694,7 +711,10 @@ func (e *OpenAICompatExecutor) CountTokens(ctx context.Context, auth *cliproxyau
 	responseFormat := cliproxyexecutor.ResponseFormatOrSource(opts)
 	to := sdktranslator.FromString("openai")
 	isCompat := helps.APIKeyModelIsCompat(req)
-	translated := helps.TranslateRequestWithAPIKeyModelCompatibility(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, false, isCompat, e.Identifier())
+	translated, errTranslate := helps.TranslateRequestWithAPIKeyModelCompatibilityChecked(ctx, opts.Headers, e.cfg, from, to, baseModel, req.Payload, false, isCompat, e.Identifier())
+	if errTranslate != nil {
+		return cliproxyexecutor.Response{}, errTranslate
+	}
 
 	modelForCounting := baseModel
 

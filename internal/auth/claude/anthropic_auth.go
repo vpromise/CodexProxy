@@ -128,7 +128,9 @@ func isClaudeRefreshRetryable(err error) bool {
 	if errors.As(err, &httpErr) {
 		return httpErr.Retryable()
 	}
-	return true
+	// A transport/read/decode failure may follow successful token rotation.
+	// Only an explicit retryable HTTP response permits replaying this token.
+	return false
 }
 
 // tokenResponse represents the response structure from Anthropic's OAuth token endpoint.
@@ -642,8 +644,8 @@ func (o *ClaudeAuth) CreateTokenStorage(bundle *ClaudeAuthBundle) *ClaudeTokenSt
 }
 
 // RefreshTokensWithRetry refreshes tokens with automatic retry logic.
-// This method implements exponential backoff retry logic for token refresh operations,
-// providing resilience against temporary network or service issues.
+// Only explicit retryable HTTP failures are replayed with increasing backoff.
+// Ambiguous transport, read and parse failures may already have rotated the token.
 //
 // Parameters:
 //   - ctx: The context for the request
@@ -655,6 +657,7 @@ func (o *ClaudeAuth) CreateTokenStorage(bundle *ClaudeAuthBundle) *ClaudeTokenSt
 //   - error: An error if all retry attempts fail
 func (o *ClaudeAuth) RefreshTokensWithRetry(ctx context.Context, refreshToken string, maxRetries int) (*ClaudeTokenData, error) {
 	var lastErr error
+	attempts := 0
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
@@ -666,6 +669,7 @@ func (o *ClaudeAuth) RefreshTokensWithRetry(ctx context.Context, refreshToken st
 			}
 		}
 
+		attempts++
 		tokenData, err := o.RefreshTokens(ctx, refreshToken)
 		if err == nil {
 			return tokenData, nil
@@ -678,7 +682,7 @@ func (o *ClaudeAuth) RefreshTokensWithRetry(ctx context.Context, refreshToken st
 		}
 	}
 
-	return nil, fmt.Errorf("token refresh failed after %d attempts: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("token refresh failed after %d attempts: %w", attempts, lastErr)
 }
 
 // UpdateTokenStorage updates an existing token storage with new token data.

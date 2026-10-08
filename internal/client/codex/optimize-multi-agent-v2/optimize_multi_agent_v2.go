@@ -995,3 +995,11 @@ func removeCodexSpawnAgentModelSections(description string) (string, string) {
 	}
 	return cleaned.String(), headingIndent
 }
+
+// TranslateRequestWithCodexMultiAgentV2Checked keeps normalization ahead of checked translation.
+func TranslateRequestWithCodexMultiAgentV2Checked(ctx context.Context, headers http.Header, cfg *config.Config, from, to sdktranslator.Format, model string, payload []byte, stream bool) ([]byte, error) {
+	if from == sdktranslator.FormatOpenAIResponse && to != sdktranslator.FormatCodex && to != sdktranslator.FormatOpenAIResponse {
+		payload = RewriteCodexMultiAgentV2Input(ctx, headers, payload, cfg)
+	}
+	return sdktranslator.TranslateRequestChecked(from, to, model, payload, stream)
+}

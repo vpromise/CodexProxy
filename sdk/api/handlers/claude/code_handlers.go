@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	claudemodels "github.com/router-for-me/CLIProxyAPI/v7/internal/client/claude/models"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/clienterror"
 	. "github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
@@ -317,7 +318,7 @@ func (h *ClaudeCodeAPIHandler) forwardClaudeStream(c *gin.Context, flusher http.
 			status := claudeErrorStatus(errMsg)
 			c.Status(status)
 
-			errorBytes, _ := json.Marshal(h.toClaudeError(errMsg))
+			errorBytes := h.claudeErrorBody(errMsg)
 			_, _ = fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", errorBytes)
 		},
 	})
@@ -409,7 +410,7 @@ func (h *ClaudeCodeAPIHandler) WriteErrorResponse(c *gin.Context, msg *interface
 		// only mint one when it does not.
 		EnsureRequestID(c)
 		clampClaudeThrottleRetryHeaders(c, status)
-		body := bytes.Clone(msg.Body)
+		body := h.claudeErrorBody(msg)
 		appendClaudeAPIResponse(c, body)
 		if !c.Writer.Written() && c.Writer.Header().Get("Content-Type") == "" {
 			c.Writer.Header().Set("Content-Type", "application/json")
@@ -442,7 +443,7 @@ func (h *ClaudeCodeAPIHandler) WriteErrorResponse(c *gin.Context, msg *interface
 		// Copied header metadata is the fallback when no semantic duration exists.
 		clampClaudeThrottleRetryHeaders(c, status)
 	}
-	writeClaudeProtocolError(c, status, h.toClaudeError(msg))
+	writeClaudeProtocolErrorBody(c, status, h.claudeErrorBody(msg))
 }
 
 func writeClaudeDownstreamRetryAfter(c *gin.Context, status int, msg *interfaces.ErrorMessage) bool {
@@ -517,4 +518,28 @@ func appendClaudeAPIResponse(c *gin.Context, data []byte) {
 		}
 	}
 	c.Set("API_RESPONSE", bytes.Clone(data))
+}
+
+// claudeErrorBody adds the replay signal without discarding upstream fields.
+func (h *ClaudeCodeAPIHandler) claudeErrorBody(msg *interfaces.ErrorMessage) []byte {
+	var upstream []byte
+	if msg != nil {
+		upstream = clienterror.ErrorResponseBody(msg.Error)
+		if msg.DirectResponse {
+			upstream = msg.Body
+		}
+	}
+	if clienterror.IsClaudeThreadNotFound(claudeErrorStatus(msg), errors.New(string(upstream))) {
+		if marked, errMark := sjson.SetBytes(upstream, "error.details.error_code", "thread_not_found"); errMark == nil {
+			var compact bytes.Buffer
+			if errCompact := json.Compact(&compact, marked); errCompact == nil {
+				return compact.Bytes()
+			}
+		}
+	}
+	if msg != nil && msg.DirectResponse {
+		return bytes.Clone(msg.Body)
+	}
+	body, _ := json.Marshal(h.toClaudeError(msg))
+	return body
 }

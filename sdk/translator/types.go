@@ -32,3 +32,6 @@ type ResponseTransform struct {
 	// TokenCount is the function for transforming token counts.
 	TokenCount ResponseTokenCountTransform
 }
+
+// CheckedRequestTransform additionally reports requests that cannot be represented.
+type CheckedRequestTransform func(model string, rawJSON []byte, stream bool) ([]byte, error)

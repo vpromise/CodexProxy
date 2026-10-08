@@ -28,16 +28,16 @@ import (
 //   - max_output_tokens -> max_tokens
 //   - stream passthrough via parameter
 func ConvertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertOpenAIResponsesRequestToClaude(modelName, inputRawJSON, stream, false)
+	return convertOpenAIResponsesRequestToClaude(modelName, inputRawJSON, stream, false, nil)
 }
 
 // ConvertOpenAIResponsesRequestToClaudeWithCompat preserves reasoning items
 // whose encrypted content is empty for configured compatibility endpoints.
 func ConvertOpenAIResponsesRequestToClaudeWithCompat(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertOpenAIResponsesRequestToClaude(modelName, inputRawJSON, stream, true)
+	return convertOpenAIResponsesRequestToClaude(modelName, inputRawJSON, stream, true, nil)
 }
 
-func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte, stream, preserveEmptyThinkingBlocks bool) []byte {
+func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte, stream, preserveEmptyThinkingBlocks bool, drops *common.UserTurnDrops) []byte {
 	rawJSON := normalizeCodexAgentMessages(inputRawJSON)
 
 	userID := common.DeriveClaudeUserID(rawJSON)
@@ -299,9 +299,11 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 				// Determine role and construct Claude-compatible content parts.
 				var role string
 				var partsJSON [][]byte
+				var droppedPart string
 				if parts := item.Get("content"); parts.Exists() && parts.IsArray() {
 					parts.ForEach(func(_, part gjson.Result) bool {
 						ptype := part.Get("type").String()
+						before := len(partsJSON)
 						switch ptype {
 						case "input_text", "output_text":
 							if t := part.Get("text"); t.Exists() {
@@ -386,6 +388,9 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 								}
 							}
 						}
+						if common.IsAttachmentPart(ptype) && len(partsJSON) == before && droppedPart == "" {
+							droppedPart = ptype
+						}
 						return true
 					})
 				} else if parts.Type == gjson.String && parts.String() != "" {
@@ -403,6 +408,11 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 					default:
 						role = "user"
 					}
+				}
+
+				if role == "user" {
+					drops.Drop(droppedPart)
+					drops.EndTurn(common.CountSendableParts(partsJSON))
 				}
 
 				if len(partsJSON) > 0 {
@@ -1405,4 +1415,18 @@ func normalizeCodexAgentMessages(payload []byte) []byte {
 		return payload
 	}
 	return updated
+}
+
+// ConvertOpenAIResponsesRequestToClaudeChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIResponsesRequestToClaudeChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops common.UserTurnDrops
+	body := convertOpenAIResponsesRequestToClaude(modelName, rawJSON, stream, false, &drops)
+	return body, drops.Err()
+}
+
+// ConvertOpenAIResponsesRequestToClaudeWithCompatChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIResponsesRequestToClaudeWithCompatChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops common.UserTurnDrops
+	body := convertOpenAIResponsesRequestToClaude(modelName, rawJSON, stream, true, &drops)
+	return body, drops.Err()
 }

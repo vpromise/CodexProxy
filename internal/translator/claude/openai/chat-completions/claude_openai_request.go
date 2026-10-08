@@ -34,16 +34,16 @@ import (
 // Returns:
 //   - []byte: The transformed request data in Claude Code API format
 func ConvertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertOpenAIRequestToClaude(modelName, inputRawJSON, stream, false)
+	return convertOpenAIRequestToClaude(modelName, inputRawJSON, stream, false, nil)
 }
 
 // ConvertOpenAIRequestToClaudeWithCompat preserves assistant reasoning content
 // as an unsigned thinking block for configured compatibility endpoints.
 func ConvertOpenAIRequestToClaudeWithCompat(modelName string, inputRawJSON []byte, stream bool) []byte {
-	return convertOpenAIRequestToClaude(modelName, inputRawJSON, stream, true)
+	return convertOpenAIRequestToClaude(modelName, inputRawJSON, stream, true, nil)
 }
 
-func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream, preserveEmptyThinkingBlocks bool) []byte {
+func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream, preserveEmptyThinkingBlocks bool, drops *common.UserTurnDrops) []byte {
 	rawJSON := inputRawJSON
 
 	userID := common.DeriveClaudeUserID(rawJSON)
@@ -209,9 +209,15 @@ func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream,
 						claudePart := convertOpenAIContentPartToClaudePart(part)
 						if claudePart != "" {
 							contentBlocks = append(contentBlocks, []byte(claudePart))
+						} else if role == "user" && common.IsAttachmentPart(part.Get("type").String()) {
+							drops.Drop(part.Get("type").String())
 						}
 						return true
 					})
+				}
+
+				if role == "user" {
+					drops.EndTurn(common.CountSendableParts(contentBlocks))
 				}
 
 				// Handle tool calls (for assistant messages)
@@ -568,4 +574,18 @@ func firstExisting(values ...gjson.Result) gjson.Result {
 		}
 	}
 	return gjson.Result{}
+}
+
+// ConvertOpenAIRequestToClaudeChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIRequestToClaudeChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops common.UserTurnDrops
+	body := convertOpenAIRequestToClaude(modelName, rawJSON, stream, false, &drops)
+	return body, drops.Err()
+}
+
+// ConvertOpenAIRequestToClaudeWithCompatChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIRequestToClaudeWithCompatChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops common.UserTurnDrops
+	body := convertOpenAIRequestToClaude(modelName, rawJSON, stream, true, &drops)
+	return body, drops.Err()
 }

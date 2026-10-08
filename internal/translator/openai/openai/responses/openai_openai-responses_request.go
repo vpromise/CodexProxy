@@ -28,6 +28,10 @@ import (
 // Returns:
 //   - []byte: The transformed request data in OpenAI chat completions format
 func ConvertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inputRawJSON []byte, stream bool) []byte {
+	return convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName, inputRawJSON, stream, nil)
+}
+
+func convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inputRawJSON []byte, stream bool, drops *translatorcommon.UserTurnDrops) []byte {
 	rawJSON := inputRawJSON
 	// Base OpenAI chat completions template with default values
 	out := []byte(`{"model":"","messages":[],"stream":false}`)
@@ -190,6 +194,7 @@ func ConvertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 					var contentItems [][]byte
 					content.ForEach(func(_, contentItem gjson.Result) bool {
 						contentType := contentItem.Get("type").String()
+						before := len(contentItems)
 						if contentType == "" {
 							contentType = "input_text"
 						}
@@ -208,9 +213,23 @@ func ConvertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 								contentPart, _ = sjson.SetBytes(contentPart, "image_url.detail", detail)
 							}
 							contentItems = append(contentItems, contentPart)
+						case "input_file":
+							if part, ok := responsesInputFileToChatPart(contentItem); ok {
+								contentItems = append(contentItems, part)
+							}
+						case "input_audio":
+							if part, ok := responsesInputAudioToChatPart(contentItem); ok {
+								contentItems = append(contentItems, part)
+							}
+						}
+						if role == "user" && translatorcommon.IsAttachmentPart(contentType) && len(contentItems) == before {
+							drops.Drop(contentType)
 						}
 						return true
 					})
+					if role == "user" {
+						drops.EndTurn(translatorcommon.CountSendableParts(contentItems))
+					}
 					message = translatorcommon.SetRawArrayItems(message, "content", contentItems)
 				} else if content.Type == gjson.String {
 					message, _ = sjson.SetBytes(message, "content", content.String())
@@ -361,6 +380,51 @@ func ConvertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 	}
 
 	return out
+}
+
+// responsesInputFileToChatPart maps a Responses input_file part onto a Chat
+// Completions file part. It reports false when the part carries neither a file
+// id nor inline bytes, because Chat Completions has no field for a bare url.
+func responsesInputFileToChatPart(contentItem gjson.Result) ([]byte, bool) {
+	fileID := contentItem.Get("file_id").String()
+	fileData := contentItem.Get("file_data").String()
+	if fileID == "" && fileData == "" {
+		return nil, false
+	}
+	part := []byte(`{"type":"file","file":{}}`)
+	if fileID != "" {
+		part, _ = sjson.SetBytes(part, "file.file_id", fileID)
+	}
+	if fileData != "" {
+		part, _ = sjson.SetBytes(part, "file.file_data", fileData)
+	}
+	if filename := contentItem.Get("filename").String(); filename != "" {
+		part, _ = sjson.SetBytes(part, "file.filename", filename)
+	}
+	return part, true
+}
+
+// responsesInputAudioToChatPart maps a Responses input_audio part onto a Chat
+// Completions input_audio part. It reports false when the part has no bytes.
+func responsesInputAudioToChatPart(contentItem gjson.Result) ([]byte, bool) {
+	audio := contentItem.Get("input_audio")
+	data := audio.Get("data").String()
+	if data == "" {
+		data = contentItem.Get("data").String()
+	}
+	if data == "" {
+		return nil, false
+	}
+	format := audio.Get("format").String()
+	if format == "" {
+		format = contentItem.Get("format").String()
+	}
+	part := []byte(`{"type":"input_audio","input_audio":{"data":""}}`)
+	part, _ = sjson.SetBytes(part, "input_audio.data", data)
+	if format != "" {
+		part, _ = sjson.SetBytes(part, "input_audio.format", format)
+	}
+	return part, true
 }
 
 func convertResponsesToolChoiceToChatCompletions(toolChoice gjson.Result, inputRawJSON []byte) []byte {
@@ -619,4 +683,11 @@ func combineOpenAIResponsesReasoning(existing, incoming string) string {
 	default:
 		return existing + "\n\n" + incoming
 	}
+}
+
+// ConvertOpenAIResponsesRequestToOpenAIChatCompletionsChecked preserves the legacy conversion and reports emptied user turns.
+func ConvertOpenAIResponsesRequestToOpenAIChatCompletionsChecked(modelName string, rawJSON []byte, stream bool) ([]byte, error) {
+	var drops translatorcommon.UserTurnDrops
+	body := convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName, rawJSON, stream, &drops)
+	return body, drops.Err()
 }

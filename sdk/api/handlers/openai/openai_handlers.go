@@ -138,7 +138,12 @@ func (h *OpenAIAPIHandler) ChatCompletions(c *gin.Context) {
 	// Convert them to Chat Completions so downstream translators preserve tool metadata.
 	if shouldTreatAsResponsesFormat(rawJSON) {
 		modelName := gjson.GetBytes(rawJSON, "model").String()
-		rawJSON = responsesconverter.ConvertOpenAIResponsesRequestToOpenAIChatCompletions(modelName, rawJSON, stream)
+		var errTranslate error
+		rawJSON, errTranslate = responsesconverter.ConvertOpenAIResponsesRequestToOpenAIChatCompletionsChecked(modelName, rawJSON, stream)
+		if errTranslate != nil {
+			h.WriteErrorResponse(c, &interfaces.ErrorMessage{StatusCode: http.StatusBadRequest, Error: errTranslate})
+			return
+		}
 		stream = gjson.GetBytes(rawJSON, "stream").Bool()
 	}
 

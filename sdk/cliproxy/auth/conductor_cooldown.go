@@ -744,7 +744,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 	now := time.Now()
 
 	m.mu.Lock()
-	if auth, ok := m.auths[result.AuthID]; ok && resultMatchesRegistration(result, auth) {
+	if auth, ok := m.auths[result.AuthID]; ok && resultMatchesCredential(result, auth) {
 		if modelKey == "" && strings.TrimSpace(result.RouteModel) != "" {
 			if m != nil {
 				modelKey = m.selectionModelKeyForAuth(auth, result.RouteModel)
@@ -1013,7 +1013,7 @@ func (m *Manager) updateSessionAffinity(result Result) {
 		return
 	}
 	m.mu.RLock()
-	if result.RegistrationEpoch != 0 && (!resultMatchesRegistration(result, m.auths[result.AuthID]) || !resultMatchesAvailabilityEpoch(result, m.auths[result.AuthID])) {
+	if (result.RegistrationEpoch != 0 || result.CredentialVersion != 0) && (!resultMatchesCredential(result, m.auths[result.AuthID]) || !resultMatchesAvailabilityEpoch(result, m.auths[result.AuthID])) {
 		m.mu.RUnlock()
 		return
 	}
@@ -1061,7 +1061,7 @@ func (m *Manager) recordAvailabilityNeutralResult(ctx context.Context, result Re
 
 	var authSnapshot *Auth
 	m.mu.Lock()
-	if auth, ok := m.auths[result.AuthID]; ok && resultMatchesRegistration(result, auth) {
+	if auth, ok := m.auths[result.AuthID]; ok && resultMatchesCredential(result, auth) {
 		now := time.Now()
 		auth.recordRecentRequest(now, result.Success)
 		if result.Success {

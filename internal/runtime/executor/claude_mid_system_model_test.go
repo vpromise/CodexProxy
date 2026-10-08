@@ -256,7 +256,9 @@ func TestClaudeExecutor_PayloadOverrideReconcilesRelocatedSystemPrompt(t *testin
 			// role=system turn.
 			payload := []byte(`{"model":"claude-sonnet-5","max_tokens":32,` +
 				`"system":[{"type":"text","text":"Caller top"}],` +
-				`"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`)
+				`"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]},` +
+				`{"role":"assistant","content":[{"type":"text","text":"hello"}]},` +
+				`{"role":"user","content":[{"type":"text","text":"follow-up"}]}]}`)
 
 			if err := test.send(t, ex, upstream.context(t, nil), payload); err != nil {
 				t.Fatalf("request error = %v, want CPA's inserted turn reconciled", err)

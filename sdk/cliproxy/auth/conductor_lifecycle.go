@@ -102,6 +102,7 @@ func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
 	}
 	m.authEpochs[auth.ID]++
 	auth.RegistrationEpoch = m.authEpochs[auth.ID]
+	auth.CredentialVersion = 1
 	auth.Generation = 1
 	auth.availabilityEpoch = 1
 	authClone := auth.Clone()
@@ -213,6 +214,12 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 		pLock.mu.Unlock()
 		return nil, fmt.Errorf("update auth %s: stale registration epoch", auth.ID)
 	}
+	if (mode == updateModeRefresh || mode == updateModePrepare) && !sameCredentialSnapshot(base, existing) {
+		current := existing.Clone()
+		m.mu.Unlock()
+		pLock.mu.Unlock()
+		return current, nil
+	}
 	if mode == updateModeRefresh {
 		merged := MergeRefreshedAuth(base, existing, auth)
 		if merged != nil {
@@ -232,6 +239,10 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 		return nil, fmt.Errorf("update auth %s: stale registration epoch", auth.ID)
 	}
 	auth.RegistrationEpoch = existing.RegistrationEpoch
+	auth.CredentialVersion = existing.CredentialVersion
+	if CredentialsChanged(existing, auth) {
+		auth.CredentialVersion++
+	}
 	if !auth.indexAssigned && auth.Index == "" {
 		auth.Index = existing.Index
 		auth.indexAssigned = existing.indexAssigned
@@ -415,6 +426,7 @@ func (m *Manager) Load(ctx context.Context) error {
 		auth.EnsureIndex()
 		m.authEpochs[auth.ID]++
 		auth.RegistrationEpoch = m.authEpochs[auth.ID]
+		auth.CredentialVersion = 1
 		auth.Generation = 1
 		auth.availabilityEpoch = 1
 		m.auths[auth.ID] = auth.Clone()

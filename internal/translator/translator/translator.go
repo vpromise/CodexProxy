@@ -87,3 +87,8 @@ func Response(from, to string, ctx context.Context, modelName string, originalRe
 func ResponseNonStream(from, to string, ctx context.Context, modelName string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, param *any) []byte {
 	return registry.TranslateNonStream(ctx, sdktranslator.FromString(from), sdktranslator.FromString(to), modelName, originalRequestRawJSON, requestRawJSON, rawJSON, param)
 }
+
+// RegisterChecked registers a request converter without changing legacy Register.
+func RegisterChecked(from, to string, request sdktranslator.CheckedRequestTransform, response interfaces.TranslateResponse) {
+	registry.RegisterCheckedRequest(sdktranslator.FromString(from), sdktranslator.FromString(to), request, response)
+}

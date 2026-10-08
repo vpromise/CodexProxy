@@ -43,7 +43,10 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 		originalPayloadSource = opts.OriginalRequest
 	}
 	originalPayload := originalPayloadSource
-	originalTranslated, body := translateCodexRequestPair(from, to, baseModel, originalPayload, req.Payload, false, helps.APIKeyModelIsCompat(req))
+	originalTranslated, body, errTranslate := translateCodexRequestPairChecked(from, to, baseModel, originalPayload, req.Payload, false, helps.APIKeyModelIsCompat(req))
+	if errTranslate != nil {
+		return resp, errTranslate
+	}
 
 	body, err = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -217,7 +220,10 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
 		originalPayloadSource = opts.OriginalRequest
 	}
 	originalPayload := originalPayloadSource
-	originalTranslated, body := translateCodexRequestPair(from, to, baseModel, originalPayload, req.Payload, false, helps.APIKeyModelIsCompat(req))
+	originalTranslated, body, errTranslate := translateCodexRequestPairChecked(from, to, baseModel, originalPayload, req.Payload, false, helps.APIKeyModelIsCompat(req))
+	if errTranslate != nil {
+		return resp, errTranslate
+	}
 
 	body, err = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
