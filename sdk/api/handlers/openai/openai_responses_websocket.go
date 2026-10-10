@@ -260,6 +260,12 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 	}
 	writer := newResponsesWebsocketWriter(conn)
 	passthroughSessionID := uuid.NewString()
+	socketCtx, cancelSocket := context.WithCancelCause(c.Request.Context())
+	defer cancelSocket(nil)
+	c.Request = c.Request.WithContext(socketCtx)
+	input := readResponsesWebsocketInput(socketCtx, cancelSocket, conn, writer, func(payload []byte) error {
+		return h.forwardResponsesWebsocketInterrupt(socketCtx, passthroughSessionID, payload)
+	})
 	downstreamSessionKey := websocketDownstreamSessionKey(c.Request)
 	retainResponsesWebsocketToolCaches(downstreamSessionKey)
 	clientIP := websocketClientAddress(c)
@@ -374,7 +380,19 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 	}
 
 	for {
-		msgType, payload, errReadMessage := conn.ReadMessage()
+		var msgType int
+		var payload []byte
+		var errReadMessage error
+		select {
+		case message, ok := <-input:
+			if !ok {
+				errReadMessage = context.Cause(socketCtx)
+			} else {
+				msgType, payload = message.kind, message.payload
+			}
+		case <-socketCtx.Done():
+			errReadMessage = context.Cause(socketCtx)
+		}
 		if errReadMessage != nil {
 			wsTerminateErr = errReadMessage
 			if websocket.IsCloseError(errReadMessage, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {

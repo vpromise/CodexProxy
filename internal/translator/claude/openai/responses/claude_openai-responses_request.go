@@ -44,6 +44,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 
 	// Base Claude message payload
 	out := []byte(`{"model":"","max_tokens":32000,"messages":[],"metadata":{}}`)
+	out, _ = sjson.SetBytes(out, "max_tokens", defaultClaudeResponsesOutputLimit(modelName))
 	out, _ = sjson.SetBytes(out, "metadata.user_id", userID)
 
 	root := gjson.ParseBytes(rawJSON)
@@ -101,7 +102,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 	out, _ = sjson.SetBytes(out, "model", modelName)
 
 	// Max tokens
-	if mot := root.Get("max_output_tokens"); mot.Exists() {
+	if mot := root.Get("max_output_tokens"); mot.Exists() && mot.Type != gjson.Null {
 		out, _ = sjson.SetBytes(out, "max_tokens", mot.Int())
 	}
 
@@ -1429,4 +1430,19 @@ func ConvertOpenAIResponsesRequestToClaudeWithCompatChecked(modelName string, ra
 	var drops common.UserTurnDrops
 	body := convertOpenAIResponsesRequestToClaude(modelName, rawJSON, stream, true, &drops)
 	return body, drops.Err()
+}
+
+// defaultClaudeResponsesOutputLimit uses registered model capacity for an omitted
+// output limit. Fable retains this fork's conservative 32k default; explicit
+// caller limits continue through the existing payload and thinking pipeline.
+func defaultClaudeResponsesOutputLimit(modelName string) int {
+	const fallback = 32000
+	info := registry.LookupModelInfo(modelName, "claude")
+	if info == nil || info.MaxCompletionTokens <= 0 {
+		return fallback
+	}
+	if strings.Contains(strings.ToLower(modelName), "fable") && info.MaxCompletionTokens > fallback {
+		return fallback
+	}
+	return info.MaxCompletionTokens
 }

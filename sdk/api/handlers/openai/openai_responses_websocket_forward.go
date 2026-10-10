@@ -145,7 +145,9 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocket(
 						cancel(payloadErrMsg.Error)
 						return completedOutput, completedResponseID, sortedStringSet(pendingToolCallIDs), payloadErrMsg, nil
 					}
-				} else if isResponsesWebsocketCompletionEvent(eventType) {
+				} else if isResponsesWebsocketCompletionEvent(eventType) || eventType == "response.incomplete" {
+					// An upstream interrupt acknowledges the current turn with
+					// response.incomplete; keep the socket open for its next turn.
 					completed = true
 					completedOutput = responseCompletedOutputFromPayload(payloads[i], outputItemsByIndex, outputItemsFallback)
 					completedResponseID = responseCompletedIDFromPayload(payloads[i])

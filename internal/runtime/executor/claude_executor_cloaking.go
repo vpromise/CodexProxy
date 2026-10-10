@@ -769,10 +769,7 @@ func claudeMidConversationSystemMessagesAtEnd(payload []byte) bool {
 		return false
 	}
 	messageBlocks := messages.Array()
-	insertAt := firstUserIdx + 1
-	for insertAt < len(messageBlocks) && messageBlocks[insertAt].Get("role").String() == "user" {
-		insertAt++
-	}
+	insertAt := helps.ClaudeLeadingUserRunEnd(messageBlocks, firstUserIdx)
 	return insertAt == len(messageBlocks) || insertAt > firstUserIdx+1
 }
 
@@ -787,10 +784,7 @@ func insertClaudeMidConversationSystemMessages(payload []byte, texts []string) [
 		return payload
 	}
 	messageBlocks := messages.Array()
-	insertAt := firstUserIdx + 1
-	for insertAt < len(messageBlocks) && messageBlocks[insertAt].Get("role").String() == "user" {
-		insertAt++
-	}
+	insertAt := helps.ClaudeLeadingUserRunEnd(messageBlocks, firstUserIdx)
 	if len(messageBlocks)-insertAt >= len(texts) {
 		matches := true
 		for idx, text := range texts {
@@ -873,10 +867,7 @@ func captureClaudeCodeSystemPlacement(before, after []byte, cloaked bool) claude
 	if firstUserIdx < 0 {
 		return claudeCodeSystemPlacementState{}
 	}
-	insertAt := firstUserIdx + 1
-	for insertAt < len(beforeMessages) && beforeMessages[insertAt].Get("role").String() == "user" {
-		insertAt++
-	}
+	insertAt := helps.ClaudeLeadingUserRunEnd(beforeMessages, firstUserIdx)
 	if insertAt+len(texts) > len(afterMessages) {
 		return claudeCodeSystemPlacementState{}
 	}

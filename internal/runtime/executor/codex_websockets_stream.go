@@ -428,7 +428,15 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			}
 
 			eventType := gjson.GetBytes(payload, "type").String()
-			isTerminalEvent := eventType == "response.completed" || eventType == "response.done" || eventType == "error"
+			nativeIncomplete := cliproxyexecutor.DownstreamWebsocket(ctx) && eventType == "response.incomplete"
+			isTerminalEvent := eventType == "response.completed" || eventType == "response.done" || eventType == "error" || nativeIncomplete
+			if nativeIncomplete {
+				// An interrupted native turn is terminal without invalidating its
+				// socket or caching partial reasoning as a completed response.
+				if detail, ok := helps.ParseCodexUsage(payload); ok {
+					reporter.Publish(ctx, detail)
+				}
+			}
 			if eventType == "response.output_item.done" {
 				collectCodexOutputItemDone(payload, outputItemsByIndex, &outputItemsFallback)
 			}
@@ -639,7 +647,15 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			}
 
 			eventType := gjson.GetBytes(payload, "type").String()
-			isTerminalEvent := eventType == "response.completed" || eventType == "response.done" || eventType == "error"
+			nativeIncomplete := cliproxyexecutor.DownstreamWebsocket(ctx) && eventType == "response.incomplete"
+			isTerminalEvent := eventType == "response.completed" || eventType == "response.done" || eventType == "error" || nativeIncomplete
+			if nativeIncomplete {
+				// An interrupted native turn is terminal without invalidating its
+				// socket or caching partial reasoning as a completed response.
+				if detail, ok := helps.ParseCodexUsage(payload); ok {
+					reporter.Publish(ctx, detail)
+				}
+			}
 			if eventType == "response.output_item.done" {
 				collectCodexOutputItemDone(payload, outputItemsByIndex, &outputItemsFallback)
 			}

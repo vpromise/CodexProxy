@@ -196,8 +196,12 @@ func parseClaudeRateLimitResetWithFuzz(headers http.Header, now time.Time, minFu
 			if !containsString(rejectedWindows, "unified") {
 				rejectedWindows = append(rejectedWindows, "unified")
 			}
-			if t, ok := parseUnixOrTimestamp(raw); ok && t.After(now) {
-				candidateDeadlines = append(candidateDeadlines, t)
+			// An overage claim can report the billing-period boundary as its
+			// unified reset. Keep independent retry and shared-window deadlines.
+			if !claudeUnifiedResetIsOverageBillingBoundary(headers, raw) {
+				if t, ok := parseUnixOrTimestamp(raw); ok && t.After(now) {
+					candidateDeadlines = append(candidateDeadlines, t)
+				}
 			}
 		}
 	}
@@ -243,6 +247,17 @@ func parseClaudeRateLimitResetWithFuzz(headers http.Header, now time.Time, minFu
 	}).Info("parsed Anthropic rate limit reset headers")
 
 	return &effectiveDuration
+}
+
+func claudeUnifiedResetIsOverageBillingBoundary(headers http.Header, unifiedReset string) bool {
+	claim := strings.ToLower(strings.TrimSpace(getHeaderCaseInsensitive(headers, "Anthropic-Ratelimit-Unified-Representative-Claim")))
+	if !strings.Contains(claim, "overage") {
+		return false
+	}
+	overageReset := getHeaderCaseInsensitive(headers, "Anthropic-Ratelimit-Unified-Overage-Reset")
+	unifiedAt, okUnified := parseUnixOrTimestamp(unifiedReset)
+	overageAt, okOverage := parseUnixOrTimestamp(overageReset)
+	return okUnified && okOverage && unifiedAt.Equal(overageAt)
 }
 
 func containsString(list []string, target string) bool {
