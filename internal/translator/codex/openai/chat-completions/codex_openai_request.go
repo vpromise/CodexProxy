@@ -7,8 +7,11 @@
 package chat_completions
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	translatorcommon "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/common"
 	"github.com/tidwall/gjson"
@@ -330,6 +333,17 @@ func convertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 										break
 									}
 									callID = baseCallID + "_" + strconv.Itoa(suffix)
+								}
+								usedCallIDs[callID] = struct{}{}
+							}
+							if shortened := shortenCodexCallIDIfNeeded(callID); shortened != callID {
+								baseCallID := callID
+								callID = shortened
+								for suffix := 1; ; suffix++ {
+									if _, used := usedCallIDs[callID]; !used {
+										break
+									}
+									callID = shortenCodexCallIDIfNeeded(baseCallID + "_" + strconv.Itoa(suffix))
 								}
 								usedCallIDs[callID] = struct{}{}
 							}
@@ -786,4 +800,21 @@ func ConvertOpenAIRequestToCodexChecked(modelName string, rawJSON []byte, stream
 	var drops translatorcommon.UserTurnDrops
 	body := convertOpenAIRequestToCodex(modelName, rawJSON, stream, &drops)
 	return body, drops.Err()
+}
+
+// shortenCodexCallIDIfNeeded keeps tool call IDs within the upstream byte limit.
+// The digest distinguishes long IDs with a shared prefix; callers resolve any
+// collision with existing legal IDs before pairing calls with their results.
+func shortenCodexCallIDIfNeeded(id string) string {
+	const maxCallIDBytes = 64
+	if len(id) <= maxCallIDBytes {
+		return id
+	}
+	digest := sha256.Sum256([]byte(id))
+	suffix := "_" + hex.EncodeToString(digest[:8])
+	end := maxCallIDBytes - len(suffix)
+	for end > 0 && !utf8.RuneStart(id[end]) {
+		end--
+	}
+	return id[:end] + suffix
 }
