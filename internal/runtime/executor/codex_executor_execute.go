@@ -132,10 +132,11 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 	upstreamData := applyCodexIdentityConfuseResponsePayload(data, identityState)
 	helps.AppendAPIResponseChunk(ctx, e.cfg, upstreamData)
 
-	lines := bytes.Split(upstreamData, []byte("\n"))
+	events := helps.NewCodexSSEScanner(ctx, bytes.NewReader(upstreamData), len(upstreamData)+1)
 	outputItemsByIndex := make(map[int64][]byte)
 	var outputItemsFallback [][]byte
-	for _, line := range lines {
+	for events.Scan() {
+		line := events.Bytes()
 		if !bytes.HasPrefix(line, dataTag) {
 			continue
 		}

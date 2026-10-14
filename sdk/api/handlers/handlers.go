@@ -284,6 +284,8 @@ func setGenerateMetadata(meta map[string]any, rawJSON []byte) {
 // It holds a pool of clients to interact with the backend service and manages
 // load balancing, client selection, and configuration.
 type BaseAPIHandler struct {
+	hostMu sync.RWMutex
+
 	// AuthManager manages auth lifecycle and execution in the new architecture.
 	AuthManager *coreauth.Manager
 
@@ -328,10 +330,11 @@ func (h *BaseAPIHandler) SetPluginHost(host PluginInterceptorHost) {
 		return
 	}
 	if isNilPluginInterceptorHost(host) {
-		h.PluginHost = nil
-		return
+		host = nil
 	}
+	h.hostMu.Lock()
 	h.PluginHost = host
+	h.hostMu.Unlock()
 }
 
 // SetModelRouterHost configures the optional plugin model router host.
@@ -340,10 +343,25 @@ func (h *BaseAPIHandler) SetModelRouterHost(host PluginModelRouterHost) {
 		return
 	}
 	if isNilPluginModelRouterHost(host) {
-		h.ModelRouterHost = nil
-		return
+		host = nil
 	}
+	h.hostMu.Lock()
 	h.ModelRouterHost = host
+	h.hostMu.Unlock()
+}
+
+// ModelRouterHostSnapshot returns the current optional router without holding a lock across callbacks.
+func (h *BaseAPIHandler) ModelRouterHostSnapshot() PluginModelRouterHost {
+	if h == nil {
+		return nil
+	}
+	h.hostMu.RLock()
+	host := h.ModelRouterHost
+	h.hostMu.RUnlock()
+	if isNilPluginModelRouterHost(host) {
+		return nil
+	}
+	return host
 }
 
 func isNilPluginInterceptorHost(host PluginInterceptorHost) bool {

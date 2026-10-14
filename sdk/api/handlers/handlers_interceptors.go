@@ -340,7 +340,10 @@ func (h *BaseAPIHandler) interceptorHost() PluginInterceptorHost {
 	if h == nil {
 		return nil
 	}
-	return h.PluginHost
+	h.hostMu.RLock()
+	host := h.PluginHost
+	h.hostMu.RUnlock()
+	return host
 }
 
 func streamInterceptorsEnabled(host PluginInterceptorHost) bool {

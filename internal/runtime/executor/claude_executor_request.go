@@ -2365,6 +2365,12 @@ func (resolver claudeMCPAliasResolver) resolve(name string) (string, bool, error
 	}
 
 	if len(resolver.passthroughs) > 0 {
+		// A virtual-server wrapper may retain the full declared caller MCP name.
+		// Exact identity is required; unknown names keep the existing failure policy.
+		if original, exact := resolver.exact[suffix]; exact && original == suffix {
+			return original, true, nil
+		}
+
 		// Recovery 1: The model prepended the virtual server to the full caller MCP tool name
 		// (e.g. "mcp__<virtual>__<real_server>__<tool>"). After stripping the virtual server prefix,
 		// re-prefixing suffix with "mcp__" produces the original caller tool name.

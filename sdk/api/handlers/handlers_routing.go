@@ -190,8 +190,8 @@ func (h *BaseAPIHandler) modelRouterHost() PluginModelRouterHost {
 	if h == nil {
 		return nil
 	}
-	if !isNilPluginModelRouterHost(h.ModelRouterHost) {
-		return h.ModelRouterHost
+	if host := h.ModelRouterHostSnapshot(); host != nil {
+		return host
 	}
 	host := h.interceptorHost()
 	if host == nil {

@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -139,8 +138,10 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 
 	buffering := e.cfg != nil && e.cfg.Codex.StreamBootstrapBuffering
 
-	scanner := bufio.NewScanner(httpResp.Body)
-	scanner.Buffer(nil, 52_428_800) // 50MB
+	scanner := helps.NewCodexSSEScanner(ctx, httpResp.Body, 52_428_800) // 50MB
+	scanner.SetOnLine(func(line []byte) {
+		helps.AppendAPIResponseChunk(ctx, e.cfg, applyCodexIdentityConfuseResponsePayload(line, identityState))
+	})
 	claudeInputTokens := helps.NewClaudeInputTokenState(from, to, responseFormat, originalPayload)
 	var param any
 	outputItemsByIndex := make(map[int64][]byte)
@@ -151,6 +152,14 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 	// The byte budget includes both the upstream line and translated payloads.
 	bufferedFrames := 0
 	bufferedBytes := 0
+	budgetExhausted := false
+	if buffering {
+		scanner.SetBudgetChecker(func(_ []byte, heldLines, heldBytes int) bool {
+			budgetExhausted = bufferedFrames+heldLines >= helps.CodexBootstrapMaxBufferedFrames ||
+				bufferedBytes+heldBytes >= helps.CodexBootstrapMaxBufferedBytes
+			return budgetExhausted
+		})
+	}
 	var initialChunks [][]byte
 	streamStarted := false
 	immediateTerminal := false
@@ -167,8 +176,11 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 
 	if buffering {
 		for scanner.Scan() {
+			if budgetExhausted {
+				streamStarted = true
+				break
+			}
 			line := applyCodexIdentityConfuseResponsePayload(scanner.Bytes(), identityState)
-			helps.AppendAPIResponseChunk(ctx, e.cfg, line)
 			var translatedLine []byte
 			isHandshake := false
 			terminalSuccess := false
@@ -227,12 +239,12 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 			translatedLine = applyCodexIdentityExposeResponsePayload(translatedLine, identityState)
 			chunks := helps.TranslateStreamWithClaudeInputTokens(ctx, to, responseFormat, req.Model, originalPayload, body, translatedLine, &param, claudeInputTokens)
 			if isHandshake && !terminalSuccess {
-				frameBytes := len(line)
+				frameBytes := scanner.RawBytes()
 				for _, chunk := range chunks {
 					frameBytes += len(chunk)
 				}
-				if bufferedFrames < helps.CodexBootstrapMaxBufferedFrames && bufferedBytes+frameBytes <= helps.CodexBootstrapMaxBufferedBytes {
-					bufferedFrames++
+				if bufferedFrames+scanner.HeldLines()+scanner.RawLines() <= helps.CodexBootstrapMaxBufferedFrames && bufferedBytes+scanner.HeldBytes()+frameBytes <= helps.CodexBootstrapMaxBufferedBytes {
+					bufferedFrames += scanner.RawLines()
 					bufferedBytes += frameBytes
 					bufferedChunks = append(bufferedChunks, chunks...)
 					continue
@@ -247,6 +259,8 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 			}
 			break
 		}
+
+		scanner.SetBudgetChecker(nil)
 
 		if !streamStarted && bootstrapTerminalErr == nil {
 			closeBootstrapBody()
@@ -322,7 +336,6 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		}()
 		for scanner.Scan() {
 			line := applyCodexIdentityConfuseResponsePayload(scanner.Bytes(), identityState)
-			helps.AppendAPIResponseChunk(ctx, e.cfg, line)
 			var translatedLine []byte
 			terminalSuccess := false
 
