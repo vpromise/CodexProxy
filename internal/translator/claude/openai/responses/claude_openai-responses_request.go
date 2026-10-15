@@ -479,12 +479,13 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 					}
 					emittedToolResults[rawID] = struct{}{}
 				}
-				output := item.Get("output")
+				outputItem := item
 				if rawID != "" {
 					if lastItem, exists := lastToolResult[rawID]; exists {
-						output = lastItem.Get("output")
+						outputItem = lastItem
 					}
 				}
+				output := outputItem.Get("output")
 				// Pair explicit raw IDs only. Standalone delegation context must not
 				// become an orphan result or consume another pending tool call.
 				if _, paired := emittedRawToolUses[rawID]; rawID == "" || !paired {
@@ -495,6 +496,9 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 				toolResult := []byte(`{"type":"tool_result","tool_use_id":"","content":""}`)
 				toolResult, _ = sjson.SetBytes(toolResult, "tool_use_id", callID)
 				toolResult = applyResponsesToolResultContent(toolResult, output)
+				if strings.EqualFold(strings.TrimSpace(outputItem.Get("status").String()), "incomplete") {
+					toolResult, _ = sjson.SetBytes(toolResult, "is_error", true)
+				}
 
 				appendParts("user", toolResult)
 
