@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 )
 
 const (
@@ -35,6 +37,7 @@ var (
 
 // ClientSecretAuthorization contains the local session configuration associated with an ephemeral key.
 type ClientSecretAuthorization struct {
+	AccessScope     *coreauth.AccessScope
 	Principal       string
 	IssuerPrincipal string
 	IssuerProvider  string
@@ -73,7 +76,7 @@ func newClientSecretStore() *clientSecretStore {
 	}
 }
 
-func (s *clientSecretStore) create(session json.RawMessage, lifetime time.Duration, issuerPrincipal, issuerProvider string) (string, ClientSecretAuthorization, time.Time, error) {
+func (s *clientSecretStore) create(session json.RawMessage, lifetime time.Duration, issuerPrincipal, issuerProvider string, scopes ...*coreauth.AccessScope) (string, ClientSecretAuthorization, time.Time, error) {
 	if s == nil {
 		return "", ClientSecretAuthorization{}, time.Time{}, errors.New("Realtime client secret store unavailable")
 	}
@@ -90,6 +93,9 @@ func (s *clientSecretStore) create(session json.RawMessage, lifetime time.Durati
 		IssuerPrincipal: strings.TrimSpace(issuerPrincipal),
 		IssuerProvider:  strings.TrimSpace(issuerProvider),
 		Session:         append(json.RawMessage(nil), session...),
+	}
+	if len(scopes) > 0 {
+		authorization.AccessScope = scopes[0]
 	}
 	now := s.currentTime()
 	expiresAt := now.Add(lifetime)
@@ -251,6 +257,13 @@ func (h *Handler) createClientSecret(c *gin.Context, session json.RawMessage, ex
 	Anchor  string `json:"anchor"`
 	Seconds int64  `json:"seconds"`
 }, legacy bool) {
+	accessCtx := h.authManager.NewAccessRequest(c.Request.Context())
+	if scope := coreauth.AccessScopeFromContext(accessCtx); scope.Enabled() {
+		if _, _, errSelect := h.selectOAuth(accessCtx, "", coreexecutor.Options{}); errSelect != nil {
+			writeSelectionError(c, errSelect)
+			return
+		}
+	}
 	lifetime, errLifetime := clientSecretLifetime(expiresAfter)
 	if errLifetime != nil {
 		writeRealtimeError(c, http.StatusBadRequest, errLifetime.Error(), "invalid_request_error", "invalid_expires_after")
@@ -269,7 +282,7 @@ func (h *Handler) createClientSecret(c *gin.Context, session json.RawMessage, ex
 	issuerProvider, _ := c.Get("accessProvider")
 	issuerPrincipalValue, _ := issuerPrincipal.(string)
 	issuerProviderValue, _ := issuerProvider.(string)
-	token, authorization, expiresAt, errCreate := h.clientSecrets.create(upstreamSession, lifetime, issuerPrincipalValue, issuerProviderValue)
+	token, authorization, expiresAt, errCreate := h.clientSecrets.create(upstreamSession, lifetime, issuerPrincipalValue, issuerProviderValue, coreauth.AccessScopeFromContext(accessCtx))
 	if errCreate != nil {
 		if errors.Is(errCreate, errClientSecretCapacity) {
 			c.Header("Retry-After", "1")

@@ -1,5 +1,6 @@
+import { apiClient } from './client';
 /**
- * 可用模型获取
+ * Fetch available models
  */
 
 import axios from 'axios';
@@ -64,6 +65,10 @@ const resolveBearerTokenFromAuthorization = (headers: Record<string, string>): s
 };
 
 export const modelsApi = {
+  async fetchManagementModels() {
+    const response = await apiClient.get<{ data: unknown }>('/models');
+    return normalizeModelList(response.data, { dedupe: true });
+  },
   /**
    * Fetch available models from /v1/models endpoint (for system info page)
    */

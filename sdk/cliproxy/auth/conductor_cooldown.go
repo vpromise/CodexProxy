@@ -152,6 +152,7 @@ func (m *Manager) setConfigSnapshotLocked(cfg *internalconfig.Config) bool {
 	if homeSessionAliasTTL(previousCfg) != homeSessionAliasTTL(cfg) {
 		m.homeSessionAliases.clear()
 	}
+	m.syncPoolAccountIdentities(cfg)
 	m.runtimeConfig.Store(cfg)
 	m.notifyLocalCredentialAdmissionConfigChanged()
 	clearedCooldowns := m.clearDisabledCooldownStates(cfg)

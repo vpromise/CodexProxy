@@ -67,7 +67,7 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 	}
 
 	// Get all available models
-	allModels := h.Models()
+	allModels := h.ModelsForRequest(c, "openai", h.Models())
 
 	// Filter to only include the 4 required fields: id, object, created, owned_by
 	filteredModels := make([]map[string]any, len(allModels))
@@ -98,7 +98,9 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 
 // CodexModels returns the Codex CLI model catalog.
 func (h *OpenAIAPIHandler) CodexModels(c *gin.Context) {
-	body, errMarshal := codexmodels.MarshalCompact(h.codexClientModelsResponse(c.Query("client_version")))
+	models := h.ModelsForRequest(c, "openai", h.Models())
+	response := codexmodels.BuildResponseForClient(models, registry.GetGlobalRegistry().GetModelProviders, h.Cfg != nil && h.Cfg.CodexOptimizeMultiAgentV2, c.Query("client_version"))
+	body, errMarshal := codexmodels.MarshalCompact(response)
 	if errMarshal != nil {
 		c.JSON(http.StatusInternalServerError, handlers.ErrorResponse{
 			Error: handlers.ErrorDetail{

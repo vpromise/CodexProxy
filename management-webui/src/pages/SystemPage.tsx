@@ -13,7 +13,6 @@ import {
   useThemeStore,
 } from '@/stores';
 import { configApi, versionApi } from '@/services/api';
-import { useApiKeysForModels } from '@/hooks/useApiKeysForModels';
 import { formatDateTimeValue } from '@/utils/format';
 import { classifyModels } from '@/utils/models';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
@@ -103,8 +102,6 @@ export function SystemPage() {
     return resolvedTheme === 'dark' ? iconEntry.dark : iconEntry.light;
   };
 
-  const resolveApiKeysForModels = useApiKeysForModels();
-
   const fetchModels = async ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) => {
     if (auth.connectionStatus !== 'connected') {
       setModelStatus({
@@ -121,9 +118,7 @@ export function SystemPage() {
 
     setModelStatus({ type: 'muted', message: t('system_info.models_loading') });
     try {
-      const apiKeys = await resolveApiKeysForModels({ force: forceRefresh });
-      const primaryKey = apiKeys[0];
-      const list = await fetchModelsFromStore(auth.apiBase, primaryKey, forceRefresh);
+      const list = await fetchModelsFromStore(auth.apiBase, undefined, forceRefresh);
       const hasModels = list.length > 0;
       setModelStatus({
         type: hasModels ? 'success' : 'warning',

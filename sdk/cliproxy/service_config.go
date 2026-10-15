@@ -1,7 +1,10 @@
 package cliproxy
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -9,6 +12,7 @@ import (
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 func (s *Service) applyConfigUpdate(newCfg *config.Config) {
@@ -104,6 +108,15 @@ func (s *Service) commitConfigUpdate(newCfg *config.Config) configCommit {
 		return configCommit{}
 	}
 
+	if errValidate := newCfg.ValidateAccessIsolation(); errValidate != nil {
+		log.WithError(errValidate).Warn("rejected invalid account isolation policy")
+		return configCommit{}
+	}
+	if errValidate := s.validateNewPoolReferences(newCfg); errValidate != nil {
+		log.WithError(errValidate).Warn("rejected unknown account pool member")
+		return configCommit{}
+	}
+
 	s.cfgMu.Lock()
 	s.cfg = newCfg
 	s.cfgMu.Unlock()
@@ -158,6 +171,12 @@ func (s *Service) applyConfigRuntime(ctx context.Context, commit configCommit, s
 		return false
 	}
 
+	// Access providers and handlers above must see the current configuration, but
+	// unchanged provider runtimes must retain their established execution sessions.
+	if onlyClientAccessConfigChanged(s.appliedRuntimeConfig, cfg) {
+		return true
+	}
+
 	registrationCtx := coreauth.WithSkipPersist(ctx)
 	s.syncPluginRuntimeConfigForConfig(registrationCtx, cfg)
 	if errContext := ctx.Err(); errContext != nil {
@@ -190,7 +209,55 @@ func (s *Service) applyConfigRuntime(ctx context.Context, commit configCommit, s
 		return false
 	}
 	s.syncPluginModelRuntime(registrationCtx)
-	return ctx.Err() == nil
+	if ctx.Err() != nil {
+		return false
+	}
+	// Management handlers may mutate their configuration before the watcher runs.
+	// Compare against an independent, successfully applied snapshot, never s.cfg
+	// or the preceding commit (which may have been superseded before application).
+	s.appliedRuntimeConfig = cfg.CloneForRuntime()
+	return true
+}
+
+func onlyClientAccessConfigChanged(previous, next *config.Config) bool {
+	if previous == nil || next == nil {
+		return false
+	}
+	// Home config commits also synchronize remote runtime state independently of
+	// the local client-access settings, so retain their existing reload path.
+	if previous.Home.Enabled || next.Home.Enabled {
+		return false
+	}
+	// These runtime-only settings are omitted from the persisted YAML.
+	if !reflect.DeepEqual(previous.Home, next.Home) || previous.CodexOptimizeMultiAgentV2 != next.CodexOptimizeMultiAgentV2 {
+		return false
+	}
+	before, after := *previous, *next
+	before.APIKeys, after.APIKeys = nil, nil
+	before.CodexKey = append([]config.CodexKey(nil), previous.CodexKey...)
+	after.CodexKey = append([]config.CodexKey(nil), next.CodexKey...)
+	before.ClaudeKey = append([]config.ClaudeKey(nil), previous.ClaudeKey...)
+	after.ClaudeKey = append([]config.ClaudeKey(nil), next.ClaudeKey...)
+	for i := range before.CodexKey {
+		before.CodexKey[i].PoolAccountID = ""
+	}
+	for i := range after.CodexKey {
+		after.CodexKey[i].PoolAccountID = ""
+	}
+	for i := range before.ClaudeKey {
+		before.ClaudeKey[i].PoolAccountID = ""
+	}
+	for i := range after.ClaudeKey {
+		after.ClaudeKey[i].PoolAccountID = ""
+	}
+	before.AccessIsolation, after.AccessIsolation = config.AccessIsolation{}, config.AccessIsolation{}
+	before.AllowAnonymous, after.AllowAnonymous = false, false
+	// Use the persisted representation so a management save that round-trips nil
+	// collections as empty collections does not falsely require a provider reload.
+	// Every setting except the explicit client-access allowlist remains significant.
+	beforeYAML, errBefore := yaml.Marshal(&before)
+	afterYAML, errAfter := yaml.Marshal(&after)
+	return errBefore == nil && errAfter == nil && bytes.Equal(beforeYAML, afterYAML)
 }
 
 func (s *Service) applyManagerConfig(ctx context.Context, commit configCommit) bool {
@@ -296,4 +363,45 @@ func forceHomeRuntimeConfig(cfg *config.Config) {
 	cfg.RemoteManagement.AllowRemote = false
 	cfg.RemoteManagement.DisableControlPanel = true
 	cfg.Plugins.StoreAuth = nil
+}
+
+func (s *Service) validateNewPoolReferences(next *config.Config) error {
+	if len(next.AccessIsolation.Pools) == 0 {
+		return nil
+	}
+	known := map[string]bool{}
+	if s.coreManager != nil {
+		for _, account := range s.coreManager.List() {
+			if id := coreauth.AccountIdentity(account); id != "" {
+				known[id] = true
+			}
+		}
+	}
+	native, err := synthesizer.NewConfigSynthesizer().Synthesize(&synthesizer.SynthesisContext{Config: next, Now: time.Now(), IDGenerator: synthesizer.NewStableIDGenerator()})
+	if err != nil {
+		return err
+	}
+	for _, account := range native {
+		if id := coreauth.AccountIdentity(account); id != "" {
+			known[id] = true
+		}
+	}
+	existing := map[string]bool{}
+	s.cfgMu.RLock()
+	if s.cfg != nil {
+		for _, pool := range s.cfg.AccessIsolation.Pools {
+			for _, id := range pool.Accounts {
+				existing[pool.ID+"\x00"+id] = true
+			}
+		}
+	}
+	s.cfgMu.RUnlock()
+	for _, pool := range next.AccessIsolation.Pools {
+		for _, id := range pool.Accounts {
+			if !known[id] && !existing[pool.ID+"\x00"+id] {
+				return fmt.Errorf("pool %q contains an unknown account", pool.ID)
+			}
+		}
+	}
+	return nil
 }

@@ -43,6 +43,15 @@ func claudeOAuthRequestCancellation(ctx context.Context, auth *Auth, err error) 
 // Execute performs a non-streaming execution using the configured selector and executor.
 // It supports multiple providers for the same model and round-robins the starting provider per model.
 func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return cliproxyexecutor.Response{}, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
+		return cliproxyexecutor.Response{}, errAccess
+	}
 	req, opts = cliproxysession.Enrich(req, opts)
 	normalized := m.normalizeProviders(providers)
 	if len(normalized) == 0 {
@@ -86,6 +95,15 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 
 // It supports multiple providers for the same model and round-robins the starting provider per model.
 func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return cliproxyexecutor.Response{}, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
+		return cliproxyexecutor.Response{}, errAccess
+	}
 	req, opts = cliproxysession.Enrich(req, opts)
 	normalized := m.normalizeProviders(providers)
 	if len(normalized) == 0 {
@@ -129,6 +147,15 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 // ExecuteStream performs a streaming execution using the configured selector and executor.
 // It supports multiple providers for the same model and round-robins the starting provider per model.
 func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (*cliproxyexecutor.StreamResult, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
+		return nil, errAccess
+	}
 	req, opts = cliproxysession.Enrich(req, opts)
 	if m.HomeEnabled() {
 		if unlockSession := m.lockHomeWebsocketSession(ctx, opts); unlockSession != nil {
@@ -1781,6 +1808,14 @@ func (m *Manager) InjectCredentials(req *http.Request, authID string) error {
 
 // PrepareHttpRequest injects provider credentials into the supplied HTTP request.
 func (m *Manager) PrepareHttpRequest(ctx context.Context, auth *Auth, req *http.Request) error {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return errAccess
+	}
+	if !AccessScopeFromContext(ctx).Allows(auth) {
+		return &Error{Code: "access_denied", Message: "Account is outside the authorized pool", HTTPStatus: http.StatusForbidden}
+	}
 	if m == nil {
 		return &Error{Code: "provider_not_found", Message: "manager is nil"}
 	}
@@ -1836,6 +1871,14 @@ func (m *Manager) NewHttpRequest(ctx context.Context, auth *Auth, method, target
 
 // HttpRequest injects provider credentials into the supplied HTTP request and executes it.
 func (m *Manager) HttpRequest(ctx context.Context, auth *Auth, req *http.Request) (*http.Response, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
+	if !AccessScopeFromContext(ctx).Allows(auth) {
+		return nil, &Error{Code: "access_denied", Message: "Account is outside the authorized pool", HTTPStatus: http.StatusForbidden}
+	}
 	if m == nil {
 		return nil, &Error{Code: "provider_not_found", Message: "manager is nil"}
 	}

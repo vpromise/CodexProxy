@@ -8,6 +8,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher/synthesizer"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
@@ -238,6 +239,12 @@ func (s *Service) prepareCoreAuthForModelRegistration(ctx context.Context, auth 
 	if s == nil || s.coreManager == nil || auth == nil || auth.ID == "" {
 		return nil
 	}
+	if previous, ok := s.coreManager.GetByID(auth.ID); ok && coreauth.AccountIdentity(previous) != coreauth.AccountIdentity(auth) {
+		if errRevoke := s.revokeRemovedPoolAccount(ctx, previous); errRevoke != nil {
+			log.WithError(errRevoke).Error("cannot revoke replaced pool account")
+			return nil
+		}
+	}
 	alreadyApplied := auth.RegistrationEpoch != 0
 	if current, exists := s.coreManager.GetByID(auth.ID); alreadyApplied {
 		if !exists || isStaleCoreAuth(current, auth) {
@@ -353,6 +360,10 @@ func (s *Service) applyCoreAuthRemoval(ctx context.Context, id string, expectedE
 	if len(expectedEpoch) > 0 && expectedEpoch[0] != 0 && expectedEpoch[0] != existing.RegistrationEpoch {
 		return
 	}
+	if errRevoke := s.revokeRemovedPoolAccount(ctx, existing); errRevoke != nil {
+		log.WithError(errRevoke).Error("cannot revoke removed pool account")
+		return
+	}
 	_ = s.coreManager.RemoveWithPersistence(ctx, id, func() error {
 		if strings.EqualFold(existing.Provider, "codex") {
 			executor.CloseCodexWebsocketSessionsForAuthID(id, "auth_removed")
@@ -440,4 +451,32 @@ func openAICompatInfoFromAuth(a *coreauth.Auth) (providerKey string, compatName 
 		return util.OpenAICompatibleProviderKey(providerKey), compatName, true
 	}
 	return "", "", false
+}
+
+func (s *Service) revokeRemovedPoolAccount(ctx context.Context, removed *coreauth.Auth) error {
+	identity := coreauth.AccountIdentity(removed)
+	if identity == "" || s.server == nil {
+		return nil
+	}
+	s.cfgMu.RLock()
+	cfg := s.cfg.CloneForRuntime()
+	s.cfgMu.RUnlock()
+	if cfg == nil || len(cfg.AccessIsolation.Pools) == 0 {
+		return nil
+	}
+	synthesis := &synthesizer.SynthesisContext{Config: cfg, AuthDir: cfg.AuthDir, Now: time.Now(), IDGenerator: synthesizer.NewStableIDGenerator()}
+	configured, errConfig := synthesizer.NewConfigSynthesizer().Synthesize(synthesis)
+	if errConfig != nil {
+		return errConfig
+	}
+	files, errFiles := synthesizer.NewFileSynthesizer().Synthesize(synthesis)
+	if errFiles != nil {
+		return errFiles
+	}
+	for _, current := range append(configured, files...) {
+		if coreauth.AccountIdentity(current) == identity {
+			return nil
+		}
+	}
+	return s.server.RevokeAccountPoolMember(ctx, identity)
 }

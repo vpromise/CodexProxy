@@ -17,6 +17,7 @@ import { PageTransition } from '@/components/common/PageTransition';
 import { MainRoutes } from '@/router/MainRoutes';
 import { authFilesApi } from '@/services/api';
 import {
+  IconShield,
   IconSidebarAuthFiles,
   IconSidebarConfig,
   IconSidebarDashboard,
@@ -44,6 +45,7 @@ const sidebarIcons: Record<string, ReactNode> = {
   dashboard: <IconSidebarDashboard size={18} />,
   aiProviders: <IconSidebarProviders size={18} />,
   authFiles: <IconSidebarAuthFiles size={18} />,
+  isolation: <IconShield size={18} />,
   oauth: <IconSidebarOauth size={18} />,
   quota: <IconSidebarQuota size={18} />,
   config: <IconSidebarConfig size={18} />,
@@ -72,7 +74,7 @@ interface SidebarNavGroup {
   items: SidebarNavLinkItem[];
 }
 
-/** 点击菜单外或按下 Escape 时关闭弹出菜单 */
+/** Close the menu on an outside click or Escape. */
 function useMenuDismiss(
   open: boolean,
   menuRef: RefObject<HTMLDivElement | null>,
@@ -530,6 +532,7 @@ export function MainLayout() {
       id: 'control',
       labelKey: 'nav_groups.control',
       items: [
+        { path: '/access-isolation', label: t('isolation.title'), icon: sidebarIcons.isolation },
         {
           path: '/config',
           labelKey: 'nav.config_management',

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authFilesApi } from '@/services/api';
 import { useAuthStore, useConfigStore, useModelsStore } from '@/stores';
-import { useApiKeysForModels } from '@/hooks/useApiKeysForModels';
 import { useProviderRecentRequests } from '@/components/providers/hooks/useProviderRecentRequests';
 import {
   mergeRecentRequestBucketGroups,
@@ -30,7 +29,7 @@ const EMPTY_TRAFFIC: TrafficWindow = {
   windowMinutes: 0,
 };
 
-/** `api-key-usage` 的键形如 `<baseUrl>|<apiKey>`，取第一个分隔符之后的部分 */
+/** Extract the key after the first separator in `<baseUrl>|<apiKey>`. */
 const apiKeyFromCompositeKey = (compositeKey: string): string => {
   const separatorIndex = compositeKey.indexOf('|');
   return separatorIndex < 0 ? '' : compositeKey.slice(separatorIndex + 1).trim();
@@ -119,7 +118,6 @@ export function useDashboardOverview() {
   const fetchModelsFromStore = useModelsStore((state) => state.fetchModels);
 
   const connected = connectionStatus === 'connected';
-  const resolveApiKeysForModels = useApiKeysForModels();
 
   const { usageByProvider, refreshRecentRequests } = useProviderRecentRequests({
     enabled: connected,
@@ -144,12 +142,11 @@ export function useDashboardOverview() {
   const loadModels = useCallback(async () => {
     if (!connected || !apiBase) return;
     try {
-      const apiKeys = await resolveApiKeysForModels();
-      await fetchModelsFromStore(apiBase, apiKeys[0]);
+      await fetchModelsFromStore(apiBase);
     } catch {
-      // 模型列表失败不应影响仪表盘其余部分
+      // Catalog failures must not block the rest of the dashboard.
     }
-  }, [connected, apiBase, resolveApiKeysForModels, fetchModelsFromStore]);
+  }, [connected, apiBase, fetchModelsFromStore]);
 
   useEffect(() => {
     if (!connected) return;
@@ -205,7 +202,7 @@ export function useDashboardOverview() {
         .trim()
         .toLowerCase();
       const account = String(file.account ?? '').trim();
-      // 已经由 api-key-usage 统计过的凭证不再重复计入
+      // Do not count credentials already included in api-key-usage twice.
       if (accountType === 'api_key' && account && apiKeysFromUsage.has(account)) {
         return;
       }
@@ -293,7 +290,7 @@ export function useDashboardOverview() {
     traffic,
     providers,
     credentials,
-    /** 首屏骨架的判定：配置与凭证都还没回来 */
+    /** Show the initial skeleton while both configuration and credentials are pending. */
     initialLoading: connected && !config && authFiles === null,
     authFilesLoading,
     refresh,

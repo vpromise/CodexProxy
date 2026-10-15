@@ -42,6 +42,7 @@ type Service struct {
 	authRevisions          map[string]uint64
 	configSequence         uint64
 	appliedRoutingState    *routingRuntimeState
+	appliedRuntimeConfig   *config.Config
 
 	// configPath is the path to the configuration file.
 	configPath string

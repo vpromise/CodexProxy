@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,8 +53,9 @@ type Server struct {
 	handlers         *handlers.BaseAPIHandler
 	codexLiveHandler *codexlive.Handler
 
-	// cfg holds the current server configuration.
-	cfg *config.Config
+	// cfgMu protects publication of the current server configuration.
+	cfgMu sync.RWMutex
+	cfg   *config.Config
 
 	// oldConfigYaml stores a YAML snapshot of the previous configuration for change detection.
 	// This prevents issues when the config object is modified in place by Management API.
@@ -193,7 +195,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	auth.SetQuotaCooldownDisabled(cfg.DisableCooling)
 	auth.SetTransientErrorCooldownSeconds(cfg.TransientErrorCooldownSeconds)
 	// Initialize management handler
-	s.mgmt = managementHandlers.NewHandler(cfg, configFilePath, authManager)
+	s.mgmt = managementHandlers.NewHandler(cfg.CloneForRuntime(), configFilePath, authManager)
 	s.mgmt.SetPluginHost(optionState.pluginHost)
 	s.mgmt.SetConfigReloadHook(optionState.configReloadHook)
 	if optionState.localPassword != "" {
@@ -270,10 +272,11 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to start HTTP server: %v", errListen)
 	}
 
-	useTLS := s.cfg != nil && s.cfg.TLS.Enable
+	cfg := s.configSnapshot()
+	useTLS := cfg != nil && cfg.TLS.Enable
 	if useTLS {
-		certPath := strings.TrimSpace(s.cfg.TLS.Cert)
-		keyPath := strings.TrimSpace(s.cfg.TLS.Key)
+		certPath := strings.TrimSpace(cfg.TLS.Cert)
+		keyPath := strings.TrimSpace(cfg.TLS.Key)
 		if certPath == "" || keyPath == "" {
 			if errClose := listener.Close(); errClose != nil {
 				log.Errorf("failed to close listener after TLS validation failure: %v", errClose)

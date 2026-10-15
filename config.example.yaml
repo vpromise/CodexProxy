@@ -197,3 +197,13 @@ streaming:
 #     - "*-mini"
 #   claude:
 #     - "*-haiku-*"
+
+# Optional client-to-account isolation. Prepare pools and key bindings in the
+# Account isolation management page before enabling. Account identities come
+# from GET /v0/management/access-isolation, not filenames or runtime auth IDs.
+# Shared accounts share upstream quota. Unassigned keys and empty pools fail
+# closed when enabled. See docs/access-isolation.md for the complete workflow.
+access-isolation:
+  enabled: false
+  pools: []
+  keys: []

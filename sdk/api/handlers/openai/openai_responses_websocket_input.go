@@ -71,9 +71,13 @@ func (h *OpenAIResponsesAPIHandler) forwardResponsesWebsocketInterrupt(ctx conte
 	if !ok {
 		return cliproxyexecutor.ErrNoActiveUpstreamWebsocket
 	}
+	ctx = h.AuthManager.NewAccessRequest(ctx)
+	if errAccess := coreauth.AccessScopeFromContext(ctx).Error(); errAccess != nil {
+		return errAccess
+	}
 	ctx = cliproxyexecutor.WithWebsocketAuthCheck(ctx, func(authID string) bool {
 		auth, found := h.AuthManager.GetByID(authID)
-		return found && auth != nil && !auth.Disabled && auth.Status != coreauth.StatusDisabled
+		return found && auth != nil && !auth.Disabled && auth.Status != coreauth.StatusDisabled && coreauth.AccessScopeFromContext(ctx).Allows(auth)
 	})
 	return sender.InterruptExecutionSession(ctx, sessionID, payload)
 }

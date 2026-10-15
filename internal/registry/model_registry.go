@@ -1665,3 +1665,8 @@ func (r *ModelRegistry) GetModelsForClient(clientID string) []*ModelInfo {
 	models, _ := r.GetModelsAndEpochForClient(clientID)
 	return models
 }
+
+// FormatModel returns the protocol projection of a registered model.
+func (r *ModelRegistry) FormatModel(model *ModelInfo, handlerType string) map[string]any {
+	return r.convertModelToMap(model, handlerType)
+}

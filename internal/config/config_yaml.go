@@ -20,6 +20,10 @@ func SaveConfigPreserveComments(configFile string, cfg *Config) error {
 		return err
 	}
 
+	var previous Config
+	if yaml.Unmarshal(data, &previous) == nil {
+		cfg.PreservePoolAccountIDs(&previous)
+	}
 	var original yaml.Node
 	if err = yaml.Unmarshal(data, &original); err != nil {
 		return err

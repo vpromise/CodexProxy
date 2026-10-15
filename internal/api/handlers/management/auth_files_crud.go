@@ -262,6 +262,11 @@ func (h *Handler) writeAuthFile(ctx context.Context, name string, data []byte) e
 			dst = abs
 		}
 	}
+	var errIdentity error
+	data, errIdentity = prepareUploadedPoolIdentity(dst, data, h.cfg.AccessIsolation.Enabled || len(h.cfg.AccessIsolation.Pools) > 0)
+	if errIdentity != nil {
+		return fmt.Errorf("persist account identity: %w", errIdentity)
+	}
 	auth, err := h.buildAuthFromFileData(dst, data)
 	if err != nil {
 		return err
@@ -355,6 +360,9 @@ func (h *Handler) deleteAuthFileByName(ctx context.Context, name string) (string
 	if targetAuth := h.findAuthForDelete(name); targetAuth != nil {
 		if !isPluginVirtualSourceDelete(name, targetAuth) {
 			return filepath.Base(name), http.StatusConflict, errPluginVirtualAuth
+		}
+		if errRevoke := h.RevokeAccountPoolMember(ctx, h.poolIdentityForRemoval(targetAuth)); errRevoke != nil {
+			return filepath.Base(name), 500, fmt.Errorf("revoke account membership: %w", errRevoke)
 		}
 		targetID = strings.TrimSpace(targetAuth.ID)
 		if path := strings.TrimSpace(authAttribute(targetAuth, "path")); path != "" {

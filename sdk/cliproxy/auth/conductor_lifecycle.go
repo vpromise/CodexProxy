@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -512,6 +513,16 @@ func (m *Manager) persistAuthLocked(ctx context.Context, auth *Auth, pLock *auth
 	}
 	if strings.EqualFold(strings.TrimSpace(auth.Attributes["runtime_only"]), "true") {
 		return nil
+	}
+	// A refresh racing a file rename or deletion must not recreate its source.
+	if auth.Attributes["source_backend"] == "file" {
+		if path := auth.Attributes["path"]; path != "" {
+			if _, errStat := os.Stat(path); os.IsNotExist(errStat) {
+				return nil
+			} else if errStat != nil {
+				return fmt.Errorf("check auth source before persistence: %w", errStat)
+			}
+		}
 	}
 	// Stores may annotate metadata and paths. Keep their mutations isolated from
 	// the auth currently being read by request selection and refresh workers.

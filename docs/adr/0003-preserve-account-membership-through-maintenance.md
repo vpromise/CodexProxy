@@ -1,0 +1,3 @@
+# Preserve account membership through maintenance
+
+Account-pool membership follows the identity of an upstream account rather than its credential filename or mutable routing configuration, because current path- and configuration-derived identifiers can change during routine maintenance or be reused for a different account. Credential refresh, verified re-login to the same account, and renaming preserve membership; deleting an account ends that membership, and a later import requires explicit assignment again. Replacing a file with another account must never transfer the previous account's grants merely because the filename matches.

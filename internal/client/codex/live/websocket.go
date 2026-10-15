@@ -201,7 +201,7 @@ func (h *Handler) HandleDirectWebsocket(c *gin.Context) {
 		}
 	}
 
-	if errRelay := relayWebsockets(downstream, upstream); errRelay != nil && !isNormalWebsocketClose(errRelay) {
+	if errRelay := relayAuthorizedWebsockets(downstream, upstream, func() error { return h.authManager.CheckCurrentAccount(ctx, selected) }); errRelay != nil && !isNormalWebsocketClose(errRelay) {
 		helps.RecordAPIWebsocketError(ctx, h.currentConfig(), "relay", errRelay)
 		log.WithError(errRelay).Debug("codex realtime direct websocket relay closed")
 	}

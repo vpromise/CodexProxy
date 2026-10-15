@@ -496,7 +496,7 @@ func (h *Handler) HandleSideband(c *gin.Context) {
 	}
 	consumeSession = true
 
-	if errRelay := relayWebsockets(downstream, upstream); errRelay != nil && !isNormalWebsocketClose(errRelay) {
+	if errRelay := relayAuthorizedWebsockets(downstream, upstream, func() error { return h.authManager.CheckCurrentAccount(ctx, selected) }); errRelay != nil && !isNormalWebsocketClose(errRelay) {
 		helps.RecordAPIWebsocketError(ctx, runtimeConfig, "relay", errRelay)
 		log.WithError(errRelay).Debug("codex live sideband relay closed")
 	}
@@ -600,9 +600,14 @@ func websocketCloseFunc(name string, conn *websocket.Conn) func() error {
 }
 
 func relayWebsockets(downstream, upstream *websocket.Conn) error {
+	return relayAuthorizedWebsockets(downstream, upstream, nil)
+}
+
+func relayAuthorizedWebsockets(downstream, upstream *websocket.Conn, authorize func() error) error {
 	results := make(chan error, 2)
-	go func() { results <- copyWebsocket(upstream, downstream) }()
-	go func() { results <- copyWebsocket(downstream, upstream) }()
+	var downstreamWrite sync.Mutex
+	go func() { results <- copyWebsocketAuthorized(upstream, downstream, authorize, &downstreamWrite) }()
+	go func() { results <- copyWebsocketLocked(downstream, upstream, &downstreamWrite) }()
 
 	firstErr := <-results
 	closeCode, closeReason := websocketCloseDetails(firstErr)
@@ -616,17 +621,52 @@ func relayWebsockets(downstream, upstream *websocket.Conn) error {
 }
 
 func copyWebsocket(destination, source *websocket.Conn) error {
+	return copyWebsocketAuthorized(destination, source, nil, nil)
+}
+
+func copyWebsocketLocked(destination, source *websocket.Conn, lock *sync.Mutex) error {
+	return copyWebsocketFrames(destination, source, nil, nil, lock)
+}
+
+func copyWebsocketAuthorized(destination, source *websocket.Conn, authorize func() error, replyLock *sync.Mutex) error {
+	return copyWebsocketFrames(destination, source, authorize, replyLock, nil)
+}
+
+func copyWebsocketFrames(destination, source *websocket.Conn, authorize func() error, replyLock, writeLock *sync.Mutex) error {
 	for {
 		messageType, reader, errReader := source.NextReader()
 		if errReader != nil {
 			return errReader
 		}
+		if authorize != nil {
+			if errAccess := authorize(); errAccess != nil {
+				if _, errDrain := io.Copy(io.Discard, reader); errDrain != nil {
+					return errDrain
+				}
+				replyLock.Lock()
+				errReply := source.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "permission_error", "code": "access_denied", "message": errAccess.Error()}})
+				replyLock.Unlock()
+				if errReply != nil {
+					return errReply
+				}
+				continue
+			}
+		}
+		if writeLock != nil {
+			writeLock.Lock()
+		}
 		writer, errWriter := destination.NextWriter(messageType)
 		if errWriter != nil {
+			if writeLock != nil {
+				writeLock.Unlock()
+			}
 			return errWriter
 		}
 		_, errCopy := io.Copy(writer, reader)
 		errClose := writer.Close()
+		if writeLock != nil {
+			writeLock.Unlock()
+		}
 		if errCopy != nil {
 			return errCopy
 		}

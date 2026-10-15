@@ -33,6 +33,10 @@ auths/*
 # Documentation
 docs/*
 !docs/upstream-sync.md
+!docs/access-isolation.md
+!docs/access-isolation-validation.md
+!docs/agents/
+!docs/adr/
 AGENTS.md
 CLAUDE.md
 GEMINI.md

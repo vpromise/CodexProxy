@@ -299,6 +299,7 @@ func (h *Handler) AuthenticateManagementKey(clientIP string, localClient bool, p
 		return false, http.StatusForbidden, "remote management disabled"
 	}
 
+	h.mu.Lock()
 	cfg := h.cfg
 	var (
 		allowRemote bool
@@ -312,6 +313,8 @@ func (h *Handler) AuthenticateManagementKey(clientIP string, localClient bool, p
 		allowRemote = true
 	}
 	envSecret := h.envSecret
+	localPassword := h.localPassword
+	h.mu.Unlock()
 
 	now := time.Now()
 	h.attemptsMu.Lock()
@@ -367,7 +370,7 @@ func (h *Handler) AuthenticateManagementKey(clientIP string, localClient bool, p
 	}
 
 	if localClient {
-		if lp := h.localPassword; lp != "" {
+		if lp := localPassword; lp != "" {
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(lp)) == 1 {
 				reset()
 				return true, 0, ""
