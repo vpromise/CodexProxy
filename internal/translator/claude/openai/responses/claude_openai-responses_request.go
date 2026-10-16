@@ -628,7 +628,7 @@ func isResponsesSystemLevelRole(role string) bool {
 
 // dropUnsupportedClaudeAssistantPrefill removes a trailing assistant message for
 // Claude model families that reject assistant message prefill (e.g., Fable,
-// Opus 5, Sonnet 4.6).
+// Opus 5, Sonnet 4.6, Haiku 5.5).
 func dropUnsupportedClaudeAssistantPrefill(modelName string, messages [][]byte) [][]byte {
 	if !claudeModelRejectsAssistantPrefill(modelName) || len(messages) == 0 {
 		return messages
@@ -705,7 +705,7 @@ func claudeModelRejectsAssistantPrefill(modelName string) bool {
 	if tokens[0] == "fable" {
 		return true
 	}
-	if len(tokens) < 2 || (tokens[0] != "opus" && tokens[0] != "sonnet") {
+	if len(tokens) < 2 || (tokens[0] != "opus" && tokens[0] != "sonnet" && tokens[0] != "haiku") {
 		return false
 	}
 	parseVersion := func(token string) int {
@@ -725,6 +725,10 @@ func claudeModelRejectsAssistantPrefill(modelName string) bool {
 		return version
 	}
 	major := parseVersion(tokens[1])
+	if tokens[0] == "haiku" {
+		// Only the verified 5.5 family rejects prefill; do not infer future capabilities.
+		return major == 5 && len(tokens) > 2 && parseVersion(tokens[2]) == 5
+	}
 	if major >= 5 {
 		return true
 	}

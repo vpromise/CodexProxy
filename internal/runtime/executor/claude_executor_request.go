@@ -1214,6 +1214,11 @@ func applyClaudeHeadersWithNativeProfile(
 			}
 		}
 	}
+	// Explicit binding controls require their schema beta in every profile.
+	// Keep body policy and the existing custom-header precedence unchanged.
+	if gjson.GetBytes(body, "thinking.block_binding").Exists() {
+		appendBeta(claudeThinkingBindingBeta)
+	}
 	applyBetaHeader := func() {
 		// Enforce strict native Claude Code 2.1.280 model & turn beta gating:
 		if !claudeRequestSupportsEffort(body, nil) {

@@ -15,6 +15,8 @@ import (
 )
 
 type claudeToResponsesState struct {
+	// RequestJSON owns the validated request snapshot for this stream.
+	RequestJSON        []byte
 	Seq                int
 	ResponseID         string
 	CreatedAt          int64
@@ -456,6 +458,7 @@ func (st *claudeToResponsesState) finalizeAssistantMessage(nextSeq func() int) [
 func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, param *any) [][]byte {
 	if *param == nil {
 		*param = &claudeToResponsesState{
+			RequestJSON:        bytes.Clone(pickRequestJSON(originalRequestRawJSON, requestRawJSON)),
 			MessageOutputIndex: -1,
 			ReasoningIndex:     -1,
 			FuncArgsBuf:        make(map[int]*strings.Builder),
@@ -475,7 +478,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 	}
 	rawJSON = bytes.TrimSpace(rawJSON[5:])
 	root := gjson.ParseBytes(rawJSON)
-	requestForToolMetadata := pickRequestJSON(originalRequestRawJSON, requestRawJSON)
+	requestForToolMetadata := st.RequestJSON
 	customToolNames := responsesCustomToolNames(requestForToolMetadata)
 	ev := root.Get("type").String()
 	var out [][]byte
@@ -780,7 +783,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 		}
 		// Inject original request fields into response as per docs/response.completed.json
 
-		reqBytes := pickRequestJSON(originalRequestRawJSON, requestRawJSON)
+		reqBytes := st.RequestJSON
 		if len(reqBytes) > 0 {
 			req := gjson.ParseBytes(reqBytes)
 			if v := req.Get("instructions"); v.Exists() {

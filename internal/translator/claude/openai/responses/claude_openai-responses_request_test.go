@@ -1505,6 +1505,7 @@ func TestConvertOpenAIResponsesRequestToClaude_FableOnlyAssistantMessageYieldsFa
 
 func TestConvertOpenAIResponsesRequestToClaude_UnsupportedPrefillModelsStripTrailingAssistant(t *testing.T) {
 	unsupportedModels := []string{
+		"claude-haiku-5-5", "haiku-5.5", "anthropic/CLAUDE-HAIKU-5-5-20261001",
 		"claude-fable-5",
 		"claude-opus-5",
 		"claude-sonnet-4-6",
@@ -1547,6 +1548,7 @@ func TestConvertOpenAIResponsesRequestToClaude_UnsupportedPrefillModelsStripTrai
 
 func TestConvertOpenAIResponsesRequestToClaude_SupportedPrefillModelsPreserveAssistantPrefill(t *testing.T) {
 	supportedModels := []string{
+		"claude-haiku-5", "claude-haiku-5-4", "claude-haiku-6", "claude-haiku-20261001", "my-haiku-5-5-wrapper", "haiku-5-5foo",
 		"claude-sonnet-4-5",
 		"claude-haiku-4-5",
 		"claude-3-opus-20240229",
