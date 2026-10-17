@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-10-17 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-10-18 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -8,21 +8,46 @@ Updated: 2026-10-17 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 | Item | Recorded state |
 | --- | --- |
-| Latest upstream check | 2026-10-17T05:08:22.101623+08:00: all 9 new released commits reviewed; v8.0.32 and upstream main both `911f49cbd49f4fe2516979754a7488a3fd14fe64` |
+| Latest upstream check | 2026-10-18T04:59:57.901172+08:00: no new release or commit; v8.0.32 tag and upstream main remain `911f49cbd49f4fe2516979754a7488a3fd14fe64`; empty incremental range |
 | Last reviewed upstream main | [911f49cb](https://github.com/router-for-me/CLIProxyAPI/commit/911f49cbd49f4fe2516979754a7488a3fd14fe64) (`911f49cbd49f4fe2516979754a7488a3fd14fe64`); selective dispositions below |
 | Released selection boundary | v8.0.32 / `911f49cbd49f4fe2516979754a7488a3fd14fe64`; both new release tags resolved to immutable commits; selected subset only |
 | Release at that review | [v8.0.31](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.31), published 2026-10-16T04:05:15Z, tag `355fd10e76b82e03ba6625acc583b900286e4bf2`; [v8.0.32](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.32), published 2026-10-16T18:57:27Z, tag equals reviewed main |
 | Latest verified published implementation | [e18cdc78](https://github.com/vpromise/CodexProxy/commit/e18cdc7818bc11f038353ca9b57ba714d923197a) (`e18cdc7818bc11f038353ca9b57ba714d923197a`) on main: request snapshots, query secret masking, explicit binding beta and Haiku 5.5 prefill |
 | Published source tree | `3a4b62d8b8a8c6d4dbb6e0f9bb73e422a3a7693b` (October 17 implementation commit) |
-| Latest publication | October 17 implementation [e18cdc78](https://github.com/vpromise/CodexProxy/commit/e18cdc7818bc11f038353ca9b57ba714d923197a), verified by SSH and GitHub API at 2026-10-17T05:11:19.348359+08:00; documentation follow-up is separately read back in delivery evidence |
-| Unpublished selected fixes | None. Four independent October 17 repairs are committed and normally pushed; pending decisions remain outside the selection |
-| Pending candidate | 103 discussion items: 100 carried forward plus 101–103 below. Historical items 10, 15, 77, 82 and 92 have updated evidence; no new approval inferred |
+| Latest publication | October 17 final ledger commit [c6b69c95](https://github.com/vpromise/CodexProxy/commit/c6b69c951d5eaf42dedb6c811d22815e9d698cfa), freshly verified via SSH and GitHub API at 2026-10-18T05:00:30.893829+08:00; October 18 review bookkeeping is published separately |
+| Unpublished selected fixes | None. Prior implementation e18cdc78 and publication follow-up c6b69c95 are on remote main. October 18 adds no code repair and leaves all undecided behavior unimplemented |
+| Pending candidate | 103 historical discussion items carried forward; 0 new items on October 18. No response or recurring run is treated as approval |
 | Deployment | Latest recorded evidence, not live-checked this run: dmit uses account-isolation snapshot `d9caa87c346b8d42f241c7598b8104967eb0b561` (October 15 22:08); dmit2/bawg last recorded `a968188caa4c873fd9523ed087057b3e723e2b08` (October 14). See feature-branch source mapping `605896e1`; no server contacted |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
 The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.32 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
+## Review on 2026-10-18 — no new upstream changes
+
+Checked at **2026-10-18T04:59:57.901172+08:00** (Asia/Shanghai). GitHub release listing, latest release, actual tag reference and fetched upstream main all still identify **v8.0.32 / `911f49cbd49f4fe2516979754a7488a3fd14fe64`**, released **2026-10-16T18:57:27Z**. Incremental range **`911f49cbd49f4fe2516979754a7488a3fd14fe64..911f49cbd49f4fe2516979754a7488a3fd14fe64` has 0 commits**, with no main-only remainder. No new implementation is selected; the previous nine-commit classification and all older partial/deferred scopes remain in force.
+
+Freshly read the skill, validation/publication references, AGENTS and both the user checkout and published-main ledgers. User checkout remains clean on **`codex/user-provider-isolation` / `605896e1b7a3637665d31e1df93adf8ecdcc67fa`**; its older checkpoint is not the current publication boundary. Verified `git@github.com:vpromise/CodexProxy.git`, ADMIN permission, main as default and unprotected target, branch/index/remotes/worktree/process state. No other active sync was found. No prior selected repair awaits commit or push: both implementation **`e18cdc7818bc11f038353ca9b57ba714d923197a`** and its follow-up **`c6b69c951d5eaf42dedb6c811d22815e9d698cfa`** are in published main. SSH and GitHub API returned c6b69c95 at **2026-10-18T05:00:30.893829+08:00**. Local main/feature branches are not moved or combined with remote main; no user changes or ignored files are removed.
+
+### Exact-input validation reuse, not new test execution
+
+A disposable detached worktree at c6b69c95 is used only for this review ledger. Before editing the ledger, freshly enumerated and hashed all tracked/nonignored inputs plus actual Go compiler/test/embed inputs. Compared with the verified October 17 evidence archive, SHA-256 **`ed5e0e4ae68c4cbf7c004d38e7486947b6c986049500aa052f163051e2d14363`**:
+
+- **1638-file** non-ledger manifest matches byte-for-byte: **`883da0f688944c2acbc94c41b81ab53e0f2b11b4725b671d832f289e60bb4875`**.
+- All **1054 actual compiler/test/embed files across 92 packages** match prior evidence; no candidate input lies outside the manifest. User checkout's **1056 inputs / 94 packages** also match its previous independent audit; this does not validate the divergent account-isolation branch together with main fixes.
+- Go **1.27.1**, **darwin/arm64**, **CGO=1**, no GOWORK; recorded toolchain fields match. `go mod verify` was executed today: **exit 0, all modules verified** (0.42 s). The candidate retains fixed catalogs and embedded assets.
+- Therefore reuse October 17's actual successful checks: **44 focused tests / 3 packages**, **3883 full tests / 68 tested packages**, **2621 race tests / 21 packages**, and **server compilation**. Their source hash is the manifest above. **These suites and compilation were not rerun on October 18**; only documentation changes today. Prior binary hash `d3615c5106ee1172b1eab64ef486bcbf20aeecf2e23bcb34a0bf1bb6c0776c42` identifies the earlier disposable build, not a new deployment artifact.
+- Prior coverage limits remain explicit: two named 127.0.0.2 bind tests command-excluded, optional TLS capture unconfigured, three allocation-budget tests skipped under race but passed normally. No fresh listener probe is needed for this no-test run; do not claim the old probe was performed today. No Linux/Windows/live provider or combined-feature verification is claimed.
+- Primary HEAD, branch, index tree, status and tracked/nonignored file hashes match the start snapshot. This ledger-only diff does not alter runtime/test/build inputs; compare them again before publication.
+
+Fresh baseline exact-SHA GitHub inspection: **0 workflow runs / 0 check runs / 0 commit statuses**, aggregate `pending` with no statuses. The six unchanged definitions were checked: PR/PR-target/tag triggers only, no ordinary main-push trigger. **No observed CI run is not a CI pass.** Check the exact new review commit after normal push; do not create empty commits, change policy or create tags to trigger CI.
+
+### Pending scopes and preserved behavior
+
+**103 historical items remain unresolved; 0 new discussion items.** Carry forward every item individually in the dated delivery report, retaining its references, current local behavior, reason, suggested scope, benefit/risk, decision, tests and rollback plan. The previously added 101 (plugin resident images), 102 (automatic thinking drop policy) and 103 (layered cooldown persistence) are now historical, not new today. No pending scope gains approval from this heartbeat. Previously completed explicit binding-beta and Haiku 5.5 prefill fixes remain completed; catalog/automatic-drop extensions remain separate decisions.
+
+No new code repair, fingerprint change, configuration migration, credential/cooldown policy change, tag, Release, CI modification or deployment. Fresh source inspection still shows **Claude Code 2.1.280**, **Codex runtime 0.154.0**, **catalog-fetch default 0.155.0**. No server accessed; preserve existing deployment history as historical evidence. No Keeper or skill edits. Publish only this meaningful check/validation-reuse ledger and its publication bookkeeping, with normal main pushes and exact remote/CI readbacks; archive evidence before removing only this run's worktree and scratch files.
 
 ## Published on 2026-10-17 — stream metadata and explicit request compatibility
 
