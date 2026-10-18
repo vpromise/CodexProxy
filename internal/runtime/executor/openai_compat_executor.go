@@ -428,6 +428,7 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 		var param any
 		var streamUsage helps.StreamUsageBuffer
 		var seenDone bool
+		var sawFinishReason bool
 		var streamFailed bool
 		var streamAborted bool
 		var upstreamEvent string
@@ -483,6 +484,11 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 				if streamErr, isError := openAICompatStreamDataError(dataPayload, eventName); isError {
 					publishStreamError(streamErr, true)
 					return true
+				}
+				for _, choice := range gjson.GetBytes(dataPayload, "choices").Array() {
+					if reason := choice.Get("finish_reason"); reason.Exists() && reason.Type != gjson.Null && strings.TrimSpace(reason.String()) != "" {
+						sawFinishReason = true
+					}
 				}
 			}
 
@@ -559,10 +565,12 @@ func (e *OpenAICompatExecutor) ExecuteStream(ctx context.Context, auth *cliproxy
 			}
 		} else if !seenDone {
 			// A clean EOF without translator-confirmed completion remains an error.
-			if responseFormat == sdktranslator.FormatOpenAIResponse {
+			if responseFormat == sdktranslator.FormatOpenAIResponse || (responseFormat == sdktranslator.FormatClaude && !sawFinishReason) {
 				streamErr := statusErr{code: http.StatusBadGateway, msg: "upstream stream closed before [DONE]"}
 				helps.RecordAPIResponseError(ctx, e.cfg, streamErr)
-				reporter.PublishFailure(ctx, streamErr)
+				if !streamUsage.PublishFailure(ctx, reporter, streamErr) {
+					reporter.PublishFailure(ctx, streamErr)
+				}
 				select {
 				case out <- cliproxyexecutor.StreamChunk{Err: streamErr}:
 				case <-ctx.Done():

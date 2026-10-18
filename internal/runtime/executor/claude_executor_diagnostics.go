@@ -2,6 +2,7 @@ package executor
 
 import (
 	"bytes"
+	"context"
 	"strings"
 
 	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
@@ -115,8 +116,12 @@ func observeClaudeStreamLine(line []byte, messageID *string, completed *bool) {
 func claudeMessageIDFromSSE(data []byte) string {
 	var messageID string
 	completed := false
-	for _, line := range bytes.Split(data, []byte("\n")) {
-		observeClaudeStreamLine(line, &messageID, &completed)
+	scanner := helps.NewCodexSSEScanner(context.Background(), bytes.NewReader(data), 52_428_800)
+	for scanner.Scan() {
+		observeClaudeStreamLine(scanner.Bytes(), &messageID, &completed)
+	}
+	if scanner.Err() != nil {
+		return ""
 	}
 	if !completed {
 		return ""
