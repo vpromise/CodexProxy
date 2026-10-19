@@ -83,7 +83,7 @@ func ginLogrusLogger(generateRequestID func() (string, error)) gin.HandlerFunc {
 		if requestID == "" {
 			requestID = "--------"
 		}
-		logLine := fmt.Sprintf("%3d | %13v | %15s | %-7s \"%s\"", statusCode, latency, clientIP, method, path)
+		logLine := fmt.Sprintf("%3d | %13v | %15s | %-7s %q", statusCode, latency, clientIP, method, path)
 		if errorMessage != "" {
 			logLine = logLine + " | " + errorMessage
 		}
