@@ -66,6 +66,7 @@ var claudeCodeSubclientByEntrypoint = map[string]string{
 var nativeClaudeEntrypoints = map[string]bool{
 	"cli":           true,
 	"sdk-cli":       true,
+	"sdk-ts":        true,
 	"claude-vscode": true,
 }
 
@@ -99,8 +100,8 @@ type ClaudeCodeRequestDetection struct {
 // profile recognizes measured native title-helper requests: since 2.1.252 the
 // helper rides the main cli beta baseline (plus structured-outputs), so the
 // exact beta allowlist and the title body shape, not a missing claude-code
-// beta, are the discriminator. Generic sdk-ts/sdk-py Agent SDK entrypoints
-// remain unconfirmed and receive CLI cloaking.
+// beta, are the discriminator. Standard sdk-ts requests use the same strong
+// signals as CLI; generic sdk-py entrypoints remain unconfirmed.
 func DetectClaudeCodeRequest(headers http.Header, payload []byte, countTokens bool, configs ...*config.Config) ClaudeCodeRequestDetection {
 	var cfg *config.Config
 	if len(configs) > 0 {

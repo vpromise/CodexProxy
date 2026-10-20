@@ -46,6 +46,7 @@ func TestClaudeExecutorStreamTruncationReportsError(t *testing.T) {
 	pluginName := "test-claude-passthrough-truncation"
 	plugin := &captureClaudeUsagePlugin{
 		records: make(chan usage.Record, 4),
+		authID:  t.Name(),
 	}
 	usage.RegisterNamedPlugin(pluginName, plugin)
 	t.Cleanup(func() {
@@ -53,7 +54,7 @@ func TestClaudeExecutorStreamTruncationReportsError(t *testing.T) {
 	})
 
 	exec := NewClaudeExecutor(&config.Config{})
-	auth := &cliproxyauth.Auth{Attributes: map[string]string{
+	auth := &cliproxyauth.Auth{ID: t.Name(), Attributes: map[string]string{
 		"api_key":  "key-123",
 		"base_url": server.URL,
 	}}
@@ -120,6 +121,7 @@ func TestClaudeExecutorTranslatedStreamTruncationReportsError(t *testing.T) {
 	pluginName := "test-claude-translated-truncation"
 	plugin := &captureClaudeUsagePlugin{
 		records: make(chan usage.Record, 4),
+		authID:  t.Name(),
 	}
 	usage.RegisterNamedPlugin(pluginName, plugin)
 	t.Cleanup(func() {
@@ -127,7 +129,7 @@ func TestClaudeExecutorTranslatedStreamTruncationReportsError(t *testing.T) {
 	})
 
 	exec := NewClaudeExecutor(&config.Config{})
-	auth := &cliproxyauth.Auth{Attributes: map[string]string{
+	auth := &cliproxyauth.Auth{ID: t.Name(), Attributes: map[string]string{
 		"api_key":  "key-123",
 		"base_url": server.URL,
 	}}
@@ -360,10 +362,14 @@ func TestClaudeExecutorMultiLineDataMessageStopAndErrorEvents(t *testing.T) {
 	}
 }
 
-type captureClaudeUsagePlugin struct{ records chan usage.Record }
+type captureClaudeUsagePlugin struct {
+	records chan usage.Record
+	authID  string
+}
 
 func (p *captureClaudeUsagePlugin) HandleUsage(_ context.Context, record usage.Record) {
-	if record.Provider == "claude" {
+	// Usage dispatch is asynchronous; ignore records queued by other tests.
+	if record.Provider == "claude" && record.AuthID == p.authID {
 		select {
 		case p.records <- record:
 		default:

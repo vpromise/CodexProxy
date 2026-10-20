@@ -217,7 +217,11 @@ func (f *responsesSSEFramer) repairErrorPayload(payload []byte) []byte {
 	errMsg := responsesSSEPayloadErrorMessage(payload)
 	status := errMsg.StatusCode
 	f.terminalError = errMsg
+	isResponseFailedPayload := gjson.GetBytes(payload, "type").String() == "response.failed" && gjson.GetBytes(payload, "response").IsObject()
 	failureEvent := f.failureEvent
+	if isResponseFailedPayload {
+		failureEvent = "response.failed"
+	}
 	if failureEvent != "response.failed" {
 		failureEvent = "error"
 	}
@@ -225,6 +229,20 @@ func (f *responsesSSEFramer) repairErrorPayload(payload []byte) []byte {
 	errText := responsesStreamErrorText(errMsg, status)
 	if failureEvent == "response.failed" {
 		chunk := handlers.BuildOpenAIResponsesStreamFailedChunk(status, errText, 0)
+		// Preserve useful partial output and usage, but replace only the error
+		// with its sanitized form. Never truncate the whole response envelope.
+		if isResponseFailedPayload && gjson.GetBytes(payload, "response").IsObject() {
+			repaired := f.repairCompletedPayload(payload)
+			respRaw := []byte(gjson.GetBytes(repaired, "response").Raw)
+			respRaw, _ = sjson.SetBytes(respRaw, "status", "failed")
+			if sanitizedErr := gjson.GetBytes(chunk, "response.error"); sanitizedErr.Exists() {
+				respRaw, _ = sjson.SetRawBytes(respRaw, "error", []byte(sanitizedErr.Raw))
+			}
+			env := []byte(`{"type":"response.failed","sequence_number":0,"response":{}}`)
+			if updated, errSet := sjson.SetRawBytes(env, "response", respRaw); errSet == nil {
+				chunk = updated
+			}
+		}
 		return []byte(fmt.Sprintf("event: response.failed\ndata: %s\n\n", chunk))
 	}
 	chunk := handlers.BuildOpenAIResponsesStreamErrorChunk(status, errText, 0)
