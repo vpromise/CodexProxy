@@ -16,13 +16,173 @@ Updated: 2026-10-20 (Asia/Shanghai). This is the checkpoint for selective backpo
 | Published source tree | `f1bccc89958abefd52fa60e733f47f6ca1c87756` (October 20 implementation commit) |
 | Latest publication | October 20 implementation [06fbdf20](https://github.com/vpromise/CodexProxy/commit/06fbdf20572745a3124bc30bc7df7664987cf729) (`06fbdf20572745a3124bc30bc7df7664987cf729`), normally pushed and verified via SSH/GitHub API at 2026-10-20T05:14:15.755134+08:00; separate publication-ledger commit follows |
 | Unpublished selected fixes | None. October 20 selected code was committed, pushed and remotely verified; no older authorized unpublished batch found |
-| Pending candidate | 111 unresolved discussion items: 108 historical plus 3 new (109–111); historical 2/4/11/15/16/23/33/45/63/71/82/83/97/107 updated. Recurring runs do not imply approval |
+| Pending candidate | 12 active discussion topics (K1–K6 priority; U1–U6 uncertain), covering 27 original IDs; 84 of the previous 111 entries closed from the daily queue by explicit user-authorized triage on October 20. See authoritative active register below |
 | Deployment | October 18: dmit2 and bawg verified at published-main build `181db3c5abfbd60e1571d05918649f6f77064357` (`codexproxy-20261018-181db3c5`), implementation e18cdc78; serial rollout below. dmit is excluded from all subsequent deployment/check access by user instruction; its last recorded October 15 account-isolation snapshot `d9caa87c346b8d42f241c7598b8104967eb0b561`, source mapping `605896e1` and recovery material are preserved |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
 The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.35 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
+## Active decision register — user-authorized triage on 2026-10-20
+
+**This section supersedes every older statement below that all 111 (or earlier totals) remain pending.** At the user's explicit request to remove unnecessary accumulated decisions, all 111 IDs were reviewed against published source **9807812bd972485322f02012eabc28ee6fd3add6**, the recorded upstream evidence and current fork scope. The upstream review boundary remains v8.0.35 / ae3ee3be; this is backlog triage, not a new upstream range review or runtime implementation.
+
+**84 entries leave the daily pending queue; 27 original entries remain, consolidated into 12 topics: 6 priorities and 6 uncertain topics.** Closure breakdown: 19 excluded feature expansions, 20 decisions to keep the existing policy, 5 already-covered/unnecessary duplicate proposals, and 40 conditional entries archived until an actual consumer or concrete failure exists. Closed does **not** mean implemented, fixed or permanently impossible. In particular, plugin lifecycle risks remain activation checks, and existing optional Home/plugin/store code is not deleted. No live server/plugin/store usage was assumed from historical records.
+
+For future sync runs: start from this register. Do not restore closed IDs to the daily count merely because the user has not replied, an upstream follow-up landed, or older ledger paragraphs say pending. Reopen only for a materially new supported-path failure, a concrete consumer/enablement change, or explicit user request, and record the new evidence. Do not add unsupported-provider features, generic refactors, or unconsumed SDK/config options as approval requests. A retained topic is not implementation authorization; subcases can be approved separately. Preserve existing approved repairs and their tests.
+
+### Priority topics
+
+**K1. Configuration and auth-file write consistency — original IDs 18, 59, 92, 97, 105.** Prioritize existing native paths: explicit false/deleted nested settings, mutable management configuration, old watcher snapshots and delete/recreate events. New local diagnostics still lose explicit false and retain an obsolete strict-mode=true. Keep file-digest and temporary-retention policies separately decidable; no v8 migration. Decide fail-closed versus retain-current on unreadable/incomplete files. Test real temporary files, save/readback, concurrent setters, stale-read/new-save, deletion, ABA and reload. Roll back coordination code/config backups without restoring rotated tokens.
+
+**K2. Background refresh job identity — original IDs 5.** Queue jobs still carry only auth ID; the worker calls refreshAuth without the enqueue epoch. Completion fencing exists, so this is not a claim that old tokens overwrite new ones. Propose only job ownership/epoch and pending-release bookkeeping. Preserve five-day refresh lead and retry policy. Test queued replacement, disable/re-enable, cancellation/restart, full queues and race. Roll back task bookkeeping only.
+
+**K3. Quota evidence and late-success ordering — original IDs 79, 100, 103.** Keep confirmed quota evidence when cancellation races with it, while pure cancellation must not cool credentials. A new diagnostic reproduces old success clearing newer auth-level cooldown when Model is empty. Fix that narrow ordering rather than replacing every dispatch counter. Item103 remains a reproduction/investigation task: existing 401-recovery controls do not prove every credential-quota/model-capacity shadow scenario. Preserve scope, deadline monotonicity, ABA/manual disable and healthy siblings. Test cancellation/429, older success/new failure, independent cooldowns and restart. Roll back only new classification/watermark logic; never clear existing cooldowns.
+
+**K4. Shutdown and Codex WebSocket lifecycle — original IDs 7, 87.** Shutdown context is created at Run startup; executor replacement and credential removal may close all execution sessions. Prioritize the shutdown timer placement separately from connection preservation. Decide which proxy/auth/routing changes must invalidate old connections. Test long-running service shutdown, active stream draining, shared-store reload and per-auth removal. Roll back lifecycle wiring without introducing inference timeouts.
+
+**K5. Management-secret protection before remote-store bootstrap — original IDs 99.** Conditional but important: code can upload initial Git/Object/Postgres template before LoadConfig hashes the management secret. No real secret or remote store was accessed, and no leak is asserted. Propose v7-only hash-and-verify before upload, including failed bootstrap/restart; complex aliases that retain plaintext should fail closed. Confirm whether those stores are used. Test fake upload bytes, aliases/duplicates, empty/already-hashed secrets and retries. A rollback must disable unsafe initialization rather than restore plaintext upload.
+
+**K6. Request and decompressed-body memory limits — original IDs 88.** Keep as an explicit resource-protection decision, not a claim of a demonstrated attack. Choose a limit from actual image/context requirements and any existing gateway limits; cover chunked and zstd decoded bytes with consistent 413. Default/threshold needs user input. Test small synthetic budgets at boundaries, cancellation and logging readers. Disable only the new limit to roll back.
+
+### Uncertain topics for later discussion
+
+**U1. Rejected-token quarantine and background backoff — original IDs 4, 71.** Need actual repeated 401/invalid_grant symptoms before choosing quarantine/recovery and exponential backoff. Preserve approved five-day lead, version fencing and no ambiguous rotating-token replay. Decide terminal criteria and re-login/manual-refresh recovery. Test stale401/new token, stream401, 429/5xx and disable. Roll back only added state/counters.
+
+**U2. Connection-error classification and short per-minute retry — original IDs 64, 108.** Two separately decidable cases: exact statusless HTTP/2 lifecycle errors and exact Claude per-minute short Retry-After exceptions. Seek sanitized real samples. Do not turn classification into broad network retries or retroactively shorten stored deadlines. Test sent/unsent request boundaries, HTTP status precedence, duplicate/conflicting headers and quota evidence. Roll back narrow classification only.
+
+**U3. Claude cross-request continuity — original IDs 8, 10, 109.** Tool-name continuation, pinned dates and search-result caching are distinct optional stateful features. Need the actual client replay contract. Prefer client replay unless server state is necessary; any cache must isolate caller/auth/session and bound bytes/count/TTL. Benefit is continuity; risks include retained sensitive data, stale dates and cross-session reuse. Test token changes, restarts/eviction, empty-history intent and concurrent branches; roll back only the added caches.
+
+**U4. Pinned model metadata and actual capability matching — original IDs 33, 77, 104.** Retain concrete model/catalog/off-mapping decisions, not a blanket request to copy every new beta. Ask which native models/aliases and compatible routes are used. Pin only selected metadata; decide explicit rejection versus minimal reasoning when off is unsupported. Preserve canonical suffix/body rules and current fingerprints. Test pinned catalog, native/compat/alias, off/auto, count_tokens and minimum betas; roll back metadata/mapping only.
+
+**U5. Concrete tool-protocol compatibility — original IDs 49, 81, 111.** Retain only out-of-int64 schema bounds, complete Codex-to-Claude tool search, and web_search history/declarations. Reject generic lossy schema cleanup. Need real tools/errors or a large-tool consumer; each subcase is separately selectable. Do not auto-enable paid search or silently drop Lite history. Test numeric fidelity, call/result/history, mixed routes, tools null/empty, tool_choice and HTTP/WS/compact. Roll back narrow converters/flags independently.
+
+**U6. Mixed quota/manual-suspension catalog visibility — original IDs 86.** Only the mixed-state catalog presentation remains undecided; single-credential quota visibility and healthy siblings are already covered. Decide whether temporarily unavailable models should remain visible. No scheduler change is proposed. Test mixed/manual/expired/no-timestamp cases and cache invalidation; roll back catalog aggregation only.
+
+### Corrected historical assessment and validation
+
+Item96's earlier statement that registerResolvedModelsForAuth publishes without a final check was incorrect. The actual path calls service.applyAuthModelRegistration -> Manager.ApplyModelRegistration, holding the manager read lock while checking registration epoch, disabled/status, provider, prefix, auth kind and attributes, then invokes registry mutation. Local commit102f79aa already supplies this native protection. Items75/96 therefore leave the active queue; configuration snapshot ownership remains K1, and unadopted plugin publication frameworks are not added. This correction does not claim every possible registry/configuration race is solved.
+
+On unchanged production source, four new temporary diagnostic tests were run with `go test -json -count=1 ./internal/config ./sdk/cliproxy/auth -run ^TestTriage`: one publication-fence test passed (five subcases: prefix, attributes, disabled, replacement, current), and three tests failed as intended by correctness assertions, proving two configuration-save gaps and late auth-level success clearing newer cooldown. These failures support retaining59/100; they are **not** passing fix validation. Temporary fixtures and raw logs are archived outside the repository and excluded from publication.
+
+The source/test/build baseline matches the morning's tested 1642-file manifest **dd3a0c7e3e2f870d26bf4c3915d67bc8abef4b451e0f1cb1ce45739788d0fd50** exactly. Only this ledger is published by this triage; no production or permanent test changes, new full-suite/build claim, deployment, tag, Release, Keeper or skill modification. Focused registration/lifecycle controls were rerun with race instrumentation: 6 top-level tests passed, exit0, no skips (13.51s). The three diagnostic correctness failures were deliberately excluded from that control selection, not fixed or relabeled as passing. Exact documentation commit/remote/CI readback is recorded in the task report. The Chinese report includes every original ID, its closure/reopen condition or retained topic, as well as the detailed decision/testing/rollback plans. Historical reports remain evidence, not the active queue.
+
+### Complete original-ID disposition map
+
+| Original ID | Upstream source(s) | Current disposition and reason |
+| --- | --- | --- |
+| 1 | `f8e4a840` `84740392` | CLOSED (conditional): Metric-definition change without an established consumer; do not add an observer framework. |
+| 2 | `4a8ecf5c` `9612b7ac` `b9971ee3` `ac42accc` `07feedf7` `4d34502f` | CLOSED (scope): Keep existing optional Home code; exclude new remote scheduling ownership. |
+| 3 | `67465884` | CLOSED (conditional): Plugin disable lifecycle is an enablement gate, not an active native backlog item. |
+| 4 | `50d5fe18` `c163bae4` `feb63984` | U1 (uncertain): Quarantine/recovery remains a policy choice, not missing version fencing. |
+| 5 | `81756a57` | K2 (priority): Queued job has no enqueue epoch; preserve existing refresh completion fencing. |
+| 6 | `8a01bc02` | CLOSED (conditional): Defer custom Store mutation/whole-load contract until a real consumer exists. |
+| 7 | `759c57c2` | K4 (priority): Shutdown timeout begins at service startup, not shutdown. |
+| 8 | `678a9257` `a2976eb8` `e7b22260` | U3 (uncertain): Tool aliases across requests need the actual client replay contract. |
+| 9 | `eb6a768d` | CLOSED (scope): Exclude optional explicit prompt-cache mode from the current product scope. |
+| 10 | `6d57ac90` `7604d3df` | U3 (uncertain): Pinned session date introduces state/TTL and must not share untrusted session IDs across callers. |
+| 11 | `2bc236d2` `344e0ef9` | CLOSED (scope): Exclude a new Claude remote-compaction framework and removed-provider dependencies. |
+| 12 | `6331b38b` `d318bcc3` | CLOSED (scope): Keep native WS interrupt; exclude the additional HTTP interruption protocol. |
+| 13 | `42c9680e` `6331b38b` | CLOSED (scope): Exclude new duplex steering until an explicit client requires it. |
+| 14 | `ddc3f731` `28100e54` | CLOSED (scope): Exclude new LCP/Merkle session architecture. |
+| 15 | `d9922f05` `9a0502c8` `31f4cfab` `6c385e60` `4a2c8186` `01274e22` `48686ccc` `775a308f` `097511b8` `63c04b4b` `52d5507d` `3be5fa44` `0fb50a18` `fa68946a` `d50a1995` `c95c3e7b` `ae3ee3be` | CLOSED (scope): Keep v0/v7; retire blanket v8 migration. Configuration concurrency remains K1. |
+| 16 | `5756d76e` `d69962e4` | CLOSED (conditional): Native PatchAuth is covered; residual plugin child-state work is conditional. |
+| 17 | `5530cbd2` | CLOSED (conditional): Archive plugin partial-attribute merge until an actual plugin needs it. |
+| 18 | `5530cbd2` | K1 (priority): Temporary replacement grace still needs real filesystem evidence; considered with file freshness, not a blanket delay. |
+| 19 | `c404af96` | CLOSED (conditional): Native priority exists; plugin ownership extension is conditional. |
+| 20 | `855a7223` | CLOSED (conditional): Archive plugin HTTP cancellation ABI expansion. |
+| 21 | `1c878749` | CLOSED (conditional): Archive plugin RPC status propagation as an enablement gate. |
+| 22 | `afba07ba` | CLOSED (conditional): Archive plugin YAML fidelity until plugin configs are actually used. |
+| 23 | `b715526a` `1ad175b6` | CLOSED (scope): Existing lock-free callback snapshot remains; exclude new cross-priority policy. |
+| 24 | `6cd86fb2` | CLOSED (conditional): Keep builtin fallback; archive plugin terminal-denial policy. |
+| 25 | `ac42accc` | CLOSED (scope): Exclude the quota plugin framework, not just its wrappers. |
+| 26 | `bfa5aed4` `8348923a` | CLOSED (scope): Exclude Home plugin loading and remote cooldown-reset RPCs. |
+| 27 | `b7f321f2` | CLOSED (conditional): Archive extra SDK/plugin image/custom-path protocol. |
+| 28 | `ac3849e5` `8fbf152b` `66c27581` | CLOSED (conditional): No imported plugin usage observer defect; archive interface expansion. |
+| 29 | `cf3102cc` | CLOSED (policy): Keep paired-buffer hook independence; reject speculative call coalescing. |
+| 30 | `c9a06ba6` | CLOSED (policy): Keep defensive buffer copies absent measured pressure. |
+| 31 | `7c41cd05` | CLOSED (conditional): Existing environment token support suffices; archive global YAML token option. |
+| 32 | `1672be5d` `01e28567` `da5f109f` | CLOSED (scope): Keep pinned catalogs/offline contract; exclude arbitrary catalog sources. |
+| 33 | `ed980be3` `12245ad3` `b4e5cc01` `8df4e42a` | U4 (uncertain): Capability advertisements must match real routes, without changing canonical thinking. |
+| 34 | `df2774ca` | CLOSED (conditional): Archive per-channel limit overrides until validated for a concrete model. |
+| 35 | `3b2882b7` `d3cd466d` `f33f04d6` | CLOSED (policy): Keep opt-in multi-agent behavior; no automatic metadata rewriting. |
+| 36 | `3ebee065` `d306f2c5` | CLOSED (scope): Keep native freeform tools; exclude new apply_patch bridge architecture. |
+| 37 | `91c934f6` | CLOSED (scope): Exclude additional local_shell bridge/dispatcher. |
+| 38 | `868e137f` | CLOSED (policy): Keep current reconciliation; no speculative global finalizer rewrite. |
+| 39 | `c997cbb5` | CLOSED (policy): Keep error propagation; exclude delivery ACK and early success settlement. |
+| 40 | `25f40d8c` `e9463ff5` `f8467f07` `cde7d57e` `e84e248c` `611ebba4` | CLOSED (conditional): Archive response-model telemetry framework. |
+| 41 | `2fe9932b` | CLOSED (conditional): Existing request IDs suffice; archive per-execution tracing schema. |
+| 42 | `cbc4cd55` | CLOSED (scope): Exclude an unused single-model details endpoint. |
+| 43 | `8f23ad02` `294b7f5b` `4311ae87` `678da561` | CLOSED (conditional): Archive speculative alias-template fixes pending a concrete mapping failure. |
+| 44 | `673131f5` | CLOSED (policy): Keep full instructions; reject behavior-changing truncation for size alone. |
+| 45 | `d2597a24` `7a0b7563` `a4660260` `cc5682c5` `674dbe8f` `be9fbd94` `a68c7d8e` `29076c98` | CLOSED (conditional): Keep native signature validation; archive compatible RouterSuffix support pending demand. |
+| 46 | `81d6ba77` `40cc6489` | CLOSED (policy): Reject fabricated reasoning; archive backend-specific replay only. |
+| 47 | `690f4f31` `0d18d3b3` | CLOSED (policy): Keep current token dialect/default budgets; no automatic limit expansion. |
+| 48 | `859c4865` `be4b28f1` | CLOSED (policy): Keep explicit tiers; reject automatic priority/cost expansion. |
+| 49 | `320100ec` `57d005fe` | U5 (uncertain): Retain only concrete out-of-int64 bounds; generic lossy schema cleanup is excluded. |
+| 50 | `4b5adbbe` | CLOSED (scope): Exclude unsupported third-party video conversion. |
+| 51 | `4cd17293` `c4982e84` | CLOSED (conditional): Archive speculative image-result rewrites; preserve attachment loss refusal. |
+| 52 | `cc545cbf` | CLOSED (policy): Reject broad history reordering without a supported-path failure. |
+| 53 | `75b854eb` `369df975` | CLOSED (covered): Existing reversible collision-aware Responses naming covers the intended repair; reject old lossy approach. |
+| 54 | `8a6a3968` | CLOSED (conditional): Retire broad tool-index redesign absent measured need. |
+| 55 | `6004ebdf` | CLOSED (policy): Keep fail-closed ambiguous tool-name restoration. |
+| 56 | `4332048d` | CLOSED (policy): Keep measured helper recognition; reject markerless heuristics. |
+| 57 | `f351924f` | CLOSED (conditional): Archive per-credential Codex cloaking override. |
+| 58 | `93b94d22` `cc774108` | CLOSED (conditional): Archive unused priority PATCH extension. |
+| 59 | `f4852170` | K1 (priority): Fresh diagnostics reproduce lost explicit false and stale nested cloak value. |
+| 60 | `b4ff581d` | CLOSED (conditional): Archive cooldown presentation redesign pending a concrete UI problem. |
+| 61 | `e56547f3` | CLOSED (conditional): Archive redundant-rebuild optimization absent performance or reachable race evidence. |
+| 62 | `6724a958` | CLOSED (covered): Existing manager controls preserve recovery hints; retire helper-only defect inference. |
+| 63 | `e3cbe437` `d69962e4` `1ad175b6` | CLOSED (conditional): Keep native lifecycle fixes; archive broad lock rewrites pending evidence. |
+| 64 | `bef1f65c` `56eee6a4` | U2 (uncertain): Retain exact connection-error classification only; broad automatic retry excluded. |
+| 65 | `76ac75e6` | CLOSED (conditional): Archive auth-list pagination until measured scale requires it. |
+| 66 | `1ca975df` | CLOSED (conditional): Archive additional cooldown snapshot API. |
+| 67 | `2a6b87ac` | CLOSED (conditional): Archive downstream keepalive until an idle-disconnect case exists. |
+| 68 | `b908ed5d` | CLOSED (conditional): Archive optional Git-backed credential-store recovery, distinct from this code repository. |
+| 69 | `fc96a87f` | CLOSED (policy): Keep existing credential filenames; reject gratuitous migration. |
+| 70 | `59baf731` | CLOSED (policy): Keep unknown plan distinct from free; do not import remaining plan defaults. |
+| 71 | `58461c8f` `c163bae4` `feb63984` | U1 (uncertain): Background backoff is separate from already-fixed immediate retry safety. |
+| 72 | `b773607e` | CLOSED (scope): Exclude FreeBSD publication target. |
+| 73 | `ef9e7120` | CLOSED (scope): Exclude remote TUI expansion. |
+| 74 | `f702bc1a` | CLOSED (conditional): Archive speculative Lite affinity/header extension. |
+| 75 | `7c2133e2` | CLOSED (covered): Native final-publication fence exists; retire redundant full-auth scan proposal. |
+| 76 | `02548d67` | CLOSED (covered): Local persistence errors propagate; upstream warning framework is unnecessary. |
+| 77 | `f62d4d28` `911f49cb` | U4 (uncertain): Retain actual needed model entries only; blanket beta propagation is excluded. |
+| 78 | `1cce9325` `80809679` | CLOSED (policy): Approved billing-boundary repair is done; retain conservative remaining cooldown policy. |
+| 79 | `5dbd92a0e0dfcf1d98adf58e793f3ce6c95ff082` | K3 (priority): Existing cancellation path can return before processing a received quota failure; preserve pure-cancel behavior. |
+| 80 | `37fe2608ee429067da1e6e99b03d2d1ee262d755` | CLOSED (conditional): Archive authentication-source usage schema expansion. |
+| 81 | `58c0f6a2` `a68ad134` `82912f24` `48ad3487` `aeec5e97` `ae33711c` `52992659` `11f04c20` `8eed08ef` `77e3d0d3` `956c3da1` `03a3cfec` `29bd0415` `ce518c9b` `89006da1` `77cf88b0` `a27799ec` `97ba1e89` `1fbb06d5` `77fd91e8` | U5 (uncertain): Cross-protocol tool search is an optional complete feature, not just a capability flag. |
+| 82 | `7b0319fb` `355fd10e` `d50a1995` `c95c3e7b` `ae3ee3be` | CLOSED (scope): Exclude new SIWC login/binding architecture. |
+| 83 | `e240bd84` `8df4e42a` | CLOSED (policy): Keep pinned valid template; reject synthetic gpt-5.5 fallback. |
+| 84 | `7a687f42` | CLOSED (conditional): Archive new affinity-rebind policy pending a concrete cost/recovery case. |
+| 85 | `0c708401` `3d61c954` `6e4c54e5` `696bbaee` | CLOSED (scope): Exclude v8 quota-plugin query contract. |
+| 86 | `bbcd5734` | U6 (uncertain): Retain only mixed manual/quota catalog presentation; no duplicate single-auth repair. |
+| 87 | `1e37b52b` | K4 (priority): Existing replacement/removal can close all provider sessions; invalidation policy needs definition. |
+| 88 | `dd7b4334` | K6 (priority): Optional body/decompression budget needs an actual deployment threshold. |
+| 89 | `fdbc6103` `a7608a8a` | CLOSED (conditional): Archive plugin multi-auth save/ID migration; native file freshness stays K1. |
+| 90 | `519d590e` | CLOSED (conditional): Keep pre-first-byte HTTP errors; archive bootstrap heartbeat option. |
+| 91 | `091ff27f` | CLOSED (conditional): Archive optional remote-store retry repair; security seed issue99 remains active. |
+| 92 | `e235fb3d` `e230a04b` `81573f04` `1631875b` `fa68946a` | K1 (priority): Shared config ownership and stale watcher publication remain; no full architecture change approved. |
+| 93 | `51952a7b` | CLOSED (conditional): Archive SDK HTTP transport decorator without a consumer. |
+| 94 | `50eaed0d` `345cc9d5` | CLOSED (conditional): Archive plugin config default-value exposure. |
+| 95 | `345cc9d5` `b3dc6c3f` | CLOSED (policy): Reject new post-connect TLS timeout under current repository policy. |
+| 96 | `08e5762a` `f75ea073` | CLOSED (covered): Correct prior false absence claim: actual registry publication uses the local locked identity/routing fence. Configuration ownership remains K1. |
+| 97 | `5fc580b1` `7484a521` | K1 (priority): Deletion/recreation and incomplete-file retention policy still needs a precise choice. |
+| 98 | `9db0729f` `4e8a4125` | CLOSED (conditional): Archive operational beta/diagnostic override options. |
+| 99 | `f9437700` | K5 (priority): Remote initialization precedes secret hashing; conditional security issue retained. |
+| 100 | `35af74f9` | K3 (priority): Fresh diagnostic reproduces no-model old-success/new-cooldown clearing. |
+| 101 | `355fd10e` | CLOSED (conditional): Archive dynamic-library lifecycle as a mandatory plugin enablement gate, not a resolved bug. |
+| 102 | `911f49cb` `e13bc9a1` | CLOSED (policy): Reject automatic thinking-block loss/adaptive synthesis; keep explicit caller control. |
+| 103 | `b946d54e` | K3 (priority): Keep investigation only; do not confuse existing 401 recovery with credential-quota shadow persistence. |
+| 104 | `ad9e456d` | U4 (uncertain): Off semantics for selected new models need an explicit choice. |
+| 105 | `c4c1d43e` | K1 (priority): Unversioned file source digest is not implied by request-result fencing; reproduce before adding it. |
+| 106 | `b015f208` `94d1a9a0` `1a28c61e` `bb428247` `3e309fb4` `69d0ff8e` | CLOSED (policy): Keep union exclusion policy; reject account override of global restrictions. Write fidelity stays K1. |
+| 107 | `d7005b63` `adc436ff` `2422c6b0` `50cfd238` | CLOSED (conditional): Archive plugin catalog/visibility changes as an enablement gate. |
+| 108 | `db1bab01` | U2 (uncertain): Exact per-minute exception requires real response evidence and no stored-deadline shortening. |
+| 109 | `9d453bc0` `ab9c06b4` | U3 (uncertain): Search-result cache introduces explicit retention/isolation choices. |
+| 110 | `084b9ca7` | CLOSED (policy): Keep never/native passthrough semantics; exclude unsolicited identity cleanup mode. |
+| 111 | `e7d4c731` | U5 (uncertain): Search tool injection/history deletion affects caller intent and remains undecided. |
 
 ## Published on 2026-10-20 — logging, conversion and catalog repairs
 
