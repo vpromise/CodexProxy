@@ -127,7 +127,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 	messageBlocks := common.NewRawArrayItems(messageCapacity)
 	systemBlocks := make([][]byte, 0, 4)
 	appendSystemText := func(text string, cacheSource gjson.Result) {
-		if text == "" {
+		if strings.TrimSpace(text) == "" {
 			return
 		}
 		block := []byte(`{"type":"text","text":""}`)
@@ -153,7 +153,17 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 				content.ForEach(func(_, part gjson.Result) bool {
 					switch part.Get("type").String() {
 					case "input_text", "output_text", "text":
-						appendSystemText(part.Get("text").String(), part)
+						txt := part.Get("text").String()
+						if strings.TrimSpace(txt) == "" {
+							if part.Get("cache_control").Exists() && len(systemBlocks) > startIdx {
+								prevIdx := len(systemBlocks) - 1
+								if !gjson.GetBytes(systemBlocks[prevIdx], "cache_control").Exists() {
+									systemBlocks[prevIdx] = common.AttachCacheControl(systemBlocks[prevIdx], part)
+								}
+							}
+							return true
+						}
+						appendSystemText(txt, part)
 					default:
 						if block := responsesSystemUnsupportedBlock(part); len(block) > 0 {
 							systemBlocks = append(systemBlocks, block)
@@ -279,7 +289,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 	}
 	emittedToolResults := map[string]struct{}{}
 	emittedRawToolUses := map[string]struct{}{}
-	if input := root.Get("input"); input.Type == gjson.String {
+	if input := root.Get("input"); input.Type == gjson.String && strings.TrimSpace(input.String()) != "" {
 		part := []byte(`{"type":"text","text":""}`)
 		part, _ = sjson.SetBytes(part, "text", input.String())
 		appendParts("user", part)
@@ -301,6 +311,15 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 				var role string
 				var partsJSON [][]byte
 				var droppedPart string
+				attachCacheControlToPrecedingPart := func(src gjson.Result) {
+					if !src.Get("cache_control").Exists() || len(partsJSON) == 0 {
+						return
+					}
+					prevIdx := len(partsJSON) - 1
+					if !gjson.GetBytes(partsJSON[prevIdx], "cache_control").Exists() {
+						partsJSON[prevIdx] = common.AttachCacheControl(partsJSON[prevIdx], src)
+					}
+				}
 				if parts := item.Get("content"); parts.Exists() && parts.IsArray() {
 					parts.ForEach(func(_, part gjson.Result) bool {
 						ptype := part.Get("type").String()
@@ -309,11 +328,15 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 						case "input_text", "output_text":
 							if t := part.Get("text"); t.Exists() {
 								txt := t.String()
-								contentPart := []byte(`{"type":"text","text":""}`)
-								contentPart, _ = sjson.SetBytes(contentPart, "text", txt)
-								contentPart = attachClaudeCitations(contentPart, part.Get("annotations"))
-								contentPart = common.AttachCacheControl(contentPart, part)
-								partsJSON = append(partsJSON, contentPart)
+								if strings.TrimSpace(txt) != "" {
+									contentPart := []byte(`{"type":"text","text":""}`)
+									contentPart, _ = sjson.SetBytes(contentPart, "text", txt)
+									contentPart = attachClaudeCitations(contentPart, part.Get("annotations"))
+									contentPart = common.AttachCacheControl(contentPart, part)
+									partsJSON = append(partsJSON, contentPart)
+								} else {
+									attachCacheControlToPrecedingPart(part)
+								}
 							}
 							if ptype == "input_text" {
 								role = "user"
@@ -322,11 +345,16 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 							}
 						case "refusal":
 							// Claude has no refusal block; the text keeps the turn intact.
-							if t := part.Get("refusal"); t.Exists() && t.String() != "" {
-								contentPart := []byte(`{"type":"text","text":""}`)
-								contentPart, _ = sjson.SetBytes(contentPart, "text", t.String())
-								contentPart = common.AttachCacheControl(contentPart, part)
-								partsJSON = append(partsJSON, contentPart)
+							if t := part.Get("refusal"); t.Exists() {
+								txt := t.String()
+								if strings.TrimSpace(txt) != "" {
+									contentPart := []byte(`{"type":"text","text":""}`)
+									contentPart, _ = sjson.SetBytes(contentPart, "text", txt)
+									contentPart = common.AttachCacheControl(contentPart, part)
+									partsJSON = append(partsJSON, contentPart)
+								} else {
+									attachCacheControlToPrecedingPart(part)
+								}
 							}
 							role = "assistant"
 						case "input_image":
@@ -394,7 +422,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 						}
 						return true
 					})
-				} else if parts.Type == gjson.String && parts.String() != "" {
+				} else if parts.Type == gjson.String && strings.TrimSpace(parts.String()) != "" {
 					contentPart := []byte(`{"type":"text","text":""}`)
 					contentPart, _ = sjson.SetBytes(contentPart, "text", parts.String())
 					partsJSON = append(partsJSON, contentPart)
@@ -882,8 +910,13 @@ func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) []b
 		var partsJSON [][]byte
 		hasImage := false
 		hasFile := false
+		droppedEmptyPart := false
 		output.ForEach(func(_, part gjson.Result) bool {
 			if partJSON := convertResponsesContentPartToClaude(part); len(partJSON) > 0 {
+				if !contentPartHasVisibleContent(partJSON) {
+					droppedEmptyPart = true
+					return true
+				}
 				partsJSON = append(partsJSON, partJSON)
 				partType := gjson.ParseBytes(partJSON).Get("type").String()
 				if partType == "image" {
@@ -896,6 +929,10 @@ func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) []b
 			return true
 		})
 		if len(partsJSON) == 0 {
+			if droppedEmptyPart {
+				toolResult, _ = sjson.SetBytes(toolResult, "content", "")
+				return toolResult
+			}
 			toolResult, _ = sjson.SetBytes(toolResult, "content", output.Raw)
 			return toolResult
 		}

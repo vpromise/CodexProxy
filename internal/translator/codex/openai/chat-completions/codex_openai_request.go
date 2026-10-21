@@ -70,7 +70,7 @@ func convertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 	} else {
 		out, _ = sjson.SetBytes(out, "reasoning.effort", "medium")
 	}
-	out, _ = sjson.SetBytes(out, "parallel_tool_calls", true)
+	out, _ = sjson.SetBytes(out, "parallel_tool_calls", gjson.GetBytes(rawJSON, "parallel_tool_calls").Type != gjson.False)
 	// OpenAI documents reasoning summaries as explicit opt-in output. Leave
 	// reasoning.summary to the source request's canonical summary intent instead
 	// of coupling it to reasoning effort.

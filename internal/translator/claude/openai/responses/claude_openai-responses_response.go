@@ -14,9 +14,43 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// claudeResponsesToolMetadata preserves local history-aware name allocation.
+// It is scoped to one response and never shared between requests or credentials.
+type claudeResponsesToolMetadata struct {
+	winners     map[string]responsesToolDescriptor
+	names       claudeToolNames
+	customNames map[string]struct{}
+}
+
+func newClaudeResponsesToolMetadata(request []byte) claudeResponsesToolMetadata {
+	root := gjson.ParseBytes(request)
+	winners := responsesToolWinners(root)
+	names := buildClaudeToolNamesWithWinners(root, winners)
+	customNames := make(map[string]struct{})
+	for name, descriptor := range winners {
+		if descriptor.toolType == "custom" {
+			customNames[name] = struct{}{}
+			if shortened := names.claudeName(name); shortened != "" {
+				customNames[shortened] = struct{}{}
+			}
+		}
+	}
+	return claudeResponsesToolMetadata{winners: winners, names: names, customNames: customNames}
+}
+
+func (m *claudeResponsesToolMetadata) applyNamespace(item []byte, qualifiedName, itemPath string) []byte {
+	name := m.names.identity(strings.TrimSpace(qualifiedName))
+	namespace := ""
+	if descriptor, ok := m.winners[name]; ok && !descriptor.direct {
+		name, namespace = descriptor.childName, descriptor.namespace
+	}
+	return translatorcommon.SetResponsesToolCallIdentity(item, name, namespace, itemPath)
+}
+
 type claudeToResponsesState struct {
 	// RequestJSON owns the validated request snapshot for this stream.
 	RequestJSON        []byte
+	ToolMetadata       claudeResponsesToolMetadata
 	Seq                int
 	ResponseID         string
 	CreatedAt          int64
@@ -276,7 +310,7 @@ func (st *claudeToResponsesState) finalizeWebSearchWithStatus(item *claudeRespon
 	return [][]byte{emitEvent("response.output_item.done", done)}
 }
 
-func (st *claudeToResponsesState) finalizeFuncItem(idx int, requestForToolMetadata []byte, status string, nextSeq func() int) [][]byte {
+func (st *claudeToResponsesState) finalizeFuncItem(idx int, status string, nextSeq func() int) [][]byte {
 	if st.FuncItemDone[idx] {
 		return nil
 	}
@@ -328,7 +362,7 @@ func (st *claudeToResponsesState) finalizeFuncItem(idx int, requestForToolMetada
 		itemDone, _ = sjson.SetBytes(itemDone, "item.status", status)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.input", input)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.call_id", callID)
-		itemDone = applyResponsesFunctionCallNamespaceFields(itemDone, requestForToolMetadata, name, "item")
+		itemDone = st.ToolMetadata.applyNamespace(itemDone, name, "item")
 		out = append(out, emitEvent("response.output_item.done", itemDone))
 	} else {
 		if !st.FuncArgsDone[idx] {
@@ -351,7 +385,7 @@ func (st *claudeToResponsesState) finalizeFuncItem(idx int, requestForToolMetada
 		itemDone, _ = sjson.SetBytes(itemDone, "item.status", status)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.arguments", args)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.call_id", callID)
-		itemDone = applyResponsesFunctionCallNamespaceFields(itemDone, requestForToolMetadata, name, "item")
+		itemDone = st.ToolMetadata.applyNamespace(itemDone, name, "item")
 		out = append(out, emitEvent("response.output_item.done", itemDone))
 	}
 	st.InFuncBlock = false
@@ -470,8 +504,10 @@ func (st *claudeToResponsesState) finalizeAssistantMessage(nextSeq func() int) [
 // ConvertClaudeResponseToOpenAIResponses converts Claude SSE to OpenAI Responses SSE events.
 func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, param *any) [][]byte {
 	if *param == nil {
+		requestSnapshot := bytes.Clone(pickRequestJSON(originalRequestRawJSON, requestRawJSON))
 		*param = &claudeToResponsesState{
-			RequestJSON:        bytes.Clone(pickRequestJSON(originalRequestRawJSON, requestRawJSON)),
+			RequestJSON:        requestSnapshot,
+			ToolMetadata:       newClaudeResponsesToolMetadata(requestSnapshot),
 			MessageOutputIndex: -1,
 			ReasoningIndex:     -1,
 			FuncArgsBuf:        make(map[int]*strings.Builder),
@@ -491,8 +527,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 	}
 	rawJSON = bytes.TrimSpace(rawJSON[5:])
 	root := gjson.ParseBytes(rawJSON)
-	requestForToolMetadata := st.RequestJSON
-	customToolNames := responsesCustomToolNames(requestForToolMetadata)
+	customToolNames := st.ToolMetadata.customNames
 	ev := root.Get("type").String()
 	var out [][]byte
 
@@ -576,7 +611,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 		// Finalize any previous completed function calls
 		for prevIdx := range st.FuncCallIDs {
 			if !st.FuncItemDone[prevIdx] && prevIdx != idx {
-				out = append(out, st.finalizeFuncItem(prevIdx, requestForToolMetadata, "completed", nextSeq)...)
+				out = append(out, st.finalizeFuncItem(prevIdx, "completed", nextSeq)...)
 			}
 		}
 		// Finalize any previous web search items
@@ -623,12 +658,12 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 				item = []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"custom_tool_call","status":"in_progress","input":"","call_id":"","name":""}}`)
 				item, _ = sjson.SetBytes(item, "item.id", fmt.Sprintf("ctc_%s", st.CurrentFCID))
 				item, _ = sjson.SetBytes(item, "item.call_id", st.CurrentFCID)
-				item = applyResponsesFunctionCallNamespaceFields(item, requestForToolMetadata, name, "item")
+				item = st.ToolMetadata.applyNamespace(item, name, "item")
 			} else {
 				item = []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"function_call","status":"in_progress","arguments":"","call_id":"","name":""}}`)
 				item, _ = sjson.SetBytes(item, "item.id", fmt.Sprintf("fc_%s", st.CurrentFCID))
 				item, _ = sjson.SetBytes(item, "item.call_id", st.CurrentFCID)
-				item = applyResponsesFunctionCallNamespaceFields(item, requestForToolMetadata, name, "item")
+				item = st.ToolMetadata.applyNamespace(item, name, "item")
 			}
 			item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
 			item, _ = sjson.SetBytes(item, "output_index", outputIndex)
@@ -775,7 +810,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 		out = append(out, st.finalizeAssistantMessage(nextSeq)...)
 		for idx := range st.FuncCallIDs {
 			if !st.FuncItemDone[idx] {
-				out = append(out, st.finalizeFuncItem(idx, requestForToolMetadata, toolStatus, nextSeq)...)
+				out = append(out, st.finalizeFuncItem(idx, toolStatus, nextSeq)...)
 			}
 		}
 		for _, item := range st.WebSearchItems {
@@ -940,7 +975,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 					item, _ = sjson.SetBytes(item, "status", status)
 					item, _ = sjson.SetBytes(item, "input", unwrapCustomToolInput(args))
 					item, _ = sjson.SetBytes(item, "call_id", callID)
-					item = applyResponsesFunctionCallNamespaceFields(item, reqBytes, name, "")
+					item = st.ToolMetadata.applyNamespace(item, name, "")
 					outputsWrapper, _ = sjson.SetRawBytes(outputsWrapper, fmt.Sprintf("arr.%d", st.FuncOutputIndices[idx]), item)
 				} else {
 					item := []byte(`{"id":"","type":"function_call","status":"completed","arguments":"","call_id":"","name":""}`)
@@ -948,7 +983,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 					item, _ = sjson.SetBytes(item, "status", status)
 					item, _ = sjson.SetBytes(item, "arguments", args)
 					item, _ = sjson.SetBytes(item, "call_id", callID)
-					item = applyResponsesFunctionCallNamespaceFields(item, reqBytes, name, "")
+					item = st.ToolMetadata.applyNamespace(item, name, "")
 					outputsWrapper, _ = sjson.SetRawBytes(outputsWrapper, fmt.Sprintf("arr.%d", st.FuncOutputIndices[idx]), item)
 				}
 			}
@@ -1007,7 +1042,8 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 	}
 
 	reqBytes := pickRequestJSON(originalRequestRawJSON, requestRawJSON)
-	customToolNames := responsesCustomToolNames(reqBytes)
+	toolMetadata := newClaudeResponsesToolMetadata(reqBytes)
+	customToolNames := toolMetadata.customNames
 
 	// Base OpenAI Responses (non-stream) object
 	out := []byte(`{"id":"","object":"response","created_at":0,"status":"completed","background":false,"error":null,"incomplete_details":null,"output":[],"usage":{"input_tokens":0,"input_tokens_details":{"cached_tokens":0},"output_tokens":0,"output_tokens_details":{},"total_tokens":0}}`)
@@ -1308,7 +1344,7 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 				item, _ = sjson.SetBytes(item, "status", itemStatus)
 				item, _ = sjson.SetBytes(item, "input", unwrapCustomToolInput(outputItem.args.String()))
 				item, _ = sjson.SetBytes(item, "call_id", outputItem.callID)
-				item = applyResponsesFunctionCallNamespaceFields(item, reqBytes, outputItem.name, "")
+				item = toolMetadata.applyNamespace(item, outputItem.name, "")
 				break
 			}
 			args := outputItem.args.String()
@@ -1320,7 +1356,7 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 			item, _ = sjson.SetBytes(item, "status", itemStatus)
 			item, _ = sjson.SetBytes(item, "arguments", args)
 			item, _ = sjson.SetBytes(item, "call_id", outputItem.callID)
-			item = applyResponsesFunctionCallNamespaceFields(item, reqBytes, outputItem.name, "")
+			item = toolMetadata.applyNamespace(item, outputItem.name, "")
 		}
 		if len(item) > 0 {
 			outputs = append(outputs, item)

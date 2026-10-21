@@ -224,6 +224,12 @@ func applyThinking(body, sourceBody []byte, model string, fromFormat string, toF
 		modelInfo = registry.LookupModelInfo(baseModel, providerKey)
 	}
 
+	if fromFormat == "claude" && providerFormat == "claude" && !suffixResult.HasSuffix && !gjson.GetBytes(body, "thinking").Exists() {
+		// Native Claude effort is independent of thinking activation. Preserve the
+		// model's thinking default unless a suffix or explicit summary changes it.
+		return applySummaryConfigForProvider(body, providerFormat, baseModel, providerKey, modelInfo, summaryConfig), nil
+	}
+
 	// 3. Model capability check
 	// Unknown models are treated as user-defined so thinking config can still be applied.
 	// The upstream service is responsible for validating the configuration.
@@ -638,8 +644,8 @@ func extractClaudeConfig(body []byte) ThinkingConfig {
 	if thinkingType == "disabled" {
 		return ThinkingConfig{Mode: ModeNone, Budget: 0}
 	}
-	if thinkingType == "adaptive" || thinkingType == "auto" {
-		// Claude adaptive thinking uses output_config.effort (low/medium/high/max).
+	if !gjson.GetBytes(body, "thinking").Exists() || thinkingType == "adaptive" || thinkingType == "auto" {
+		// Claude output_config.effort also applies when thinking is omitted.
 		// We only treat it as a thinking config when effort is explicitly present;
 		// otherwise we passthrough and let upstream defaults apply.
 		if effort := gjson.GetBytes(body, "output_config.effort"); effort.Exists() && effort.Type == gjson.String {
