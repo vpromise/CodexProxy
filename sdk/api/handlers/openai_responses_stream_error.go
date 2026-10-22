@@ -88,6 +88,7 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 				}
 			}
 			if e, ok := payload["error"].(map[string]any); ok {
+				e = applyClaudePromptOverflowCode(e)
 				if m, ok := e["message"].(string); ok && strings.TrimSpace(m) != "" {
 					message = strings.TrimSpace(m)
 				}
@@ -129,15 +130,26 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 	return []byte(`{"type":"error","code":"internal_server_error","message":"internal error","sequence_number":0}`)
 }
 
+// applyClaudePromptOverflowCode annotates input rejection, never a generated truncation.
+func applyClaudePromptOverflowCode(detail map[string]any) map[string]any {
+	if existing, ok := detail["code"]; ok && existing != nil && strings.TrimSpace(fmt.Sprint(existing)) != "" {
+		return detail
+	}
+	if message, _ := detail["message"].(string); detail["type"] == "invalid_request_error" && strings.HasPrefix(message, "prompt is too long") {
+		detail["code"] = "context_length_exceeded"
+	}
+	return detail
+}
+
 func openAIResponsesStreamFailedErrorDetail(status int, errText, code, message string) map[string]any {
 	var payload map[string]any
 	if errUnmarshal := json.Unmarshal([]byte(strings.TrimSpace(errText)), &payload); errUnmarshal == nil {
 		if errorDetail, ok := payload["error"].(map[string]any); ok {
-			return errorDetail
+			return applyClaudePromptOverflowCode(errorDetail)
 		}
 		if response, ok := payload["response"].(map[string]any); ok {
 			if errorDetail, ok := response["error"].(map[string]any); ok {
-				return errorDetail
+				return applyClaudePromptOverflowCode(errorDetail)
 			}
 		}
 	}

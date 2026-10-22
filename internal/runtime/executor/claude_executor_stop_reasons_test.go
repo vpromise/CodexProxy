@@ -2,7 +2,6 @@ package executor
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,7 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestSyncOctober21ClaudeExecutorChatContextWindowExceededIsHTTP400(t *testing.T) {
+func TestSyncOctober23ClaudeExecutorChatContextWindowExceededPreservesOutput(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"model\":\"claude-opus-5-5\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":5,\"output_tokens\":0}}}\n\n" +
@@ -28,15 +27,14 @@ func TestSyncOctober21ClaudeExecutorChatContextWindowExceededIsHTTP400(t *testin
 
 	auth := &cliproxyauth.Auth{ID: "ctx-window", Attributes: map[string]string{"api_key": "sk-ant-test", "base_url": server.URL}}
 	payload := []byte(`{"model":"claude-opus-5-5","messages":[{"role":"user","content":"hello"}]}`)
-	_, errExecute := NewClaudeExecutor(&config.Config{}).Execute(context.Background(), auth, cliproxyexecutor.Request{
+	resp, errExecute := NewClaudeExecutor(&config.Config{}).Execute(context.Background(), auth, cliproxyexecutor.Request{
 		Model: "claude-opus-5-5", Payload: payload,
 	}, cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatOpenAI, OriginalRequest: payload})
-	var status interface{ StatusCode() int }
-	if !errors.As(errExecute, &status) || status.StatusCode() != http.StatusBadRequest {
-		t.Fatalf("err = %v, want HTTP 400", errExecute)
+	if errExecute != nil {
+		t.Fatal(errExecute)
 	}
-	if code := gjson.Get(errExecute.Error(), "error.code").String(); code != "context_length_exceeded" {
-		t.Fatalf("error body = %s", errExecute.Error())
+	if gjson.GetBytes(resp.Payload, "choices.0.finish_reason").String() != "length" || gjson.GetBytes(resp.Payload, "choices.0.message.content").String() != "cut" || gjson.GetBytes(resp.Payload, "usage.completion_tokens").Int() != 2 {
+		t.Fatalf("response=%s", resp.Payload)
 	}
 }
 

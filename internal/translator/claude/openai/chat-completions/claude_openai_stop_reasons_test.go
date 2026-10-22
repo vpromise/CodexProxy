@@ -20,37 +20,33 @@ func chatStopReasonChunks(reason string) [][]byte {
 	}
 }
 
-func TestSyncOctober21ChatContextWindowExceededStreamEndsWithErrorWithoutSuccessChunk(t *testing.T) {
-	var param any
-	var outputs [][]byte
-	for _, chunk := range chatStopReasonChunks("model_context_window_exceeded") {
-		outputs = append(outputs, ConvertClaudeResponseToOpenAI(context.Background(), "claude-test", nil, nil, chunk, &param)...)
-	}
-	if len(outputs) == 0 {
-		t.Fatal("no output")
-	}
-	last := gjson.ParseBytes(outputs[len(outputs)-1])
-	if last.Get("error.code").String() != "context_length_exceeded" || last.Get("error.type").String() != "invalid_request_error" {
-		t.Fatalf("last chunk = %s", last.Raw)
-	}
-	if last.Get("usage").Exists() {
-		t.Fatalf("error chunk carries usage: %s", last.Raw)
-	}
-	for _, output := range outputs {
-		chunk := gjson.ParseBytes(output)
-		if reason := chunk.Get("choices.0.finish_reason").String(); reason != "" {
-			t.Fatalf("success finish chunk emitted: %s", chunk.Raw)
+func TestSyncOctober23ChatContextWindowPreservesOutput(t *testing.T) {
+	for _, reason := range []string{"model_context_window_exceeded", "max_tokens"} {
+		var param any
+		var finish, text string
+		var tokens int64
+		for _, input := range chatStopReasonChunks(reason) {
+			for _, output := range ConvertClaudeResponseToOpenAI(context.Background(), "claude-test", nil, nil, input, &param) {
+				chunk := gjson.ParseBytes(output)
+				if chunk.Get("error").Exists() {
+					t.Fatalf("unexpected error: %s", output)
+				}
+				if x := chunk.Get("choices.0.finish_reason").String(); x != "" {
+					finish = x
+				}
+				text += chunk.Get("choices.0.delta.content").String()
+				if x := chunk.Get("usage.completion_tokens").Int(); x > 0 {
+					tokens = x
+				}
+			}
 		}
-		if chunk.Get("usage").Exists() {
-			t.Fatalf("usage chunk emitted: %s", chunk.Raw)
+		if finish != "length" || text != "partial" || tokens != 3 {
+			t.Fatalf("%s: finish=%q text=%q tokens=%d", reason, finish, text, tokens)
 		}
-	}
-}
-
-func TestSyncOctober21ChatContextWindowExceededNonStreamReturnsErrorBody(t *testing.T) {
-	out := ConvertClaudeResponseToOpenAINonStream(context.Background(), "claude-test", nil, nil, bytes.Join(chatStopReasonChunks("model_context_window_exceeded"), []byte("\n")), nil)
-	if gjson.GetBytes(out, "error.code").String() != "context_length_exceeded" || gjson.GetBytes(out, "choices").Exists() || gjson.GetBytes(out, "usage").Exists() {
-		t.Fatalf("body = %s", out)
+		out := ConvertClaudeResponseToOpenAINonStream(context.Background(), "claude-test", nil, nil, bytes.Join(chatStopReasonChunks(reason), []byte("\n")), nil)
+		if gjson.GetBytes(out, "choices.0.finish_reason").String() != "length" || gjson.GetBytes(out, "choices.0.message.content").String() != "partial" || gjson.GetBytes(out, "usage.completion_tokens").Int() != 3 {
+			t.Fatalf("nonstream: %s", out)
+		}
 	}
 }
 
@@ -77,5 +73,19 @@ func TestSyncOctober21ChatMaxTokensUnchanged(t *testing.T) {
 	out := ConvertClaudeResponseToOpenAINonStream(context.Background(), "claude-test", nil, nil, bytes.Join(chatStopReasonChunks("max_tokens"), []byte("\n")), nil)
 	if gjson.GetBytes(out, "choices.0.finish_reason").String() != "length" {
 		t.Fatalf("non-stream = %s", out)
+	}
+}
+
+func TestSyncOctober23TruncatedToolCallKeepsLength(t *testing.T) {
+	for _, reason := range []string{"max_tokens", "model_context_window_exceeded", "tool_use"} {
+		chunks := [][]byte{[]byte(`data: {"type":"message_start","message":{"id":"msg_tool","usage":{"input_tokens":5}}}`), []byte(`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_1","name":"lookup","input":{}}}`), []byte(`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"q\":"}}`), []byte(fmt.Sprintf(`data: {"type":"message_delta","delta":{"stop_reason":%q},"usage":{"output_tokens":2}}`, reason)), []byte(`data: {"type":"message_stop"}`)}
+		out := ConvertClaudeResponseToOpenAINonStream(context.Background(), "claude-test", nil, nil, bytes.Join(chunks, []byte("\n")), nil)
+		want := "length"
+		if reason == "tool_use" {
+			want = "tool_calls"
+		}
+		if gjson.GetBytes(out, "choices.0.finish_reason").String() != want || gjson.GetBytes(out, "choices.0.message.tool_calls.0.function.arguments").String() != `{"q":` || gjson.GetBytes(out, "usage.completion_tokens").Int() != 2 {
+			t.Fatalf("reason=%s output=%s", reason, out)
+		}
 	}
 }

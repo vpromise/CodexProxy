@@ -45,7 +45,7 @@ func IsCodexBootstrapBufferableEvent(eventType string, payload []byte) bool {
 		return true
 	}
 	switch eventType {
-	case "response.created", "response.in_progress", "codex.rate_limits", "codex.response.metadata", "keepalive":
+	case "response.created", "response.in_progress", "codex.rate_limits", "codex.response.metadata", "response.metadata", "keepalive":
 		return true
 	case "response.output_item.added":
 		return isCodexBufferableOutputItem(payload)

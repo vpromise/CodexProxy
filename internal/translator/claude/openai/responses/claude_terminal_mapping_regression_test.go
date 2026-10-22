@@ -10,13 +10,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestSyncOctober21StopReasonErrorsKeepOutput(t *testing.T) {
+func TestSyncOctober23StopReasonErrorsKeepOutput(t *testing.T) {
 	for _, tc := range []struct {
 		reason string
 		event  string
 	}{
 		{"refusal", "response.incomplete"},
-		{"model_context_window_exceeded", "response.failed"},
+		{"model_context_window_exceeded", "response.incomplete"},
 	} {
 		t.Run(tc.reason, func(t *testing.T) {
 			chunks := [][]byte{
@@ -81,7 +81,7 @@ func TestSyncOctober21ResponsesParallelToolCallsFalseMapsToDisableParallelToolUs
 	}
 }
 
-func TestSyncOctober21ContextWindowExceededNonStreamIsFailedWithError(t *testing.T) {
+func TestSyncOctober23ContextWindowExceededNonStreamIsIncomplete(t *testing.T) {
 	chunks := [][]byte{
 		[]byte(`data: {"type":"message_start","message":{"id":"msg_c","usage":{"input_tokens":5,"output_tokens":0}}}`),
 		[]byte(`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`),
@@ -91,7 +91,7 @@ func TestSyncOctober21ContextWindowExceededNonStreamIsFailedWithError(t *testing
 		[]byte(`data: {"type":"message_stop"}`),
 	}
 	output := gjson.ParseBytes(ConvertClaudeResponseToOpenAIResponsesNonStream(context.Background(), "claude-test", nil, nil, bytes.Join(chunks, []byte("\n")), nil))
-	if output.Get("status").String() != "failed" || output.Get("error.code").String() != "context_length_exceeded" {
+	if output.Get("status").String() != "incomplete" || output.Get("incomplete_details.reason").String() != "max_output_tokens" || output.Get("error").Type != gjson.Null {
 		t.Fatalf("response = %s", output.Raw)
 	}
 	if output.Get("usage.output_tokens").Int() != 2 || output.Get("usage.input_tokens").Int() != 5 {

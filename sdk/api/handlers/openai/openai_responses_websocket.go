@@ -263,6 +263,7 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 	socketCtx, cancelSocket := context.WithCancelCause(c.Request.Context())
 	defer cancelSocket(nil)
 	c.Request = c.Request.WithContext(socketCtx)
+	upgradeRequest := c.Request.Clone(socketCtx)
 	input := readResponsesWebsocketInput(socketCtx, cancelSocket, conn, writer, func(payload []byte) error {
 		return h.forwardResponsesWebsocketInterrupt(socketCtx, passthroughSessionID, payload)
 	})
@@ -422,6 +423,12 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 		}
 		if requestModelName == "" {
 			requestModelName = strings.TrimSpace(gjson.GetBytes(lastRequest, "model").String())
+		}
+		if errAuth := h.authenticateResponsesWebsocketTurn(c, upgradeRequest, payload, requestModelName); errAuth != nil {
+			if _, errWrite := writeResponsesWebsocketError(writer, wsTimelineLog, errAuth); errWrite != nil {
+				return
+			}
+			continue
 		}
 		executionParent := context.WithValue(c.Request.Context(), "gin", c)
 		executionParent = h.AuthManager.NewAccessRequest(executionParent)
