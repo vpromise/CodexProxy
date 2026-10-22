@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -283,6 +284,77 @@ func TestRequestLoggingMiddlewareCapturesLargeErrorRequestAndDeferredAPIRequest(
 	}
 	if !bytes.Contains(content, upstreamBody) {
 		t.Fatal("error log does not contain the deferred upstream request body")
+	}
+}
+
+func TestRequestLoggingMiddlewareReleasesDeferredRequestsAfterFinalization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tt := range []struct {
+		name    string
+		status  int
+		stream  bool
+		wantLog bool
+	}{
+		{name: "success", status: http.StatusOK},
+		{name: "upstream error after retries", status: http.StatusBadGateway, wantLog: true},
+		{name: "completed stream", status: http.StatusOK, stream: true},
+		{name: "client cancellation", status: clienterror.StatusClientClosedRequest},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			logsDir := t.TempDir()
+			logger := logging.NewFileRequestLogger(false, logsDir, "", 10)
+			router := gin.New()
+			var completed *gin.Context
+			router.Use(RequestLoggingMiddleware(logger))
+			router.POST("/v1/messages", func(c *gin.Context) {
+				completed = c
+				ctx := context.WithValue(c.Request.Context(), "gin", c)
+				for _, body := range []string{"first-upstream-attempt", "second-upstream-attempt"} {
+					helps.RecordAPIRequest(ctx, &config.Config{}, helps.UpstreamRequestLog{Method: http.MethodPost, Body: []byte(body)})
+				}
+				value, _ := c.Get(logging.DeferredAPIRequestContextKey)
+				if requests, ok := value.([]logging.DeferredAPIRequest); !ok || len(requests) != 2 {
+					t.Fatal("deferred attempts were not captured")
+				}
+				if tt.stream {
+					c.Header("Content-Type", "text/event-stream")
+					c.String(tt.status, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+					c.Writer.Flush()
+				} else {
+					c.String(tt.status, "fixture response")
+				}
+			})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"messages":[]}`)))
+			if response.Code != tt.status {
+				t.Fatalf("status=%d, want %d", response.Code, tt.status)
+			}
+			if value, _ := completed.Get(logging.DeferredAPIRequestContextKey); value != nil {
+				t.Error("finalized Gin context still retains upstream request builders")
+			}
+			files, errGlob := filepath.Glob(filepath.Join(logsDir, "error-*.log"))
+			if errGlob != nil {
+				t.Fatal(errGlob)
+			}
+			if !tt.wantLog {
+				if len(files) != 0 {
+					t.Fatal("successful or canceled request unexpectedly created an error log")
+				}
+				return
+			}
+			if len(files) != 1 {
+				t.Fatalf("error log count=%d, want 1", len(files))
+			}
+			content, errRead := os.ReadFile(files[0])
+			if errRead != nil {
+				t.Fatal(errRead)
+			}
+			for _, expected := range []string{"=== API REQUEST 1 ===", "first-upstream-attempt", "=== API REQUEST 2 ===", "second-upstream-attempt"} {
+				if !bytes.Contains(content, []byte(expected)) {
+					t.Errorf("error log lost %q before cleanup", expected)
+				}
+			}
+		})
 	}
 }
 

@@ -344,6 +344,8 @@ func (m *Manager) run() {
 			return
 		}
 		item := m.queue[0]
+		// Consumed slots must not retain request contexts in the backing array.
+		m.queue[0] = queueItem{}
 		m.queue = m.queue[1:]
 		m.mu.Unlock()
 		m.dispatch(item)
