@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
@@ -479,6 +480,8 @@ func (h *BaseAPIHandler) GetContextWithCancel(handler interfaces.APIHandler, c *
 	}
 	newCtx = context.WithValue(newCtx, "gin", c)
 	newCtx = context.WithValue(newCtx, "handler", handler)
+	newCtx = coreauth.CopyClientIdentity(newCtx, requestCtx)
+	newCtx = h.AuthManager.NewAccessRequest(newCtx)
 	return newCtx, func(params ...interface{}) {
 		if c != nil {
 			logging.SetResponseStatus(cancelCtx, c.Writer.Status())
@@ -608,3 +611,22 @@ func appendAPIResponse(c *gin.Context, data []byte) {
 // APIHandlerCancelFunc is a function type for canceling an API handler's context.
 // It can optionally accept parameters, which are used for logging the response.
 type APIHandlerCancelFunc func(params ...interface{})
+
+// ModelsForRequest projects the caller's registered catalog independently of quota.
+func (h *BaseAPIHandler) ModelsForRequest(c *gin.Context, format string, legacy []map[string]any) []map[string]any {
+	if h.AuthManager == nil {
+		return legacy
+	}
+	ctx := c.Request.Context()
+	if coreauth.AccessScopeFromContext(ctx) == nil {
+		ctx = h.AuthManager.NewAccessRequest(ctx)
+	}
+	if !coreauth.AccessScopeFromContext(ctx).Enabled() {
+		return legacy
+	}
+	models := []map[string]any{}
+	for _, model := range h.AuthManager.AuthorizedModels(ctx) {
+		models = append(models, registry.GetGlobalRegistry().FormatModel(model, format))
+	}
+	return models
+}

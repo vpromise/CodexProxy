@@ -172,7 +172,10 @@ type Manager struct {
 
 	// runtimeConfig stores the latest application config for request-time decisions.
 	// It is initialized in NewManager; never Load() before first Store().
-	runtimeConfig atomic.Value
+	runtimeConfig       atomic.Value
+	accessPolicy        atomic.Pointer[clientAccessPolicy]
+	accessPolicyMu      sync.Mutex
+	accessPolicyManaged bool
 
 	// Optional HTTP RoundTripper provider injected by host.
 	rtProvider RoundTripperProvider

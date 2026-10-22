@@ -55,6 +55,7 @@ type requiredAuthKindContextKey struct{}
 type credentialPolicyContextKey struct{}
 
 type authSelectionEligibility struct {
+	scope            *AccessScope
 	requiredKind     string
 	credentialPolicy string
 	disallowFreeAuth bool
@@ -79,6 +80,7 @@ func credentialPolicyFromContext(ctx context.Context) string {
 func authSelectionEligibilityForRequest(ctx context.Context, opts cliproxyexecutor.Options) authSelectionEligibility {
 	eligibility := authSelectionEligibility{disallowFreeAuth: disallowFreeAuthFromMetadata(opts.Metadata)}
 	if ctx != nil {
+		eligibility.scope = AccessScopeFromContext(ctx)
 		eligibility.requiredKind, _ = ctx.Value(requiredAuthKindContextKey{}).(string)
 		eligibility.credentialPolicy, _ = ctx.Value(credentialPolicyContextKey{}).(string)
 	}
@@ -86,7 +88,7 @@ func authSelectionEligibilityForRequest(ctx context.Context, opts cliproxyexecut
 }
 
 func (e authSelectionEligibility) allows(auth *Auth) bool {
-	if auth == nil {
+	if auth == nil || !e.scope.Allows(auth) {
 		return false
 	}
 	if e.requiredKind != "" && auth.AuthKind() != e.requiredKind {
@@ -1500,6 +1502,15 @@ func (m *Manager) pickNextLegacy(ctx context.Context, provider, model string, op
 // SelectAuth selects one credential through the configured scheduling strategy.
 // It does not execute or alter the selected credential's result state.
 func (m *Manager) SelectAuth(ctx context.Context, provider, model string, opts cliproxyexecutor.Options) (*Auth, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, []string{provider}, model, opts); errAccess != nil {
+		return nil, errAccess
+	}
 	if m != nil && m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
@@ -1510,12 +1521,22 @@ func (m *Manager) SelectAuth(ctx context.Context, provider, model string, opts c
 	if m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
+	auditAccessDecision(ctx, selected, "selected", "credential_selection")
 	return selected, nil
 }
 
 // SelectAuthByKind selects one credential of the required kind through the
 // configured scheduling strategy. Credentials of other kinds are skipped.
 func (m *Manager) SelectAuthByKind(ctx context.Context, provider, model, requiredKind string, opts cliproxyexecutor.Options) (*Auth, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, []string{provider}, model, opts); errAccess != nil {
+		return nil, errAccess
+	}
 	if m != nil && m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
@@ -1535,11 +1556,21 @@ func (m *Manager) SelectAuthByKind(ctx context.Context, provider, model, require
 	if m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
+	auditAccessDecision(ctx, selected, "selected", "credential_selection")
 	return selected, nil
 }
 
 // SelectAuthWithCredentialPolicy selects one local credential allowed by a fixed policy.
 func (m *Manager) SelectAuthWithCredentialPolicy(ctx context.Context, provider, model, policy string, opts cliproxyexecutor.Options) (*Auth, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
+	opts = scopeAccessOptions(ctx, opts)
+	if errAccess := m.ValidateAccessSelection(ctx, []string{provider}, model, opts); errAccess != nil {
+		return nil, errAccess
+	}
 	if m != nil && m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
@@ -1561,11 +1592,17 @@ func (m *Manager) SelectAuthWithCredentialPolicy(ctx context.Context, provider, 
 	if m.HomeEnabled() {
 		return nil, &Error{Code: "home_unavailable", Message: "legacy auth selection is unavailable while Home is enabled", HTTPStatus: http.StatusServiceUnavailable}
 	}
+	auditAccessDecision(ctx, selected, "selected", "credential_selection")
 	return selected, nil
 }
 
 // SelectHomeAuthWithCredentialPolicy selects a policy-constrained Home dispatch while retaining its execution scope.
 func (m *Manager) SelectHomeAuthWithCredentialPolicy(ctx context.Context, provider, model, policy string, opts cliproxyexecutor.Options) (*HomeDispatchSelection, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
 	policy = normalizeCredentialPolicy(policy)
 	if policy == "" {
 		return nil, &Error{Code: "invalid_credential_policy", Message: "credential policy is invalid", HTTPStatus: http.StatusBadRequest}
@@ -1616,6 +1653,11 @@ func (m *Manager) SelectHomeAuthWithCredentialPolicy(ctx context.Context, provid
 
 // SelectHomeAuthByKind selects a Home dispatch while retaining its execution scope.
 func (m *Manager) SelectHomeAuthByKind(ctx context.Context, provider string, model string, requiredKind string, opts cliproxyexecutor.Options) (*HomeDispatchSelection, error) {
+	var errAccess error
+	ctx, errAccess = m.AuthorizeRequest(ctx)
+	if errAccess != nil {
+		return nil, errAccess
+	}
 	requiredKind = normalizeAuthKind(requiredKind)
 	if requiredKind == "" {
 		return nil, &Error{Code: "invalid_auth_kind", Message: "required auth kind is invalid", HTTPStatus: http.StatusBadRequest}

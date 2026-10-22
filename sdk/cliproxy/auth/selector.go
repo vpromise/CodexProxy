@@ -960,7 +960,17 @@ func ExtractSessionID(headers http.Header, payload []byte, metadata map[string]a
 // extractSessionIDs returns (primaryID, fallbackID) for session affinity.
 // fallbackID preserves an earlier binding when a stronger body identifier appears
 // later, and lets callers bind both identifiers when both are present.
-func extractSessionIDs(headers http.Header, payload []byte, metadata map[string]any) (string, string) {
+func extractSessionIDs(headers http.Header, payload []byte, metadata map[string]any) (primary, fallback string) {
+	defer func() {
+		if caller, _ := metadata[poolCallerMetadataKey].(string); caller != "" {
+			if primary != "" {
+				primary = caller + ":" + primary
+			}
+			if fallback != "" {
+				fallback = caller + ":" + fallback
+			}
+		}
+	}()
 	if sid := sessionHeaderValue(headers, "X-Claude-Code-Session-Id"); sid != "" {
 		return "claude:" + sid, ""
 	}

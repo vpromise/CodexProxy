@@ -559,3 +559,17 @@ func TestSanitizeCodexClientReasoningMetadataPreservesEmptyArray(t *testing.T) {
 		})
 	}
 }
+
+func TestCodexClientTemplateFallbackWithoutFixedDefault(t *testing.T) {
+	raw := []byte(`{"models":[{"slug":"future-codex","display_name":"Future","priority":2},{"slug":"other-codex","priority":1}]}`)
+	_, fallback, err := loadCodexClientModelTemplatesSnapshot(raw, 900001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fallback == nil {
+		t.Fatal("valid catalog without gpt-5.5 has no fallback template")
+	}
+	if got := stringModelValue(fallback, "slug"); got != "other-codex" {
+		t.Fatalf("fallback = %q, want lowest-priority template", got)
+	}
+}

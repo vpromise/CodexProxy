@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/access"
@@ -149,15 +150,11 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	}
 	redisqueue.SetEnabled(s.managementRoutesEnabled.Load() || (cfg != nil && cfg.Home.Enabled))
 
-	exampleAPIKeySafeModeRequired := s.exampleAPIKeySafeModeRequired(cfg)
-	if exampleAPIKeySafeModeRequired {
-		s.exampleAPIKeySafeModeActive.Store(true)
-	}
-	accessConfigApplied := s.applyAccessConfig(oldCfg, cfg)
-	if accessConfigApplied || exampleAPIKeySafeModeRequired {
-		s.exampleAPIKeySafeModeActive.Store(exampleAPIKeySafeModeRequired)
-	}
+	// Client authentication and pool grants are published together by management,
+	// which also rejects reloads older than an acknowledged policy save.
+	s.cfgMu.Lock()
 	s.cfg = cfg
+	s.cfgMu.Unlock()
 	if s.codexLiveHandler != nil {
 		if errUpdate := s.codexLiveHandler.UpdateConfig(cfg); errUpdate != nil {
 			log.WithError(errUpdate).Error("failed to update Codex Live media relay configuration")
@@ -169,7 +166,9 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	// Save YAML snapshot for next comparison
 	s.oldConfigYaml, _ = yaml.Marshal(cfg)
 
-	s.handlers.UpdateClients(effectiveSDKConfig(cfg))
+	if !sameHandlerConfig(oldCfg, cfg) {
+		s.handlers.UpdateClients(effectiveSDKConfig(cfg))
+	}
 	s.handlers.SetPluginHost(s.pluginHost)
 	if s.pluginHost != nil {
 		s.pluginHost.SetModelExecutor(s.handlers)
@@ -177,7 +176,7 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	}
 
 	if s.mgmt != nil {
-		s.mgmt.SetConfig(cfg)
+		s.mgmt.SetConfig(cfg.CloneForRuntime())
 		s.mgmt.SetAuthManager(s.handlers.AuthManager)
 		s.mgmt.SetPluginHost(s.pluginHost)
 	}
@@ -213,4 +212,26 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 		openAICompatCount,
 	)
 	return ctx.Err() == nil
+}
+
+func sameHandlerConfig(previous, next *config.Config) bool {
+	if previous == nil || next == nil {
+		return false
+	}
+	before, after := *effectiveSDKConfig(previous), *effectiveSDKConfig(next)
+	// Authentication reads these settings through accessManager. Replacing the
+	// otherwise unchanged handler config would race with active stream readers.
+	before.APIKeys, after.APIKeys = nil, nil
+	before.AllowAnonymous, after.AllowAnonymous = false, false
+	return reflect.DeepEqual(before, after)
+}
+
+func (s *Server) configSnapshot() *config.Config {
+	if s == nil {
+		return nil
+	}
+	s.cfgMu.RLock()
+	cfg := s.cfg
+	s.cfgMu.RUnlock()
+	return cfg
 }

@@ -1,5 +1,5 @@
 /**
- * 模型列表状态管理（带缓存）
+ * Cached model catalog state
  */
 
 import { create } from 'zustand';
@@ -35,7 +35,7 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
     const { cache, isCacheValid } = get();
     const apiKeyScope = apiKey?.trim() || '';
 
-    // 检查缓存
+    // Reuse a catalog only for the same connection and authorization scope.
     if (!forceRefresh && isCacheValid(apiBase, apiKeyScope) && cache) {
       set({ models: cache.data, error: null });
       return cache.data;
@@ -44,7 +44,9 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const list = await modelsApi.fetchModels(apiBase, apiKeyScope || undefined);
+      const list = apiKeyScope
+        ? await modelsApi.fetchModels(apiBase, apiKeyScope)
+        : await modelsApi.fetchManagementModels();
       const now = Date.now();
 
       set({

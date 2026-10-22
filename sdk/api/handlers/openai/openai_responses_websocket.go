@@ -424,6 +424,13 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 			requestModelName = strings.TrimSpace(gjson.GetBytes(lastRequest, "model").String())
 		}
 		executionParent := context.WithValue(c.Request.Context(), "gin", c)
+		executionParent = h.AuthManager.NewAccessRequest(executionParent)
+		if errAccess := coreauth.AccessScopeFromContext(executionParent).Error(); errAccess != nil {
+			if _, errWrite := writeResponsesWebsocketError(writer, wsTimelineLog, &interfaces.ErrorMessage{StatusCode: http.StatusForbidden, Error: errAccess}); errWrite != nil {
+				return
+			}
+			continue
+		}
 		executionParent, routeOverridesModelResolution := h.PrepareStreamModelRoute(
 			executionParent,
 			h.HandlerType(),
@@ -453,6 +460,28 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 						delete(pinnedAuthByProvider, providerKey)
 					}
 				}
+			}
+		}
+
+		if scope := coreauth.AccessScopeFromContext(executionParent); scope.Enabled() && !routeOverridesModelResolution {
+			if pinned, ok := sessionAuthByID(pinnedAuthID); ok && !scope.Allows(pinned) && !responsesWebsocketRequestRequiresCurrentUpstream(payload) {
+				forgetPinnedAuth()
+			}
+			providerSet, _ := responsesWebsocketProviderSetForModel(responsesWebsocketResolvedModelName(requestModelName))
+			providers := make([]string, 0, len(providerSet))
+			for provider := range providerSet {
+				providers = append(providers, provider)
+			}
+			opts := cliproxyexecutor.Options{Metadata: map[string]any{cliproxyexecutor.PinnedAuthMetadataKey: pinnedAuthID}}
+			if errAccess := h.AuthManager.ValidateAccessSelection(executionParent, providers, requestModelName, opts); errAccess != nil {
+				status := http.StatusForbidden
+				if value, ok := errAccess.(interface{ StatusCode() int }); ok {
+					status = value.StatusCode()
+				}
+				if _, errWrite := writeResponsesWebsocketError(writer, wsTimelineLog, &interfaces.ErrorMessage{StatusCode: status, Error: errAccess}); errWrite != nil {
+					return
+				}
+				continue
 			}
 		}
 		useUpstreamWebsocketPassthrough := h.responsesWebsocketUsesUpstreamWebsocketPassthrough(requestModelName)

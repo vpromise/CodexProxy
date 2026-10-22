@@ -12,6 +12,7 @@ func IsAuthTokenPayloadKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
 	case "access_token", "accesstoken", "refresh_token", "refreshtoken", "id_token", "idtoken", "session_id",
 		"expired", "last_refresh", "expires_in", "timestamp",
+		"account_id", "account_uuid", "organization_uuid", "pool_account_id",
 		"token_type", "user_code", "verification_uri", "verification_uri_complete":
 		return true
 	default:
@@ -27,6 +28,16 @@ func MergeExistingAuthMetadata(target *Auth, existingMap map[string]any) {
 	}
 	if target.Metadata == nil {
 		target.Metadata = make(map[string]any)
+	}
+	previousProvider, _ := existingMap["type"].(string)
+	if previousProvider == "" {
+		previousProvider = target.Provider
+	}
+	previous := &Auth{Provider: previousProvider, Metadata: existingMap}
+	if subject := AccountSubject(target); subject != "" && subject == AccountSubject(previous) {
+		if id, ok := existingMap["pool_account_id"].(string); ok && id != "" {
+			target.Metadata["pool_account_id"] = id
+		}
 	}
 	for k, v := range existingMap {
 		if IsAuthTokenPayloadKey(k) {

@@ -28,6 +28,7 @@ import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuthStore, useConfigStore, useNotificationStore } from '@/stores';
 import { logsApi, type LogsQuery } from '@/services/api/logs';
+import { configApi } from '@/services/api/config';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getErrorMessage } from '@/utils/helpers';
 import { downloadBlob } from '@/utils/download';
@@ -45,7 +46,7 @@ interface ErrorLogItem {
   modified?: number;
 }
 
-// 初始只渲染最近 100 行，滚动到顶部再逐步加载更多（避免一次性渲染过多导致卡顿）
+// Render the latest 100 lines initially, then reveal older lines when scrolling up.
 const INITIAL_DISPLAY_LINES = 100;
 const MAX_BUFFER_LINES = 10000;
 const LONG_PRESS_MS = 650;
@@ -144,10 +145,32 @@ export function LogsPage() {
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const config = useConfigStore((state) => state.config);
   const requestLogEnabled = config?.requestLog ?? false;
-  const loggingToFileEnabled = config?.loggingToFile ?? false;
-  const cpaNeedsFileLogging = !loggingToFileEnabled;
+  const loggingToFileEnabled = config?.loggingToFile;
+  const needsFileLogging = loggingToFileEnabled === false;
+  const [enablingFileLogging, setEnablingFileLogging] = useState(false);
   const [fileLoggingRequired, setFileLoggingRequired] = useState(false);
-  const showFileLoggingRequired = cpaNeedsFileLogging || fileLoggingRequired;
+  const showFileLoggingRequired = needsFileLogging || fileLoggingRequired;
+
+  const enableFileLogging = async () => {
+    const connection = useAuthStore.getState();
+    setEnablingFileLogging(true);
+    try {
+      await configApi.updateLoggingToFile(true);
+      const current = useAuthStore.getState();
+      if (
+        current.apiBase !== connection.apiBase ||
+        current.managementKey !== connection.managementKey
+      )
+        return;
+      useConfigStore.getState().updateConfigValue('logging-to-file', true);
+      setFileLoggingRequired(false);
+      showNotification(t('logs.file_logging_enabled'), 'success');
+    } catch (err: unknown) {
+      showNotification(getErrorMessage(err) || t('notification.update_failed'), 'error');
+    } finally {
+      setEnablingFileLogging(false);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<TabType>('logs');
   const [logState, setLogState] = useState<LogState>({ buffer: [], visibleFrom: 0 });
@@ -186,7 +209,7 @@ export function LogsPage() {
   const logRequestInFlightRef = useRef(false);
   const pendingFullReloadRef = useRef(false);
 
-  // 保存最新游标用于增量获取；新接口优先使用 cursor，旧接口继续使用 after。
+  // Keep the latest cursor for incremental loads, with after as the legacy fallback.
   const logPositionRef = useRef<LogPosition>({});
 
   const resetLogPosition = () => {
@@ -211,7 +234,7 @@ export function LogsPage() {
   };
 
   const disableControls = connectionStatus !== 'connected';
-  const refreshDisabled = disableControls || loading || cpaNeedsFileLogging;
+  const refreshDisabled = disableControls || loading || needsFileLogging;
   const autoRefreshDisabled = disableControls || showFileLoggingRequired;
   const clearDisabled = disableControls || showFileLoggingRequired;
 
@@ -221,7 +244,7 @@ export function LogsPage() {
       return;
     }
 
-    if (cpaNeedsFileLogging) {
+    if (needsFileLogging) {
       if (!incremental) {
         resetLogPosition();
         setFileLoggingRequired(false);
@@ -265,7 +288,7 @@ export function LogsPage() {
         const visibleFrom = Math.max(buffer.length - INITIAL_DISPLAY_LINES, 0);
         setLogState({ buffer, visibleFrom });
       } else if (incremental && newLines.length > 0) {
-        // 增量更新：追加新日志并限制缓冲区大小（避免内存与渲染膨胀）
+        // Append incremental logs and cap the buffer size.
         setLogState((prev) => {
           const prevRenderedCount = prev.buffer.length - prev.visibleFrom;
           const combined = mergeIncrementalLines(prev.buffer, newLines);
@@ -273,7 +296,7 @@ export function LogsPage() {
           const buffer = dropCount > 0 ? combined.slice(dropCount) : combined;
           let visibleFrom = Math.max(prev.visibleFrom - dropCount, 0);
 
-          // 若用户停留在底部（跟随最新日志），则保持“渲染窗口”大小不变，避免无限增长
+          // Keep the rendering window bounded while following the latest logs.
           if (stickToBottom) {
             visibleFrom = Math.max(buffer.length - prevRenderedCount, 0);
           }
@@ -281,7 +304,7 @@ export function LogsPage() {
           return { buffer, visibleFrom };
         });
       } else if (!incremental) {
-        // 全量加载：默认只渲染最后 100 行，向上滚动再展开更多
+        // For a full load, render the last 100 lines and reveal more on upward scrolling.
         const buffer = newLines.slice(-MAX_BUFFER_LINES);
         const visibleFrom = Math.max(buffer.length - INITIAL_DISPLAY_LINES, 0);
         setLogState({ buffer, visibleFrom });
@@ -315,7 +338,7 @@ export function LogsPage() {
   useHeaderRefresh(() => loadLogs(false));
 
   const clearLogs = async () => {
-    if (cpaNeedsFileLogging) {
+    if (needsFileLogging) {
       showNotification(t('logs.cpa_file_logging_required'), 'warning');
       return;
     }
@@ -361,7 +384,7 @@ export function LogsPage() {
     setErrorLogsError('');
     try {
       const res = await logsApi.fetchErrorLogs();
-      // API 返回 { files: [...] }
+      // The API returns { files: [...] }.
       setErrorLogs(Array.isArray(res.files) ? res.files : []);
     } catch (err: unknown) {
       console.error('Failed to load error logs:', err);
@@ -681,12 +704,20 @@ export function LogsPage() {
               .join(' ')}
           >
             {showFileLoggingRequired && (
-              <div className="status-badge warning">
-                {t(
-                  cpaNeedsFileLogging
-                    ? 'logs.cpa_file_logging_required'
-                    : 'logs.file_logging_required'
-                )}
+              <div className="stack">
+                <div className="status-badge warning">{t('logs.cpa_file_logging_required')}</div>
+                <p>{t('logs.file_logging_enable_hint')}</p>
+                <div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={enablingFileLogging}
+                    disabled={disableControls || enablingFileLogging}
+                    onClick={() => void enableFileLogging()}
+                  >
+                    {t('logs.enable_file_logging')}
+                  </Button>
+                </div>
               </div>
             )}
             {error && <div className="error-box">{error}</div>}
@@ -1067,12 +1098,12 @@ export function LogsPage() {
             ) : showFileLoggingRequired ? (
               <EmptyState
                 title={t(
-                  cpaNeedsFileLogging
+                  needsFileLogging
                     ? 'logs.cpa_file_logging_required_title'
                     : 'logs.file_logging_required_title'
                 )}
                 description={t(
-                  cpaNeedsFileLogging
+                  needsFileLogging
                     ? 'logs.cpa_file_logging_required_desc'
                     : 'logs.file_logging_required_desc'
                 )}

@@ -303,6 +303,8 @@ type CloakConfig struct {
 // ClaudeKey represents the configuration for a Claude API key,
 // including the API key itself and an optional base URL for the API endpoint.
 type ClaudeKey struct {
+	// PoolAccountID is the persistent identity of this native credential record.
+	PoolAccountID string `yaml:"pool-account-id,omitempty" json:"pool-account-id,omitempty"`
 	// APIKey is the authentication key for accessing Claude API services.
 	APIKey string `yaml:"api-key" json:"api-key"`
 
@@ -430,6 +432,8 @@ func (m ClaudeModel) GetThinking() *registry.ThinkingSupport { return m.Thinking
 // CodexKey represents the configuration for a Codex API key,
 // including the API key itself and an optional base URL for the API endpoint.
 type CodexKey struct {
+	// PoolAccountID is the persistent identity of this native credential record.
+	PoolAccountID string `yaml:"pool-account-id,omitempty" json:"pool-account-id,omitempty"`
 	// APIKey is the authentication key for accessing Codex API services.
 	APIKey string `yaml:"api-key" json:"api-key"`
 

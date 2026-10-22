@@ -12,6 +12,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/safemode"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
 	claudehandlers "github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers/claude"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -89,7 +90,8 @@ func abortClaudeProtocolError(c *gin.Context, status int, message string) {
 
 func (s *Server) homeHeartbeatMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if s == nil || s.cfg == nil || !s.cfg.Home.Enabled {
+		cfg := s.configSnapshot()
+		if cfg == nil || !cfg.Home.Enabled {
 			c.Next()
 			return
 		}
@@ -152,7 +154,7 @@ func (s *Server) exampleAPIKeySafeModeMiddleware() gin.HandlerFunc {
 }
 
 func (s *Server) serveExampleAPIKeyWarningPage(c *gin.Context) {
-	cfg := s.cfg
+	cfg := s.configSnapshot()
 	var keys []string
 	if cfg != nil {
 		keys = safemode.ExampleAPIKeys(cfg.APIKeys)
@@ -224,6 +226,7 @@ func accessAuthMiddleware(manager *sdkaccess.Manager, realtimeError bool) gin.Ha
 		result, err := manager.Authenticate(c.Request.Context(), c.Request)
 		if err == nil {
 			if result != nil {
+				c.Request = c.Request.WithContext(coreauth.WithClientIdentity(c.Request.Context(), result.Principal, result.Provider))
 				c.Set("userApiKey", result.Principal)
 				c.Set("accessProvider", result.Provider)
 				if len(result.Metadata) > 0 {
@@ -286,10 +289,24 @@ func realtimeAuthMiddleware(manager *sdkaccess.Manager, handler *codexlive.Handl
 		if provider == "" {
 			provider = "realtime-client-secret"
 		}
+		c.Request = c.Request.WithContext(coreauth.WithClientIdentity(c.Request.Context(), principal, provider))
 		c.Set("userApiKey", principal)
 		c.Set("accessProvider", provider)
+		c.Request = c.Request.WithContext(coreauth.WithAccessCeiling(c.Request.Context(), authorization.AccessScope))
 		c.Set(codexlive.ClientSecretSessionContextKey, authorization.Session)
 		c.Set(codexlive.ClientSecretPrincipalContextKey, authorization.Principal)
+		c.Next()
+	}
+}
+
+func (s *Server) accountPoolMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := s.handlers.AuthManager.NewAccessRequest(c.Request.Context())
+		if err := coreauth.AccessScopeFromContext(ctx).Error(); err != nil {
+			c.AbortWithStatusJSON(403, gin.H{"error": gin.H{"message": err.Error(), "type": "permission_error", "code": "access_denied"}})
+			return
+		}
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
 }

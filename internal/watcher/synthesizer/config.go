@@ -75,8 +75,9 @@ func (s *ConfigSynthesizer) synthesizeClaudeKeys(ctx *SynthesisContext) []*corea
 		identityParts = append(identityParts, prefix, config.FormatSortedHeaders(ck.Headers))
 		id, token := idGen.Next("claude:apikey", identityParts...)
 		attrs := map[string]string{
-			"source":       fmt.Sprintf("config:claude[%s]", token),
-			"config_index": strconv.Itoa(i),
+			"pool_account_id": ck.PoolAccountID,
+			"source":          fmt.Sprintf("config:claude[%s]", token),
+			"config_index":    strconv.Itoa(i),
 		}
 		if key != "" {
 			attrs["api_key"] = key
@@ -160,8 +161,9 @@ func (s *ConfigSynthesizer) synthesizeCodexStyleKeys(ctx *SynthesisContext, entr
 		proxyURL := strings.TrimSpace(entry.ProxyURL)
 		id, token := idGen.Next(provider+":apikey", key, baseURL, proxyURL, prefix, config.FormatSortedHeaders(entry.Headers))
 		attrs := map[string]string{
-			"source":       fmt.Sprintf("config:%s[%s]", provider, token),
-			"config_index": strconv.Itoa(i),
+			"pool_account_id": entry.PoolAccountID,
+			"source":          fmt.Sprintf("config:%s[%s]", provider, token),
+			"config_index":    strconv.Itoa(i),
 		}
 		if key != "" {
 			attrs["api_key"] = key

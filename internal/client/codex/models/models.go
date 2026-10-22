@@ -196,7 +196,12 @@ func loadCodexClientModelTemplatesSnapshot(raw []byte, revision uint64) (map[str
 				continue
 			}
 			templates[slug] = cloneCodexClientModelMap(model)
-			if slug == "gpt-5.5" {
+			// Prefer the established template when present. Otherwise choose a
+			// deterministic complete template from the validated remote catalog.
+			defaultSlug := stringModelValue(defaultTemplate, "slug")
+			if slug == "gpt-5.5" || (defaultSlug != "gpt-5.5" && (defaultTemplate == nil ||
+				codexClientModelPriority(model) < codexClientModelPriority(defaultTemplate) ||
+				(codexClientModelPriority(model) == codexClientModelPriority(defaultTemplate) && slug < defaultSlug))) {
 				defaultTemplate = cloneCodexClientModelMap(model)
 			}
 		}

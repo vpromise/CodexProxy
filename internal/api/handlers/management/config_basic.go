@@ -167,8 +167,24 @@ func (h *Handler) PutConfigYAML(c *gin.Context) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	preservedPoolIDs := cfg.PreservePoolAccountIDs(h.cfg)
+	if errValidate := h.validatePoolAccounts(&cfg); errValidate != nil {
+		c.JSON(422, gin.H{"error": "invalid_config", "message": errValidate.Error()})
+		return
+	}
+	if preservedPoolIDs {
+		if errSave := config.SaveConfigPreserveComments(tempFile, &cfg); errSave != nil {
+			c.JSON(500, gin.H{"error": "write_failed"})
+			return
+		}
+		body, err = os.ReadFile(tempFile)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "write_failed"})
+			return
+		}
+	}
 	if WriteConfig(h.configFilePath, body) != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "write_failed", "message": "failed to write config"})
+		c.JSON(500, gin.H{"error": "write_failed"})
 		return
 	}
 	// Reload into handler to keep memory in sync
@@ -178,7 +194,9 @@ func (h *Handler) PutConfigYAML(c *gin.Context) {
 		return
 	}
 	h.cfg = newCfg
+	snapshot := h.reloadSnapshotConfigLocked()
 	c.JSON(http.StatusOK, gin.H{"ok": true, "changed": []string{"config"}})
+	h.reloadConfigAfterManagementSaveAsync(c.Request.Context(), snapshot)
 }
 
 // GetConfigYAML returns the raw config.yaml file bytes without re-encoding.

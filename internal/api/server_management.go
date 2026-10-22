@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,9 @@ func (s *Server) registerManagementRoutes() {
 		mgmt.POST("/reset-quota", s.mgmt.ResetQuota)
 
 		mgmt.GET("/api-keys", s.mgmt.GetAPIKeys)
+		mgmt.GET("/models", s.mgmt.GetManagementModels)
+		mgmt.GET("/access-isolation", s.mgmt.GetAccessIsolation)
+		mgmt.PUT("/access-isolation", s.mgmt.PutAccessIsolation)
 		mgmt.PUT("/api-keys", s.mgmt.PutAPIKeys)
 		mgmt.PATCH("/api-keys", s.mgmt.PatchAPIKeys)
 		mgmt.DELETE("/api-keys", s.mgmt.DeleteAPIKeys)
@@ -146,11 +150,12 @@ func (s *Server) managementAvailabilityMiddleware() gin.HandlerFunc {
 }
 
 func (s *Server) managementAvailable(c *gin.Context) bool {
-	if s == nil || s.cfg == nil {
+	cfg := s.configSnapshot()
+	if cfg == nil {
 		c.AbortWithStatus(http.StatusNotFound)
 		return false
 	}
-	if s.cfg.Home.Enabled {
+	if cfg.Home.Enabled {
 		c.AbortWithStatus(http.StatusNotFound)
 		return false
 	}
@@ -162,7 +167,7 @@ func (s *Server) managementAvailable(c *gin.Context) bool {
 }
 
 func (s *Server) serveManagementControlPanel(c *gin.Context) {
-	cfg := s.cfg
+	cfg := s.configSnapshot()
 	if cfg == nil || cfg.Home.Enabled || cfg.RemoteManagement.DisableControlPanel {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
@@ -175,4 +180,13 @@ func (s *Server) serveManagementControlPanel(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", html)
+}
+
+// RevokeAccountPoolMember persists a lifecycle revocation through management's
+// serialized configuration writer.
+func (s *Server) RevokeAccountPoolMember(ctx context.Context, id string) error {
+	if s == nil || s.mgmt == nil {
+		return nil
+	}
+	return s.mgmt.RevokeAccountPoolMember(ctx, id)
 }
