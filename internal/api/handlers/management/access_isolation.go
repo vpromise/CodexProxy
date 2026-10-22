@@ -204,11 +204,7 @@ func (h *Handler) RevokeAccountPoolMember(ctx context.Context, id string) error 
 	}
 	h.cfg = next
 	snapshot := h.reloadSnapshotConfigLocked()
-	// Publish the reduced grant before removing the account. Existing requests hold
-	// independent scopes; new requests cannot regain access through an import race.
-	if h.authManager != nil {
-		h.authManager.SetConfig(next)
-	}
+	// The snapshot publishes the reduced grant before removing the account.
 	h.mu.Unlock()
 	h.reloadConfigAfterManagementSaveAsync(ctx, snapshot)
 	return nil

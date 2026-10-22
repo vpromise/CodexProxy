@@ -100,6 +100,9 @@ compatibility accounts and Home dispatch cannot bypass isolation.
 
 A generation already accepted keeps its captured grant and may finish. New HTTP
 requests and new operations on an existing socket use the latest policy.
+A successful management save publishes client authentication and pool grants
+before returning, including full YAML saves. Executor reloads run separately and
+cannot restore grants from an older configuration snapshot.
 Responses continuations that require an unauthorized account are rejected; a
 new full request can select from the current pool. Realtime credentials are
 bound to their issuer and issuance pool/members. Changing the issuer's pool does
@@ -122,3 +125,30 @@ Realtime messages, and account rename/delete/reimport.
 
 See [validation notes](access-isolation-validation.md) for executed checks and
 outstanding acceptance, including the browser permission block.
+
+## Application logs and isolation audit
+
+The Logs page reads application **file** logs. When file logging is disabled,
+use **Enable file logging** on that page (or Configuration). This records future
+application logs; it does not import Docker stdout history or enable full request
+logging. Keep the configured log-size limit and filesystem permissions in place.
+
+With isolation enabled, `account isolation decision` events record selection and
+rejection decisions at info/warn level, independently of debug and request-body
+logging. Correlate `request_id` and the process-local `access_operation` counter;
+new socket operations receive distinct counters. `policy_revision` fingerprints
+the immutable grant snapshot, so active generations retain their original
+revision even after a policy save.
+
+`client_ref` is SHA-256 of the authentication provider, a NUL separator, and the
+client key. `pool_ref` is SHA-256 of the pool ID. `account_ref` is the native pool
+membership identity exposed in the management inventory. These references avoid
+logging keys, account filenames, emails, prompts, and caller-supplied session
+hints. Selection events are evidence of the selected credential, not proof that
+an upstream response completed successfully. Multiple events can belong to a
+single operation (selection, HTTP preparation/execution, or a refresh retry).
+
+Codex client catalog refresh validates complete model records without requiring
+one fixed model slug. Template selection prefers the established `gpt-5.5`
+template when present, otherwise the lowest numeric priority, breaking ties by
+slug. Invalid or empty catalogs still leave the last valid snapshot intact.

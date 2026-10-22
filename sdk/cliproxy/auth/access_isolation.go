@@ -20,12 +20,14 @@ type clientIdentity struct{ key, provider string }
 // AccessScope is an immutable grant captured at a request boundary. Callers may
 // retain it only for an in-progress operation, never for the next socket message.
 type AccessScope struct {
-	enabled  bool
-	denied   bool
-	provider string
-	pool     string
-	members  map[string]bool
-	caller   string
+	enabled   bool
+	denied    bool
+	provider  string
+	pool      string
+	members   map[string]bool
+	caller    string
+	revision  string
+	operation uint64
 }
 
 // WithClientIdentity must only be called after successful client authentication.
@@ -70,22 +72,25 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	scope := &AccessScope{}
+	scope := &AccessScope{operation: accessOperationSequence.Add(1)}
 	identity, _ := ctx.Value(clientIdentityKey{}).(clientIdentity)
 	if identity.key != "" {
 		digest := sha256.Sum256([]byte(identity.provider + "\x00" + identity.key))
 		scope.caller = hex.EncodeToString(digest[:])
 	}
 	if m != nil {
-		cfg := m.runtimeConfigSnapshot()
-		if cfg != nil && cfg.AccessIsolation.Enabled {
+		policy := m.accessPolicy.Load()
+		if policy != nil {
+			scope.revision = policy.Revision
+		}
+		if policy != nil && policy.Isolation.Enabled {
 			scope.enabled, scope.denied = true, true
-			if !cfg.Home.Enabled && identity.provider == "config-inline" && slices.Contains(cfg.APIKeys, identity.key) {
-				for _, binding := range cfg.AccessIsolation.Keys {
+			if !policy.Home && identity.provider == "config-inline" && slices.Contains(policy.Keys, identity.key) {
+				for _, binding := range policy.Isolation.Keys {
 					if binding.Key != identity.key || binding.Pool == "" {
 						continue
 					}
-					for _, pool := range cfg.AccessIsolation.Pools {
+					for _, pool := range policy.Isolation.Pools {
 						if pool.ID != binding.Pool || (pool.Provider != "codex" && pool.Provider != "claude") {
 							continue
 						}
@@ -110,7 +115,11 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 			}
 		}
 	}
-	return context.WithValue(ctx, accessScopeKey{}, scope)
+	ctx = context.WithValue(ctx, accessScopeKey{}, scope)
+	if scope.denied {
+		auditAccessDecision(ctx, nil, "denied", "client_grant_unavailable")
+	}
+	return ctx
 }
 
 func (m *Manager) AuthorizeRequest(ctx context.Context) (context.Context, error) {
@@ -142,7 +151,11 @@ func (m *Manager) AuthorizedModels(ctx context.Context) []*registry.ModelInfo {
 
 // IsolationEnabled reports whether native pool authorization is required.
 func (m *Manager) IsolationEnabled() bool {
-	return m != nil && m.runtimeConfigSnapshot() != nil && m.runtimeConfigSnapshot().AccessIsolation.Enabled
+	if m == nil {
+		return false
+	}
+	policy := m.accessPolicy.Load()
+	return policy != nil && policy.Isolation.Enabled
 }
 
 // WithAccessCeiling binds a derived credential to its issuance grant. Current
@@ -155,8 +168,15 @@ func WithAccessCeiling(ctx context.Context, scope *AccessScope) context.Context 
 }
 
 // CheckCurrentAccount authorizes a new operation on an existing native session.
-func (m *Manager) CheckCurrentAccount(ctx context.Context, selected *Auth) error {
+func (m *Manager) CheckCurrentAccount(ctx context.Context, selected *Auth) (errAccess error) {
 	ctx = m.NewAccessRequest(ctx)
+	defer func() {
+		if errAccess != nil {
+			auditAccessDecision(ctx, nil, "denied", "session_account_unavailable")
+		} else {
+			auditAccessDecision(ctx, selected, "session_authorized", "current_grant")
+		}
+	}()
 	scope := AccessScopeFromContext(ctx)
 	if err := scope.Error(); err != nil {
 		return err
@@ -189,7 +209,12 @@ func scopeAccessOptions(ctx context.Context, opts coreexecutor.Options) coreexec
 }
 
 // ValidateAccessSelection checks a request before local prewarming or native execution.
-func (m *Manager) ValidateAccessSelection(ctx context.Context, providers []string, model string, opts coreexecutor.Options) error {
+func (m *Manager) ValidateAccessSelection(ctx context.Context, providers []string, model string, opts coreexecutor.Options) (errAccess error) {
+	defer func() {
+		if errAccess != nil {
+			auditAccessDecision(ctx, nil, "denied", "selection_not_authorized_or_available")
+		}
+	}()
 	scope := AccessScopeFromContext(ctx)
 	if !scope.Enabled() {
 		return nil

@@ -517,17 +517,9 @@ func TestAccessIsolationHTTPAndCatalogs(t *testing.T) {
 		}
 	}
 	save()
-	// Wait for the public policy view to propagate before exercising the client.
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		status, body = s.request(t, http.MethodGet, "/v1/models", "synthetic-old-key", "")
-		if status == 200 && gjson.Get(body, "data.#").Int() == 1 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("scoped catalog: %d %s", status, body)
-		}
-		time.Sleep(10 * time.Millisecond)
+	status, body = s.request(t, http.MethodGet, "/v1/models", "synthetic-old-key", "")
+	if status != 200 || gjson.Get(body, "data.#").Int() != 1 {
+		t.Fatalf("acknowledged scoped catalog: %d %s", status, body)
 	}
 	status, body = s.request(t, http.MethodPost, "/v1/responses", "synthetic-old-key", `{"model":"gpt-5.4","input":"hello"}`)
 	if status != 200 {
@@ -535,16 +527,9 @@ func TestAccessIsolationHTTPAndCatalogs(t *testing.T) {
 	}
 	policy.Pools[0].Accounts = nil
 	save()
-	deadline = time.Now().Add(5 * time.Second)
-	for {
-		status, body = s.request(t, http.MethodGet, "/v1/models", "synthetic-old-key", "")
-		if status == 200 && gjson.Get(body, "data.#").Int() == 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("empty pool catalog: %d %s", status, body)
-		}
-		time.Sleep(10 * time.Millisecond)
+	status, body = s.request(t, http.MethodGet, "/v1/models", "synthetic-old-key", "")
+	if status != 200 || gjson.Get(body, "data.#").Int() != 0 {
+		t.Fatalf("acknowledged empty pool catalog: %d %s", status, body)
 	}
 	before := calls.Load()
 	for _, path := range []string{"/v1/responses", "/v1/responses/compact", "/backend-api/codex/responses", "/v1/alpha/search"} {

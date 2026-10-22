@@ -69,7 +69,7 @@ func (h *Handler) putStringList(c *gin.Context, set func([]string), after func()
 	if after != nil {
 		after()
 	}
-	h.persist(c)
+	h.persistLocked(c)
 }
 
 func (h *Handler) patchStringList(c *gin.Context, target *[]string, after func()) {
@@ -88,7 +88,7 @@ func (h *Handler) patchStringList(c *gin.Context, target *[]string, after func()
 		if after != nil {
 			after()
 		}
-		h.persist(c)
+		h.persistLocked(c)
 		return
 	}
 	if body.Old != nil && body.New != nil {
@@ -98,7 +98,7 @@ func (h *Handler) patchStringList(c *gin.Context, target *[]string, after func()
 				if after != nil {
 					after()
 				}
-				h.persist(c)
+				h.persistLocked(c)
 				return
 			}
 		}
@@ -106,7 +106,7 @@ func (h *Handler) patchStringList(c *gin.Context, target *[]string, after func()
 		if after != nil {
 			after()
 		}
-		h.persist(c)
+		h.persistLocked(c)
 		return
 	}
 	c.JSON(400, gin.H{"error": "missing fields"})
@@ -121,7 +121,7 @@ func (h *Handler) deleteFromStringList(c *gin.Context, target *[]string, after f
 			if after != nil {
 				after()
 			}
-			h.persist(c)
+			h.persistLocked(c)
 			return
 		}
 	}
@@ -136,7 +136,7 @@ func (h *Handler) deleteFromStringList(c *gin.Context, target *[]string, after f
 		if after != nil {
 			after()
 		}
-		h.persist(c)
+		h.persistLocked(c)
 		return
 	}
 	c.JSON(400, gin.H{"error": "missing index or value"})
@@ -145,14 +145,20 @@ func (h *Handler) deleteFromStringList(c *gin.Context, target *[]string, after f
 // api-keys
 func (h *Handler) GetAPIKeys(c *gin.Context) { c.JSON(200, gin.H{"api-keys": h.cfg.APIKeys}) }
 func (h *Handler) PutAPIKeys(c *gin.Context) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.putStringList(c, func(v []string) {
 		h.cfg.APIKeys = append([]string(nil), v...)
 	}, nil)
 }
 func (h *Handler) PatchAPIKeys(c *gin.Context) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.patchStringList(c, &h.cfg.APIKeys, func() {})
 }
 func (h *Handler) DeleteAPIKeys(c *gin.Context) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.deleteFromStringList(c, &h.cfg.APIKeys, func() {})
 }
 

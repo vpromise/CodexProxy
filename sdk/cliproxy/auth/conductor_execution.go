@@ -372,6 +372,7 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 
 		entry := logEntryWithRequestID(ctx)
 		debugLogAuthSelection(entry, auth, provider, routeModel)
+		auditAccessDecision(ctx, auth, "selected", "execution_attempt")
 		publishSelectedAuthMetadata(opts.Metadata, auth)
 
 		tried[auth.ID] = struct{}{}
@@ -585,6 +586,7 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 
 		entry := logEntryWithRequestID(ctx)
 		debugLogAuthSelection(entry, auth, provider, routeModel)
+		auditAccessDecision(ctx, auth, "selected", "execution_attempt")
 		publishSelectedAuthMetadata(opts.Metadata, auth)
 
 		tried[auth.ID] = struct{}{}
@@ -894,6 +896,7 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 
 		entry := logEntryWithRequestID(ctx)
 		debugLogAuthSelection(entry, auth, provider, routeModel)
+		auditAccessDecision(ctx, auth, "selected", "execution_attempt")
 		if selection != nil {
 			if errRuntimeAuth := m.bindHomeSelectionRuntimeAuth(ctx, opts, selection); errRuntimeAuth != nil {
 				selection.End("runtime_auth_bind_failed")
@@ -1814,6 +1817,7 @@ func (m *Manager) PrepareHttpRequest(ctx context.Context, auth *Auth, req *http.
 		return errAccess
 	}
 	if !AccessScopeFromContext(ctx).Allows(auth) {
+		auditAccessDecision(ctx, nil, "denied", "account_outside_pool")
 		return &Error{Code: "access_denied", Message: "Account is outside the authorized pool", HTTPStatus: http.StatusForbidden}
 	}
 	if m == nil {
@@ -1840,6 +1844,7 @@ func (m *Manager) PrepareHttpRequest(ctx context.Context, auth *Auth, req *http.
 	if !ok || preparer == nil {
 		return &Error{Code: "not_supported", Message: "executor does not support http request preparation"}
 	}
+	auditAccessDecision(ctx, auth, "selected", "http_preparation")
 	return preparer.PrepareRequest(req, auth)
 }
 
@@ -1877,6 +1882,7 @@ func (m *Manager) HttpRequest(ctx context.Context, auth *Auth, req *http.Request
 		return nil, errAccess
 	}
 	if !AccessScopeFromContext(ctx).Allows(auth) {
+		auditAccessDecision(ctx, nil, "denied", "account_outside_pool")
 		return nil, &Error{Code: "access_denied", Message: "Account is outside the authorized pool", HTTPStatus: http.StatusForbidden}
 	}
 	if m == nil {
@@ -1896,5 +1902,6 @@ func (m *Manager) HttpRequest(ctx context.Context, auth *Auth, req *http.Request
 	if exec == nil {
 		return nil, &Error{Code: "provider_not_found", Message: "executor not registered for provider: " + providerKey}
 	}
+	auditAccessDecision(ctx, auth, "selected", "http_execution")
 	return exec.HttpRequest(ctx, auth, req)
 }

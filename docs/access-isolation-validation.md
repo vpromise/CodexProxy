@@ -77,3 +77,48 @@ browser acceptance remains pending.
 The two platform-dependent tests also remain unverified on a host with the
 required loopback address. The implementation should not be described as having
 completed every acceptance criterion until these outstanding checks are resolved.
+
+## Production findings and repair plan — 2026-10-22
+
+| Finding | Repair | Acceptance |
+| --- | --- | --- |
+| Successful policy saves can precede runtime revocation | Publish an immutable access-policy snapshot and client authentication synchronously; isolate executor reloads; reject stale reload grants against persisted policy | Delayed reload tests for enable/revoke through dedicated and full-YAML APIs; immediate HTTP key replacement and scoped catalogs; stale replay and external edits; active generation preservation |
+| File log viewer disabled and misleading product wording | Add a localized enable action and explain future-only file logs; enable file logging on dmit with a protected configuration backup | Local logging toggle/query regression; verify production `/logs` returns 200 and main.log exists while all other effective settings remain equal |
+| Missing request-to-account audit trail | Emit structured, non-secret decision references, policy fingerprint and per-operation counter at selection/rejection/session boundaries | Real mocked execution and revocation assert selected identity, changed revision, no denied upstream attempt, and no private values in formatted output |
+| Remote catalog rejected for missing a fixed default model | Keep record validation; select a deterministic fallback template | Complete alternate-slug catalogs accepted; malformed catalogs rejected; usable fallback template and existing template refresh tests |
+
+Production configuration repair: dmit application file logging was enabled without
+restarting the container. The log query returned 200, main.log was created, health
+remained healthy, and the container ID/restart count were unchanged. All other
+effective configuration fields, including isolation bindings and full request
+logging, compared equal before/after. Backup:
+`/root/cpa-deploy/releases/file-logging-fix-20261022T085320Z/config.before.yaml`.
+The same directory contains a verification receipt. This was a configuration
+repair, not activation of the new source code.
+
+The repair tests use synthetic credentials only, with real credential paths and
+non-loopback network access denied. A source-only temporary checkout is used for
+the full Go suite so package discovery does not enter the real auth directory.
+Browser acceptance retains the previously documented managed-policy limitation.
+
+Repair verification results:
+
+- The new enable/revoke acknowledgment regressions were first observed failing;
+  they now pass for both management endpoints, including checks during stale
+  runtime replay and after completion.
+- Immediate HTTP key replacement and catalog restriction passed five repeated
+  runs, with no propagation sleeps in the catalog acceptance test.
+- Eight affected Go packages passed their complete test suites.
+- Full source-only Go suite passed with only the two previously documented
+  macOS `127.0.0.2` binding tests excluded. Their unmodified failures were also
+  observed on the initial complete run; Linux execution is not claimed.
+- Race-detector checks passed for management acknowledgment, file logging,
+  immediate HTTP key authentication, audit redaction, policy snapshot ownership,
+  existing HTTP/WebSocket generation behavior, and Realtime operations.
+- Frontend verification passed all 366 tests, ESLint, TypeScript and production
+  build. The Go-embedded page was regenerated with `VERSION=__CLI_PROXYAPI_VERSION__`.
+- Server compilation, embedded-page contract tests and `git diff --check` passed.
+
+New source activation on dmit is separate from the completed file-logging
+configuration repair. No new source deployment or real-provider inference was
+performed as part of these code fixes.

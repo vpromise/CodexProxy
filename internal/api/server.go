@@ -198,6 +198,15 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	s.mgmt = managementHandlers.NewHandler(cfg.CloneForRuntime(), configFilePath, authManager)
 	s.mgmt.SetPluginHost(optionState.pluginHost)
 	s.mgmt.SetConfigReloadHook(optionState.configReloadHook)
+	s.mgmt.SetAccessConfigHook(func(next *config.Config) {
+		safeMode := s.exampleAPIKeySafeModeRequired(next)
+		if safeMode {
+			s.exampleAPIKeySafeModeActive.Store(true)
+		}
+		if s.applyAccessConfig(nil, next) {
+			s.exampleAPIKeySafeModeActive.Store(safeMode)
+		}
+	})
 	if optionState.localPassword != "" {
 		s.mgmt.SetLocalPassword(optionState.localPassword)
 	}

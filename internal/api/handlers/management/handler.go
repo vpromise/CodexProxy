@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,7 @@ type Handler struct {
 	postAuthPersistHook     coreauth.PostAuthHook
 	pluginHost              *pluginhost.Host
 	configReloadHook        func(context.Context, *config.Config)
+	accessConfigHook        func(*config.Config)
 }
 
 type configReloadSnapshot struct {
@@ -78,6 +80,9 @@ func NewHandler(cfg *config.Config, configFilePath string, manager *coreauth.Man
 		envSecret:           envSecret,
 	}
 	h.startAttemptCleanup()
+	if manager != nil {
+		manager.PublishAccessPolicy(cfg)
+	}
 	return h
 }
 
@@ -118,12 +123,40 @@ func NewHandlerWithoutConfigFilePath(cfg *config.Config, manager *coreauth.Manag
 
 // SetConfig updates the in-memory config reference when the server hot-reloads.
 func (h *Handler) SetConfig(cfg *config.Config) {
-	if h == nil {
+	if h == nil || cfg == nil {
 		return
 	}
 	h.mu.Lock()
+	defer h.mu.Unlock()
+	// A reload can have read an older file before a management save. Never let
+	// it roll back acknowledged grants or client credentials. The same mutex
+	// serializes this check/publication with all management policy writes.
+	if h.reloadGeneration > 0 && h.configFilePath != "" {
+		persisted, err := config.LoadConfig(h.configFilePath)
+		if err != nil || !reflect.DeepEqual(persisted.AccessIsolation, cfg.AccessIsolation) || !reflect.DeepEqual(persisted.APIKeys, cfg.APIKeys) {
+			return
+		}
+	}
 	h.cfg = cfg
-	h.mu.Unlock()
+	h.publishAccessConfigLocked()
+}
+
+// SetAccessConfigHook installs the short, in-memory client authentication update.
+// The callback must not call management handlers or perform runtime reload work.
+func (h *Handler) SetAccessConfigHook(hook func(*config.Config)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.accessConfigHook = hook
+	h.publishAccessConfigLocked()
+}
+
+func (h *Handler) publishAccessConfigLocked() {
+	if h.authManager != nil {
+		h.authManager.PublishAccessPolicy(h.cfg)
+	}
+	if h.accessConfigHook != nil {
+		h.accessConfigHook(h.cfg)
+	}
 }
 
 // SetAuthManager updates the auth manager reference used by management endpoints.
@@ -133,6 +166,9 @@ func (h *Handler) SetAuthManager(manager *coreauth.Manager) {
 	}
 	h.mu.Lock()
 	h.authManager = manager
+	if manager != nil {
+		manager.PublishAccessPolicy(h.cfg)
+	}
 	h.mu.Unlock()
 }
 
@@ -163,6 +199,7 @@ func (h *Handler) reloadSnapshotConfigLocked() configReloadSnapshot {
 		return configReloadSnapshot{}
 	}
 	h.reloadGeneration++
+	h.publishAccessConfigLocked()
 	return configReloadSnapshot{
 		cfg:        h.cfg.CloneForRuntime(),
 		generation: h.reloadGeneration,

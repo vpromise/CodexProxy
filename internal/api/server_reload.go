@@ -150,14 +150,8 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	}
 	redisqueue.SetEnabled(s.managementRoutesEnabled.Load() || (cfg != nil && cfg.Home.Enabled))
 
-	exampleAPIKeySafeModeRequired := s.exampleAPIKeySafeModeRequired(cfg)
-	if exampleAPIKeySafeModeRequired {
-		s.exampleAPIKeySafeModeActive.Store(true)
-	}
-	accessConfigApplied := s.applyAccessConfig(oldCfg, cfg)
-	if accessConfigApplied || exampleAPIKeySafeModeRequired {
-		s.exampleAPIKeySafeModeActive.Store(exampleAPIKeySafeModeRequired)
-	}
+	// Client authentication and pool grants are published together by management,
+	// which also rejects reloads older than an acknowledged policy save.
 	s.cfgMu.Lock()
 	s.cfg = cfg
 	s.cfgMu.Unlock()
