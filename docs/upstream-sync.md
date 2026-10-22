@@ -4,7 +4,32 @@ Updated: 2026-10-22 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## dmit2 memory incident recovery — 2026-10-22
+
+At **2026-10-22 21:21:19 Asia/Shanghai**, dmit2 was restored to active/running and enabled from the verified native systemd release **[baabdc29](https://github.com/vpromise/CodexProxy/commit/baabdc29ad44cf7e30286cfc8078dc7cf84a09d7)** on **`codex/memory-retention-fix`**. This entry supersedes earlier dmit2 availability/version statements below. Main, dmit and bawg were not changed by this rollout. The implementation is based on merged main `ce1b7cd77d7e7d51b4580f44caa4684611c468d6`; the normal feature-branch push and exact remote SHA were verified. A later ledger-only commit does not change the running source SHA.
+
+The prior `10f500fe2540d055ed1e79e7bbf239bddcaf1963` native service had been deliberately stopped and disabled after five kernel-confirmed OOM kills. The replacement clears consumed usage queue slots and deferred diagnostic capture builders after final logging. Tests prove completed-request collection without losing multi-attempt error logs; this does not eliminate active-request body copies or establish the sole cause of the production OOMs.
+
+Validation: before/after weak-reference and native middleware regressions, targeted race tests, host and static Linux builds passed. All 68 packages passed on macOS with exactly two preexisting `127.0.0.2` binding failures excluded; both failures passed in the complete `helps` package suite on Linux. Complete Linux usage and middleware suites also passed. Four sustained local scenarios completed 2,569 synthetic requests; three Linux scenarios completed 362 requests. Normal responses, synthetic upstream errors and client cancellation were exercised with fake credentials, loopback-only network and no access to production config/auth. At quiescent forced-GC checkpoints, incremental live heap remained within 0.25 MiB. No forced GC ran during traffic. Linux cgroup peaks were 395.5 MiB (8 MiB × 4), 670.8 MiB (8 MiB × 8) and 717.7 MiB (16 MiB × 4), with no OOM events. These are bounded synthetic scenarios, not a claim of production capacity or a measured reduction in active-request peak memory.
+
+Only `codexproxy.service` gained a dedicated `90-memory-protection.conf`: `MemoryMax=768M`, `MemorySwapMax=128M`, `CPUQuota=100%` (one CPU on this two-CPU host), `StartLimitIntervalSec=300`, `StartLimitBurst=3`, `RestartSec=15s`, CPU/memory accounting enabled. Existing `GOMEMLIMIT=512MiB` and production configuration were preserved. `MemoryHigh` remains unlimited; the Go soft limit and cgroup hard backstop serve different purposes. A larger live workload may reach the service cap; containment is not proof that all memory optimizations are complete.
+
+The installed file and `/proc/<pid>/exe` both matched the static Go 1.27.1 Linux/amd64 artifact. Fifteen HTTP contracts passed across loopback, local gateway and public HTTPS: health 200, hello HEAD 204, unauthenticated models/config 401, expected version/commit, and exact management HTML. Public TLS was validated normally; only the existing loopback origin-certificate probe used the established local exception. An existing API key was used server-side solely for read-only `/v1/models` (200), never exported. No real inference or credential-refresh test was initiated. After at least 120 seconds of observation, there were zero restarts/OOMs and no startup error/panic records. Final process RSS was 59.8 MiB and service cgroup memory was 28.2 MiB, host available memory 1503 MiB; these low-load observations do not represent real inference memory. new-api, s-ui and nginx retained their original PIDs, start times and restart counts.
+
+- Build version: `codexproxy-20261022-baabdc29`; build UTC: `2026-10-22T12:08:00Z`.
+- Source tree: `88aa55fb240c5dee3d0c5ae5f5208305528a2930`.
+- Source manifest: `34064b969b072b70aa5a25c35e6f962eb1c69b66b857a9b212fa4c2b171246aa`.
+- Static artifact: `4f0940277006ac4c5128205c21f7803e3ff291058d6ef30af6b526a6a9808365`.
+- Management HTML: `6b57f6d8f86cd8ec104163961983b6235ac586c2c8554733e23fe44611cc1c6d`.
+- Preserved config: `cc85a7176688c287277ba484605e49649a3f1a54fdbc1a9f70ac0f6c583045da`.
+- Protected release: `/opt/codex-stack/codexproxy/releases/20261022-baabdc29-memory`; completion record and root `LATEST_DEPLOYMENT.json` were atomically written and read back.
+- Recovery: run that release's syntax-checked `ROLLBACK.sh`; it restores the old executable and the **stopped/disabled incident baseline**, removes only the owned protection drop-in, and does not overwrite account data or restart the former OOM-prone binary.
+
+Production configurations and raw logs remain in the mode-0700 release directory. The first preparation extraction raced an unfinished upload and failed before activation; after transfer completion all payload hashes and the safe isolated help smoke passed. No bypass of a failed runtime gate was used. Next validation is observation of user-initiated real traffic; no unbounded background load or profiling listener remains.
+
 ## Current checkpoint
+
+**Current dmit2 status:** memory recovery at `baabdc29` on `codex/memory-retention-fix` is recorded above and supersedes earlier dmit2 deployment rows.
 
 | Item | Recorded state |
 | --- | --- |
