@@ -207,7 +207,9 @@ real metadata are separate from these tests.
 
 Publication integration rebased this one repair commit onto latest main
 `20205ee7988ecd37876f1ebdfaf428efbfe7cbaf`, preserving its October 23 WebSocket and
-response fixes. The earlier `codex/memory-retention-fix` commits remain separate.
+response fixes. The earlier `codex/memory-retention-fix` commits remained separate at that
+checkpoint; the subsequent memory merge and combined validation are recorded in
+`docs/upstream-sync.md`.
 The complete frontend and management-asset inputs match the previously verified
 repair tree exactly. Management-handler, configuration and management-asset
 package tests and the server build passed again on the integrated tree. The main

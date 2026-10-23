@@ -4,7 +4,70 @@ Updated: 2026-10-23 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Memory repair integrated into main — 2026-10-23
+
+The user-authorized merge integrates published `codex/memory-retention-fix`
+`c09004149902be4f5212e3768d88e1939256c6b1`, including implementation
+[baabdc29](https://github.com/vpromise/CodexProxy/commit/baabdc29ad44cf7e30286cfc8078dc7cf84a09d7),
+into main based on `4c479da8d351b142def19c01a36574e63dc60c29`. It preserves the
+October 23 upstream repairs (`55d11ada`) and revoked-key record cleanup
+(`a181bc25`). Both memory cleanup code paths and their regression files match
+the original repair exactly; the automatic merge had no conflicts.
+
+Consumed usage queue slots release completed request contexts. Request logging
+finalization releases deferred upstream request builders after diagnostics have
+finished, retaining retry details until error logging completes. No scheduling,
+isolation policy, provider protocol, active-request budget or timeout change is
+introduced by this merge.
+
+Validation on Go 1.27.1, darwin/arm64: full Go tests passed **68 packages / 3975
+top-level tests**; exactly the two preexisting 127.0.0.2 binding tests were excluded
+after a fresh local bind probe reproduced errno 49. The optional external TLS
+capture test skipped because it was unconfigured. Targeted race suites passed
+**5 packages / 450 top-level tests** across middleware, usage, API and HTTP/WS
+handlers. Three allocation-only tests intentionally skip under race and passed
+in the ordinary suite. The server build, formatting and diff checks passed.
+All tests used fixtures; no real-account inference or server access occurred.
+
+An initial result-summary script failed after the tests completed; the corrected
+collector reran both suites and recorded their exit status as zero. Final full
+and race output SHA-256 values are
+`def6b25fa9551928b2690d79f3b3e3bbbcc2db727653f09a55cc8985d5b43cf5` and
+`540db7a764c176717b9b3da4dde23024ce2646d45cb3723a6ea6aff45f271a1f`.
+The main management assets and the previous key-cleanup changes are unchanged.
+
+This source merge supersedes earlier statements that the memory branch is
+outside main. It performs no deployment or resource/logging configuration change.
+The October 22 recovery limits below are historical values from that rollout,
+not a readback of current server limits. Existing local deployment-ledger edits
+in the user's original checkout were preserved byte for byte.
+
+## dmit2 memory incident recovery — 2026-10-22
+
+At **2026-10-22 21:21:19 Asia/Shanghai**, dmit2 was restored to active/running and enabled from the verified native systemd release **[baabdc29](https://github.com/vpromise/CodexProxy/commit/baabdc29ad44cf7e30286cfc8078dc7cf84a09d7)** on **`codex/memory-retention-fix`**. This entry supersedes earlier dmit2 availability/version statements below. Main, dmit and bawg were not changed by this rollout. The implementation is based on merged main `ce1b7cd77d7e7d51b4580f44caa4684611c468d6`; the normal feature-branch push and exact remote SHA were verified. A later ledger-only commit does not change the running source SHA.
+
+The prior `10f500fe2540d055ed1e79e7bbf239bddcaf1963` native service had been deliberately stopped and disabled after five kernel-confirmed OOM kills. The replacement clears consumed usage queue slots and deferred diagnostic capture builders after final logging. Tests prove completed-request collection without losing multi-attempt error logs; this does not eliminate active-request body copies or establish the sole cause of the production OOMs.
+
+Validation: before/after weak-reference and native middleware regressions, targeted race tests, host and static Linux builds passed. All 68 packages passed on macOS with exactly two preexisting `127.0.0.2` binding failures excluded; both failures passed in the complete `helps` package suite on Linux. Complete Linux usage and middleware suites also passed. Four sustained local scenarios completed 2,569 synthetic requests; three Linux scenarios completed 362 requests. Normal responses, synthetic upstream errors and client cancellation were exercised with fake credentials, loopback-only network and no access to production config/auth. At quiescent forced-GC checkpoints, incremental live heap remained within 0.25 MiB. No forced GC ran during traffic. Linux cgroup peaks were 395.5 MiB (8 MiB × 4), 670.8 MiB (8 MiB × 8) and 717.7 MiB (16 MiB × 4), with no OOM events. These are bounded synthetic scenarios, not a claim of production capacity or a measured reduction in active-request peak memory.
+
+Only `codexproxy.service` gained a dedicated `90-memory-protection.conf`: `MemoryMax=768M`, `MemorySwapMax=128M`, `CPUQuota=100%` (one CPU on this two-CPU host), `StartLimitIntervalSec=300`, `StartLimitBurst=3`, `RestartSec=15s`, CPU/memory accounting enabled. Existing `GOMEMLIMIT=512MiB` and production configuration were preserved. `MemoryHigh` remains unlimited; the Go soft limit and cgroup hard backstop serve different purposes. A larger live workload may reach the service cap; containment is not proof that all memory optimizations are complete.
+
+The installed file and `/proc/<pid>/exe` both matched the static Go 1.27.1 Linux/amd64 artifact. Fifteen HTTP contracts passed across loopback, local gateway and public HTTPS: health 200, hello HEAD 204, unauthenticated models/config 401, expected version/commit, and exact management HTML. Public TLS was validated normally; only the existing loopback origin-certificate probe used the established local exception. An existing API key was used server-side solely for read-only `/v1/models` (200), never exported. No real inference or credential-refresh test was initiated. After at least 120 seconds of observation, there were zero restarts/OOMs and no startup error/panic records. Final process RSS was 59.8 MiB and service cgroup memory was 28.2 MiB, host available memory 1503 MiB; these low-load observations do not represent real inference memory. new-api, s-ui and nginx retained their original PIDs, start times and restart counts.
+
+- Build version: `codexproxy-20261022-baabdc29`; build UTC: `2026-10-22T12:08:00Z`.
+- Source tree: `88aa55fb240c5dee3d0c5ae5f5208305528a2930`.
+- Source manifest: `34064b969b072b70aa5a25c35e6f962eb1c69b66b857a9b212fa4c2b171246aa`.
+- Static artifact: `4f0940277006ac4c5128205c21f7803e3ff291058d6ef30af6b526a6a9808365`.
+- Management HTML: `6b57f6d8f86cd8ec104163961983b6235ac586c2c8554733e23fe44611cc1c6d`.
+- Preserved config: `cc85a7176688c287277ba484605e49649a3f1a54fdbc1a9f70ac0f6c583045da`.
+- Protected release: `/opt/codex-stack/codexproxy/releases/20261022-baabdc29-memory`; completion record and root `LATEST_DEPLOYMENT.json` were atomically written and read back.
+- Recovery: run that release's syntax-checked `ROLLBACK.sh`; it restores the old executable and the **stopped/disabled incident baseline**, removes only the owned protection drop-in, and does not overwrite account data or restart the former OOM-prone binary.
+
+Production configurations and raw logs remain in the mode-0700 release directory. The first preparation extraction raced an unfinished upload and failed before activation; after transfer completion all payload hashes and the safe isolated help smoke passed. No bypass of a failed runtime gate was used. Next validation is observation of user-initiated real traffic; no unbounded background load or profiling listener remains.
+
 ## Current checkpoint
+
+**Current dmit2 status:** memory recovery at `baabdc29` on `codex/memory-retention-fix` is recorded above and supersedes earlier dmit2 deployment rows.
 
 | Item | Recorded state |
 | --- | --- |
@@ -15,9 +78,9 @@ Updated: 2026-10-23 (Asia/Shanghai). This is the checkpoint for selective backpo
 | Latest verified published implementation | [55d11ada](https://github.com/vpromise/CodexProxy/commit/55d11ada7023f302d88306ed1e5c451d790cc1aa) (`55d11ada7023f302d88306ed1e5c451d790cc1aa`): October23 four logical repairs from five upstream commits |
 | Published source tree | `db547f073bc679c18847e306e946379de8857584` (October23 implementation) |
 | Latest publication | October23 implementation [55d11ada](https://github.com/vpromise/CodexProxy/commit/55d11ada7023f302d88306ed1e5c451d790cc1aa) normally pushed; exact SSH/API SHA verified at 2026-10-23T05:11:56.309988+08:00; this documentation follow-up records publication |
-| Unpublished selected fixes | None. All independently selected October23 repairs are committed, normally pushed and remotely verified. Separate memory-retention branch is already published but not merged into main |
+| Unpublished selected fixes | None. All independently selected October23 repairs are committed, normally pushed and remotely verified. The memory-retention branch is now integrated into main together with the revoked-key record cleanup; see the integration record above |
 | Pending candidate | 13 active topics K1–K6/U1–U7; no new topic. K1/K3/U1/U5 gain new evidence, K6 gains the separate memory-incident record. All 84 previously closed original IDs stay archived |
-| Deployment | dmit runs account-isolation fixes `7fef3e38932fe029c5207c164cc29e27868eea06`, verified October 22 at 17:25 Asia/Shanghai. dmit2 and bawg were last verified in published deployment records at `10f500fe2540d055ed1e79e7bbf239bddcaf1963` on October 21. This source integration does not deploy any host; retain the per-host recovery material recorded below. |
+| Deployment | dmit runs account-isolation fixes `7fef3e38932fe029c5207c164cc29e27868eea06`, verified October 22 at 17:25 Asia/Shanghai. dmit2 was subsequently recovered to `baabdc29` on October 22 as recorded above; bawg was last verified in these deployment records at `10f500fe2540d055ed1e79e7bbf239bddcaf1963` on October 21. This source integration does not deploy any host; retain the per-host recovery material recorded below. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
@@ -30,7 +93,7 @@ Implementation **[55d11ada](https://github.com/vpromise/CodexProxy/commit/55d11a
 
 Exact-SHA CI at **2026-10-23T05:12:07.701711+08:00**: **0 workflow runs, 0 check runs, 0 commit statuses**. Aggregate pending with zero contexts is not a running/passed check. Actions are enabled and all six definitions active; build/guard definitions require pull_request or pull_request_target, release/image require tags. No main push trigger exists, and main is unprotected. **Push succeeded; GitHub CI did not run.** Actual local full/race/build results are separate. No empty commit, trigger, CI policy, tag or Release was created to manufacture a check result.
 
-This documentation-only follow-up leaves the verified **5bad1f51fd02e053078841ac42325f20ce79be0b44b3436fa03387df14604285** source/test/build manifest unchanged. Its own normal push, exact remote SHA and CI result are recorded in the retained task report/evidence. All 13 undecided topics remain outside the implementation; the separate memory-retention branch remains outside main. This sync performs no deployment/server access.
+This documentation-only follow-up leaves the verified **5bad1f51fd02e053078841ac42325f20ce79be0b44b3436fa03387df14604285** source/test/build manifest unchanged. Its own normal push, exact remote SHA and CI result are recorded in the retained task report/evidence. All 13 undecided topics remain outside the implementation; the memory-retention branch remained outside main at that publication checkpoint and was subsequently merged as recorded above. This sync performed no deployment/server access.
 
 ## Review and selective synchronization — 2026-10-23
 
@@ -38,7 +101,7 @@ Checked at **2026-10-23T04:59:23.604042+08:00**. Official **v8.0.39**, published
 
 Identity: verified origin fetch/push **git@github.com:vpromise/CodexProxy.git**, GitHub **ADMIN**, main unprotected. Candidate base **ce1b7cd77d7e7d51b4580f44caa4684611c468d6** includes account isolation and acknowledged-grant publication fixes merged after the previous sync. Original checkout **codex/user-provider-isolation / 5e986f5e432f96abd8abda69a2783cd5abc65b07**, index tree **4f1ab346957d7343f27bdd45794b3f5065e955b8**, with an existing unstaged deployment-ledger edit; preserve it byte for byte. No concurrent synchronization process/task was found. Separate preexisting audit and memory-retention worktrees are not this run's scratch. All implementation and verification used an isolated worktree.
 
-The separate published **codex/memory-retention-fix** branch contains **baabdc29ad44cf7e30286cfc8078dc7cf84a09d7** and ledger **c09004149902be4f5212e3768d88e1939256c6b1**, whose GitHub branch SHA was verified. Its ledger records dmit2 recovery/resource containment, superseding older dmit2 operational records; this sync did not inspect any server. That branch is **not merged into main** and is not part of this candidate's validation. Do not treat this main sync as including the memory fix or as a safe replacement for that branch's deployment. Existing deployment history is retained below; original local deployment edits remain untouched. No old authorized uncommitted/unpushed synchronization batch was found.
+The separate published **codex/memory-retention-fix** branch contains **baabdc29ad44cf7e30286cfc8078dc7cf84a09d7** and ledger **c09004149902be4f5212e3768d88e1939256c6b1**, whose GitHub branch SHA was verified. Its ledger records dmit2 recovery/resource containment, superseding older dmit2 operational records; this sync did not inspect any server. At that review, the branch was **not merged into main** and was not part of that candidate's validation. The later memory integration and combined validation recorded above supersede this source-state limitation. Existing deployment history is retained below; original local deployment edits remain untouched. No old authorized uncommitted/unpushed synchronization batch was found.
 
 ### Complete incremental dispositions
 
