@@ -19,9 +19,11 @@ import (
 	gin "github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	managementHandlers "github.com/router-for-me/CLIProxyAPI/v7/internal/api/handlers/management"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/buildinfo"
 	claudemodels "github.com/router-for-me/CLIProxyAPI/v7/internal/client/claude/models"
 	proxyconfig "github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	internallogging "github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/managementasset"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/redisqueue"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
@@ -1510,7 +1512,7 @@ func TestBundledManagementPanelIgnoresLegacyStaticAsset(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "CLI Proxy API Management Center") {
+	if !bytes.Equal(rr.Body.Bytes(), managementasset.HTML(buildinfo.Version)) {
 		t.Fatal("response is missing the bundled management panel")
 	}
 	if strings.Contains(rr.Body.String(), "upstream full panel") {
@@ -1580,8 +1582,8 @@ func TestExampleAPIKeySafeModeShowsWarningAndKeepsManagement(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
 		}
-		if !strings.Contains(rr.Body.String(), "CLI Proxy API Management Center") {
-			t.Fatalf("bundled management panel body missing: %s", rr.Body.String())
+		if !bytes.Equal(rr.Body.Bytes(), managementasset.HTML(buildinfo.Version)) {
+			t.Fatal("response differs from the bundled management panel")
 		}
 		if strings.Contains(rr.Body.String(), "upstream full panel") {
 			t.Fatalf("external management asset overrode the bundled panel: %s", rr.Body.String())

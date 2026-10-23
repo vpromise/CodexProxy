@@ -180,6 +180,10 @@ func ConvertCodexResponseToClaude(_ context.Context, _ string, originalRequestRa
 		itemResult := rootResult.Get("item")
 		itemType := itemResult.Get("type").String()
 		switch itemType {
+		case "message":
+			output = append(output, finalizeCodexThinkingBlock(params)...)
+			output = append(output, stopCodexTextBlock(params)...)
+			params.HasTextDelta = false
 		case "function_call":
 			output = append(output, finalizeCodexThinkingBlock(params)...)
 			output = append(output, stopCodexTextBlock(params)...)
@@ -207,7 +211,11 @@ func ConvertCodexResponseToClaude(_ context.Context, _ string, originalRequestRa
 		itemType := itemResult.Get("type").String()
 		switch itemType {
 		case "message":
-			if params.HasTextDelta {
+			// Text deltas belong to one output item, not the entire response.
+			hadTextDelta := params.HasTextDelta
+			params.HasTextDelta = false
+			if hadTextDelta {
+				output = append(output, stopCodexTextBlock(params)...)
 				return [][]byte{output}
 			}
 			contentResult := itemResult.Get("content")
@@ -238,7 +246,6 @@ func ConvertCodexResponseToClaude(_ context.Context, _ string, originalRequestRa
 			output = translatorcommon.AppendSSEEventBytes(output, "content_block_delta", template, 2)
 
 			output = append(output, stopCodexTextBlock(params)...)
-			params.HasTextDelta = true
 		case "function_call":
 			output = append(output, finalizeCodexThinkingBlock(params)...)
 			output = append(output, stopCodexTextBlock(params)...)

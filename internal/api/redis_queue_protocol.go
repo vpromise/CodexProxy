@@ -472,7 +472,10 @@ func readRESPBulkString(reader *bufio.Reader) (string, error) {
 	if errParse != nil {
 		return "", fmt.Errorf("protocol error")
 	}
-	if length < 0 {
+	if length < -1 {
+		return "", fmt.Errorf("protocol error")
+	}
+	if length == -1 {
 		return "", nil
 	}
 	if length > maxRESPBulkStringBytes {

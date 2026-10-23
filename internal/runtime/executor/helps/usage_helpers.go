@@ -532,7 +532,11 @@ func (b *StreamUsageBuffer) ObserveClaudeStream(line []byte) {
 	if reasoning := firstExistingUsageNode(node, "output_tokens_details.thinking_tokens", "output_tokens_details.reasoning_tokens", "thinking_tokens"); reasoning.Exists() {
 		detail.ReasoningTokens = reasoning.Int()
 	}
-	b.Observe(claudeUsageDetail(detail.InputTokens, detail.OutputTokens, detail.CacheReadTokens, detail.CacheCreationTokens, detail.ReasoningTokens), true)
+	merged := claudeUsageDetail(detail.InputTokens, detail.OutputTokens, detail.CacheReadTokens, detail.CacheCreationTokens, detail.ReasoningTokens)
+	if speed := node.Get("speed"); speed.Type == gjson.String {
+		merged.ResponseServiceTier = strings.TrimSpace(speed.String())
+	}
+	b.Observe(merged, true)
 }
 
 // Publish emits the latest observed usage detail, if any.
@@ -760,7 +764,12 @@ func parseClaudeUsageNode(usageNode gjson.Result) usage.Detail {
 		"output_tokens_details.reasoning_tokens",
 		"thinking_tokens",
 	)
-	return claudeUsageDetail(usageNode.Get("input_tokens").Int(), rawOutputTokens, cacheReadTokens, cacheCreationTokens, reasoningNode.Int())
+	detail := claudeUsageDetail(usageNode.Get("input_tokens").Int(), rawOutputTokens, cacheReadTokens, cacheCreationTokens, reasoningNode.Int())
+	// Record the actual response speed without inferring it from the request.
+	if speed := usageNode.Get("speed"); speed.Type == gjson.String {
+		detail.ResponseServiceTier = strings.TrimSpace(speed.String())
+	}
+	return detail
 }
 
 func claudeUsageDetail(inputTokens, rawOutputTokens, cacheReadTokens, cacheCreationTokens, reasoningTokens int64) usage.Detail {
