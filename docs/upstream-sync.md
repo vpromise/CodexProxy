@@ -4,6 +4,31 @@ Updated: 2026-10-23 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Deployed to dmit2 — 2026-10-23
+
+At **2026-10-23 15:30:53 Asia/Shanghai**, dmit2's native `codexproxy.service` was updated from `baabdc29ad44cf7e30286cfc8078dc7cf84a09d7` to published main **[`a20079c2`](https://github.com/vpromise/CodexProxy/commit/a20079c2d233f0a6e7040e76fad6effa2e7407cf)**. Verification completed at **15:33:48 Asia/Shanghai**. This rollout includes CodexProxy branding and the new logo (`04f0bc77`), revoked client-key record removal (`a181bc25`), the October 23 protocol/WebSocket fixes (`55d11ada`), and the previously deployed memory-retention repair (`baabdc29`, now merged into main). No config/schema migration was needed. dmit and bawg were outside this rollout.
+
+| Identity | Verified value |
+| --- | --- |
+| Source commit / tree | `a20079c2d233f0a6e7040e76fad6effa2e7407cf` / `31924c6a8cdb06f6e17c53af52da57e57c20a806` |
+| Version / build UTC | `codexproxy-20261023-a20079c2` / `2026-10-23T07:26:06Z` |
+| Source manifest | `213b1c211896a8e528a275bff63e1c9c45c68050482d42443d43b11d9d3708e2` (1708 regular files; excludes only this ledger) |
+| Static Linux/amd64 binary SHA-256 | `e4c7528cabf72dcbf83faf763f2a0af16f6d75b5f4ede16cc26643c1bcd7f366` |
+| Served management HTML SHA-256 | `a6a62e5847a80c2bbe1994f646b91b3515f919456c6ec0f6dac00f979ad29e69` |
+| Preserved live config SHA-256 | `a08ea24fdd5909b6b8fe6257f859180129b933eba997e2ee4bc9ec536dbeb775` |
+| Running executable / PID | `/opt/codex-stack/native/codexproxy` / `2105531` |
+| Protected release and recovery | `/opt/codex-stack/codexproxy/releases/20261023-072714-a20079c2-brand` |
+
+The binary was cross-built with Go 1.27.1, `CGO_ENABLED=0`, `-mod=readonly`, `-trimpath`, `-buildvcs=false`, and explicit version/commit/date metadata. The clean detached source matched the previously validated branding tree and its manifest before and after the build. Reused validation covers 369 frontend tests plus lint/type checks/production build, management-asset tests, the host build, and the preceding main integration's 68-package/3975-test Go suite and 5-package/450-test race suite. The two documented macOS loopback-binding exclusions remain explicit; this deployment did not rerun Linux unit tests. Frozen model catalogs and the checked-in management bundle were retained.
+
+The installed executable and `/proc/2105531/exe` both match the artifact hash. Fifteen HTTP gates passed on both the old and new versions across loopback, the nginx origin route, and public HTTPS: health 200, hello HEAD 204, unauthenticated models/config 401, expected version/commit headers, and exact management HTML. Five independent public checks from the operator workstation also passed with normal TLS validation. The existing origin-certificate exception was limited to the loopback gateway probe. An existing client key remained server-side and was used only for read-only `/v1/models`, which returned 200 with 15 model entries. No inference, credential rotation/refresh, or management write was initiated. Authenticated management checks were unavailable because only the configured management-key hash was present.
+
+The current production configuration, binary ownership/mode, systemd unit/drop-in bytes, normalized process environment and neighboring new-api/nginx/s-ui identities were preserved. The inactive Docker service remained inactive. **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB**, and restart protection are unchanged. Existing logging settings remain commercial mode enabled, file logging enabled, detailed request logging disabled, usage statistics enabled, and a 128 MiB log-retention cap. No account/configuration data was rewritten or restored.
+
+A complete two-minute observation recorded 24 healthy samples, zero automatic restarts, and no memory-high/max/OOM events. Startup journal and recent application log checks found zero error/fatal/panic records; intentional unauthenticated probes were classified separately. Final service cgroup memory was approximately 22.4 MiB. These checks establish deployment readiness and short observation stability, not equal-load memory savings or end-to-end provider correctness.
+
+Release-local `deployment.json`, `FINAL_VERIFICATION.json`, `EXTERNAL_PUBLIC.json`, and root `LATEST_DEPLOYMENT.json` were written and read back. Existing resource/logging tuning history remains in the latest record. The release retains the exact source archive/manifest, build metadata, previous executable/config/unit backups, and a syntax-checked **`ROLLBACK.sh`**. That script restores only the preceding executable and restarts CodexProxy, verifies recovery, and supersedes the latest receipt; it preserves current account data, configuration and resource limits. This bookkeeping follow-up does not change the running source SHA.
+
 ## Memory repair integrated into main — 2026-10-23
 
 The user-authorized merge integrates published `codex/memory-retention-fix`
@@ -67,7 +92,7 @@ Production configurations and raw logs remain in the mode-0700 release directory
 
 ## Current checkpoint
 
-**Current dmit2 status:** memory recovery at `baabdc29` on `codex/memory-retention-fix` is recorded above and supersedes earlier dmit2 deployment rows.
+**Current dmit2 status:** active/running on main `a20079c2`, deployed and verified October 23 as recorded above. The 1 GiB memory cap, 256 MiB swap cap, 150% CPU quota and logging adjustments were preserved. Earlier rows retain historical deployment and recovery states.
 
 | Item | Recorded state |
 | --- | --- |
@@ -80,7 +105,7 @@ Production configurations and raw logs remain in the mode-0700 release directory
 | Latest publication | October23 implementation [55d11ada](https://github.com/vpromise/CodexProxy/commit/55d11ada7023f302d88306ed1e5c451d790cc1aa) normally pushed; exact SSH/API SHA verified at 2026-10-23T05:11:56.309988+08:00; this documentation follow-up records publication |
 | Unpublished selected fixes | None. All independently selected October23 repairs are committed, normally pushed and remotely verified. The memory-retention branch is now integrated into main together with the revoked-key record cleanup; see the integration record above |
 | Pending candidate | 13 active topics K1–K6/U1–U7; no new topic. K1/K3/U1/U5 gain new evidence, K6 gains the separate memory-incident record. All 84 previously closed original IDs stay archived |
-| Deployment | dmit runs account-isolation fixes `7fef3e38932fe029c5207c164cc29e27868eea06`, verified October 22 at 17:25 Asia/Shanghai. dmit2 was subsequently recovered to `baabdc29` on October 22 as recorded above; bawg was last verified in these deployment records at `10f500fe2540d055ed1e79e7bbf239bddcaf1963` on October 21. This source integration does not deploy any host; retain the per-host recovery material recorded below. |
+| Deployment | dmit runs account-isolation fixes `7fef3e38932fe029c5207c164cc29e27868eea06`, verified October 22 at 17:25 Asia/Shanghai. dmit2 now runs main `a20079c2d233f0a6e7040e76fad6effa2e7407cf`, deployed and verified October 23 with native systemd; see the latest deployment record above. bawg was last verified in these records at `10f500fe2540d055ed1e79e7bbf239bddcaf1963` on October 21. dmit and bawg were not changed by the dmit2 rollout. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
