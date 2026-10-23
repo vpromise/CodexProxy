@@ -154,6 +154,14 @@ export function AccessIsolationPage() {
       : [...settings.keys, { key, name: '', note: '', pool: '', ...patch }];
     change({ ...settings, keys });
   };
+  const removeBinding = (key: string) => {
+    if (disabled || !view || view['api-keys'].includes(key)) return;
+    setSettings((current) => ({
+      ...current,
+      keys: current.keys.filter((binding) => binding.key !== key),
+    }));
+    setSaved(false);
+  };
   const addPool = () => {
     const id = makeClientId();
     change({
@@ -405,6 +413,7 @@ export function AccessIsolationPage() {
             accounts={view.accounts}
             disabled={disabled}
             onChange={updateBinding}
+            onRemove={removeBinding}
           />
           <p className={styles.footerNote}>{t('isolation.boundary')}</p>
           <FloatingSaveBar
