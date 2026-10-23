@@ -65,6 +65,19 @@ membership still uses the account's `id`. Write the complete access policy with
 pool bindings return 422. Do not use runtime account IDs or filenames as pool
 members. A full YAML save also validates the policy.
 
+## Replacing client keys and removing old records
+
+Replacing or regenerating a client key in Configuration removes the old secret
+from the active key list. Its saved isolation metadata may remain visible as
+**Revoked**; that record does not authenticate the old key. Assign the new key to
+its intended pool explicitly.
+
+For a revoked row, choose **Remove record**, confirm, then **Save changes** to
+remove its saved name, note and pool binding. **Discard** restores the unsaved
+record. This does not delete active client keys, account pools or upstream
+accounts. Saving still checks the configuration revision, so concurrent key or
+policy edits require a reload instead of being overwritten.
+
 ## Account identity and maintenance
 
 Membership combines a persistent local record ID with a provider-specific

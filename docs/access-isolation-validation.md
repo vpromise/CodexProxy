@@ -156,3 +156,59 @@ The October 22 dmit deployment separately passed the two loopback tests in
 Linux on feature source `7fef3e38`; that is not Linux-suite evidence for this
 combined main source. Browser acceptance retains the managed-policy limitation
 recorded above. This integration does not activate a new server deployment.
+
+## Revoked client key cleanup — 2026-10-23
+
+Read-only inspection of dmit2 found the running implementation `baabdc29`, two
+active client keys and three isolation bindings, including one binding absent
+from the active key list. No secrets or key identifiers were exported. Isolation
+was disabled at the time of inspection; no production setting or key was changed.
+
+The root cause is an omitted UI cleanup action: replacing a client secret keeps
+its old isolation metadata, and KeyBindings displays that metadata as Revoked
+without offering removal. The existing access-isolation PUT endpoint already
+accepts removal and persists it. No backend production behavior needed to change.
+The fix adds Remove record only to revoked rows, uses the existing confirmation
+modal and pending-change save/discard flow, and guards against removing active
+key bindings through this action. All four supported locales and the embedded
+management page are updated.
+
+Validation used a separate worktree based on `c0900414`, whose implementation
+matches dmit2. The frontend regression was observed red first: two failed and
+one passed, specifically detecting the absent removal control. After the fix,
+all three pass, together with the four existing key-filter regressions. The
+backend lifecycle regression passes with isolation enabled and disabled: full
+YAML key replacement, metadata cleanup, stale revision 409, file reload, and
+preservation of active keys, pools, other metadata and unrelated settings.
+
+- Final frontend `bun run verify` passed **369 tests**, ESLint, TypeScript and the
+  production build with the CI-pinned Bun **1.3.14** and
+  `VERSION=__CLI_PROXYAPI_VERSION__`. The official Bun archive SHA-256 was verified
+  against its release metadata before execution. Initial development checks also
+  passed with installed Bun 1.4.0.
+- Complete management-handler, configuration and management-asset package tests
+  passed. Server `go build -o <temporary-output> ./cmd/server` passed after the
+  generated page was embedded; the disposable build executable was removed.
+- Browser acceptance ran in a new Chrome Guest window against a localhost
+  synthetic fixture using the real page and components. It verified cancel,
+  confirm, unsaved removal, discard restoration, save and reload. The saved
+  payload preserved both active keys, the other binding and the pool. The old
+  record did not return after reload; no real account or upstream was involved.
+- Visual inspection confirmed the shared button/confirmation styles fit the
+  existing page. The temporary browser window and both fixture servers were
+  closed after validation. No debug instrumentation was added to production code.
+
+The repair was developed on `codex/fix-revoked-key-removal`. These validation
+steps did not activate a server release or change production configuration. The
+existing dmit2 service, real revoked record, logging settings and resource
+protections remain unchanged. Production rollout and any intentional cleanup of
+real metadata are separate from these tests.
+
+
+Publication integration rebased this one repair commit onto latest main
+`20205ee7988ecd37876f1ebdfaf428efbfe7cbaf`, preserving its October 23 WebSocket and
+response fixes. The earlier `codex/memory-retention-fix` commits remain separate.
+The complete frontend and management-asset inputs match the previously verified
+repair tree exactly. Management-handler, configuration and management-asset
+package tests and the server build passed again on the integrated tree. The main
+working checkout's preexisting deployment-ledger edits were left untouched.

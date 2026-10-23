@@ -442,6 +442,9 @@
   gap: 6px;
   color: var(--text-secondary);
 }
+.removeKeyButton {
+  align-self: flex-start;
+}
 .keyLabel code {
   font: 12px $font-mono;
   overflow-wrap: anywhere;

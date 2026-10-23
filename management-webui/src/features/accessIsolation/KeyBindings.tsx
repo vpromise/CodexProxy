@@ -1,11 +1,13 @@
 import { useReducer } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { IconExternalLink, IconKey, IconSearch } from '@/components/ui/icons';
+import { IconExternalLink, IconKey, IconSearch, IconTrash2 } from '@/components/ui/icons';
+import { useNotificationStore } from '@/stores';
 import { providerName } from './types';
 import {
   getVisibleBindingKeys,
@@ -21,10 +23,19 @@ interface KeyBindingsProps {
   accounts: PoolAccount[];
   disabled: boolean;
   onChange: (key: string, patch: Partial<KeyBinding>) => void;
+  onRemove: (key: string) => void;
 }
 
-export function KeyBindings({ settings, apiKeys, accounts, disabled, onChange }: KeyBindingsProps) {
+export function KeyBindings({
+  settings,
+  apiKeys,
+  accounts,
+  disabled,
+  onChange,
+  onRemove,
+}: KeyBindingsProps) {
   const { t } = useTranslation();
+  const showConfirmation = useNotificationStore((state) => state.showConfirmation);
   const [filterState, dispatchFilter] = useReducer(
     keyBindingFilterReducer,
     initialKeyBindingFilter
@@ -98,6 +109,7 @@ export function KeyBindings({ settings, apiKeys, accounts, disabled, onChange }:
                       ? 'poolUnavailable'
                       : 'assigned';
                 const keyLabel = `${t('isolation.keyNumber', { count: allKeys.indexOf(key) + 1 })} · …${key.slice(-4)}`;
+                const recordName = binding?.name.trim() || keyLabel;
                 return (
                   <div className={styles.keyRow} key={key}>
                     <div className={styles.keyIdentity}>
@@ -110,6 +122,30 @@ export function KeyBindings({ settings, apiKeys, accounts, disabled, onChange }:
                       >
                         {t(`isolation.${status}`)}
                       </span>
+                      {revoked && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={styles.removeKeyButton}
+                          disabled={disabled}
+                          aria-label={t('isolation.removeKeyRecordLabel', { name: recordName })}
+                          onClick={() =>
+                            showConfirmation({
+                              title: t('isolation.removeRevokedKey'),
+                              message: t('isolation.removeRevokedKeyMessage', { name: recordName }),
+                              confirmText: t('isolation.removeKeyRecord'),
+                              cancelText: t('common.cancel'),
+                              variant: 'danger',
+                              onConfirm: () => onRemove(key),
+                            })
+                          }
+                        >
+                          <span className={styles.buttonContent}>
+                            <IconTrash2 size={15} />
+                            {t('isolation.removeKeyRecord')}
+                          </span>
+                        </Button>
+                      )}
                     </div>
                     <Input
                       label={t('isolation.name')}
