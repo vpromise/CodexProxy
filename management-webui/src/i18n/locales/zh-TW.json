@@ -38,7 +38,7 @@
     "alias": "別名",
     "failure": "失敗",
     "unknown_error": "未知錯誤",
-    "quota_update_required": "請更新 CPA 版本或檢查更新",
+    "quota_update_required": "請更新 CodexProxy 版本或檢查更新",
     "quota_check_credential": "請檢查憑證狀態",
     "copy": "複製",
     "expand": "展開",
@@ -57,12 +57,12 @@
     "unsaved_changes_message": "你有未儲存的變更，離開後將遺失這些變更。確定要離開嗎？"
   },
   "title": {
-    "login": "CLI Proxy API Management Center",
-    "abbr": "CPAMC"
+    "login": "CodexProxy",
+    "abbr": "CodexProxy"
   },
   "splash": {
-    "title": "CLI Proxy API",
-    "subtitle": "管理中心"
+    "title": "CodexProxy",
+    "subtitle": "API 管理台"
   },
   "login": {
     "subtitle": "請輸入連線資訊以存取管理介面",
@@ -83,7 +83,7 @@
     "error_timeout": "連線逾時，伺服器無回應",
     "error_unauthorized": "驗證失敗，管理金鑰缺失或無效",
     "error_forbidden": "存取被拒絕，遠端管理未啟用、管理金鑰未設定或 IP 被暫時封鎖",
-    "error_not_found": "找不到 Management API，請確認服務位址指向 CLIProxyAPI 後端",
+    "error_not_found": "找不到 Management API，請確認服務位址指向 CodexProxy 後端",
     "error_server": "後端處理管理介面時發生錯誤，請查看服務日誌",
     "error_cors": "跨域請求被阻擋，請檢查伺服器設定",
     "error_ssl": "SSL/TLS 憑證驗證失敗"
@@ -103,7 +103,7 @@
     "quota_management": "配額管理",
     "config_management": "設定面板",
     "logs": "記錄檢視",
-    "system_info": "中心資訊"
+    "system_info": "關於 CodexProxy"
   },
   "nav_groups": {
     "operate": "運行",
@@ -190,7 +190,7 @@
     "cta_config_desc": "調整路由、重試、日誌與存取控制。",
     "cta_quota_desc": "查看各憑證的剩餘額度。",
     "cta_logs_desc": "即時追蹤請求並下載錯誤報告。",
-    "cta_system_desc": "版本詳情與管理中心資訊。",
+    "cta_system_desc": "版本詳情與 CodexProxy 專案資源。",
     "window_m": "{{minutes}} 分鐘",
     "window_h": "{{hours}} 小時",
     "window_hm": "{{hours}} 小時 {{minutes}} 分"
@@ -291,7 +291,7 @@
     "models_empty": "該憑證暫無可用模型",
     "models_empty_desc": "該驗證憑證可能尚未被伺服器載入或沒有綁定任何模型",
     "models_unsupported": "目前版本不支援此功能",
-    "models_unsupported_desc": "請更新 CLI Proxy API 到最新版本後重試",
+    "models_unsupported_desc": "請更新 CodexProxy 到最新版本後重試",
     "models_excluded_badge": "已停用",
     "models_excluded_hint": "此 OAuth 模型已被停用",
     "status_toggle_label": "啟用",
@@ -441,9 +441,9 @@
     "model_count": "停用 {{count}} 個模型",
     "list_empty_all": "暫無任何供應商的模型停用，點擊「新增停用」建立。",
     "provider_required": "請先填寫供應商名稱",
-    "upgrade_required": "目前 CPA 版本不支援 OAuth 模型停用，請升級 CPA 版本",
-    "upgrade_required_title": "需要升級 CPA 版本",
-    "upgrade_required_desc": "目前伺服器版本不支援取得 OAuth 模型停用功能，請升級到最新版本的 CPA（CLI Proxy API）後重試。"
+    "upgrade_required": "目前 CodexProxy 版本不支援 OAuth 模型停用，請升級 CodexProxy 版本",
+    "upgrade_required_title": "需要升級 CodexProxy 版本",
+    "upgrade_required_desc": "目前伺服器版本不支援取得 OAuth 模型停用功能，請升級到最新版本的 CodexProxy 後重試。"
   },
   "excluded_models": {
     "trigger_summary": "已排除 {{excluded}} · {{available}} 可用",
@@ -485,7 +485,7 @@
     "provider_placeholder": "例如 codex / claude",
     "provider_hint": "預設選取目前篩選的供應商，也可直接輸入或選擇其他名稱。",
     "model_source_loading": "正在載入模型清單...",
-    "model_source_unsupported": "目前 CPA 版本不支援取得模型清單（仍可手動輸入）。",
+    "model_source_unsupported": "目前 CodexProxy 版本不支援取得模型清單（仍可手動輸入）。",
     "model_source_loaded": "已載入 {{count}} 個模型，可在「原模型名稱」中下拉選擇；也可手動輸入。留空儲存將刪除該供應商記錄；開啟「保留原名」會在保留原模型名的同時新增別名。",
     "alias_label": "模型別名",
     "alias_name_placeholder": "原模型名稱",
@@ -535,9 +535,9 @@
     "view_mode_diagram": "概覽",
     "view_mode_list": "管理",
     "provider_required": "請先填寫供應商名稱",
-    "upgrade_required": "目前 CPA 版本不支援模型別名功能，請升級 CPA 版本",
-    "upgrade_required_title": "需要升級 CPA 版本",
-    "upgrade_required_desc": "目前伺服器版本不支援 OAuth 模型別名功能，請升級到最新版本的 CPA（CLI Proxy API）後重試。"
+    "upgrade_required": "目前 CodexProxy 版本不支援模型別名功能，請升級 CodexProxy 版本",
+    "upgrade_required_title": "需要升級 CodexProxy 版本",
+    "upgrade_required_desc": "目前伺服器版本不支援 OAuth 模型別名功能，請升級到最新版本的 CodexProxy 後重試。"
   },
   "auth_login": {
     "recommended_provider_section": "推薦提供商",
@@ -584,7 +584,7 @@
     "oauth_callback_required": "請先貼上完整的回調 URL。",
     "oauth_callback_success": "回調 URL 已提交，請繼續等待驗證。",
     "oauth_callback_error": "提交回調 URL 失敗:",
-    "oauth_callback_upgrade_hint": "請更新 CLI Proxy API 或檢查連線",
+    "oauth_callback_upgrade_hint": "請更新 CodexProxy 或檢查連線",
     "oauth_callback_status_success": "回調 URL 已提交，等待驗證中...",
     "oauth_callback_status_error": "回調 URL 提交失敗:",
     "missing_state": "無法取得驗證狀態參數",
@@ -987,8 +987,8 @@
     "weekday_sat": "六"
   },
   "system_info": {
-    "title": "管理中心資訊",
-    "about_title": "CLI Proxy API Management Center",
+    "title": "關於 CodexProxy",
+    "about_title": "CodexProxy",
     "models_title": "可用模型清單",
     "models_desc": "展示 /models 回傳的模型，並自動使用伺服器儲存的 API Key 進行驗證。",
     "models_loading": "正在載入可用模型...",
@@ -1001,18 +1001,21 @@
     "version_check_error": "檢查更新失敗",
     "version_current_missing": "未取得到伺服器版本號，暫無法比對",
     "version_unknown": "未知",
-    "quick_links_title": "快速連結",
-    "quick_links_desc": "存取專案儲存庫和文件，取得協助和更新。",
-    "link_main_repo": "主程式儲存庫",
-    "link_main_repo_desc": "CLI Proxy API 核心程式原始碼",
-    "link_webui_repo": "WebUI 儲存庫",
-    "link_webui_repo_desc": "管理中心前端介面原始碼",
-    "link_docs": "使用教學",
-    "link_docs_desc": "設定指南和使用說明",
+    "quick_links_title": "CodexProxy 資源",
+    "quick_links_desc": "專案文件、原始碼與問題回饋入口。",
+    "link_main_repo": "CodexProxy 儲存庫",
+    "link_main_repo_desc": "檢視原始碼、更新記錄與開發歷史。",
+    "link_docs": "使用文件",
+    "link_docs_desc": "部署、設定與帳號隔離指南。",
     "clear_login_title": "本地登入資訊",
     "clear_login_desc": "清理本地儲存的登入資訊並登出。",
     "clear_login_button": "清理登入資訊",
-    "clear_login_confirm": "確認清理本地登入資訊並登出？"
+    "clear_login_confirm": "確認清理本地登入資訊並登出？",
+    "about_description": "管理 Codex 與 Claude 帳號、轉發 API 請求，並控制每把用戶端 Key 的帳號存取範圍。",
+    "upstream_credit": "基於開源專案",
+    "release_history": "版本發布",
+    "link_issues": "問題與回饋",
+    "link_issues_desc": "回報問題或提出改進建議。"
   },
   "notification": {
     "request_log_updated": "請求記錄設定已更新",
@@ -1049,13 +1052,13 @@
     "toggle_collapse": "收起側邊欄",
     "expand": "展開",
     "collapse": "收起",
-    "subtitle": "CLI Proxy API 管理控制台",
+    "subtitle": "Codex · Claude",
     "auth_files_count": "驗證檔案：{{count}} 個"
   },
   "footer": {
-    "api_version": "CLI Proxy API 版本",
+    "api_version": "CodexProxy 版本",
     "build_date": "建置時間",
-    "version": "管理中心版本"
+    "version": "管理台版本"
   },
   "providersPage": {
     "header": {

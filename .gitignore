@@ -33,6 +33,7 @@ auths/*
 # Documentation
 docs/*
 !docs/upstream-sync.md
+!docs/branding.md
 !docs/access-isolation.md
 !docs/access-isolation-validation.md
 !docs/agents/

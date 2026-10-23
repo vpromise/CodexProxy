@@ -38,7 +38,7 @@
     "alias": "Псевдоним",
     "failure": "Сбой",
     "unknown_error": "Неизвестная ошибка",
-    "quota_update_required": "Пожалуйста, обновите CPA или проверьте наличие обновлений",
+    "quota_update_required": "Пожалуйста, обновите CodexProxy или проверьте наличие обновлений",
     "quota_check_credential": "Пожалуйста, проверьте статус учётных данных",
     "copy": "Копировать",
     "expand": "Развернуть",
@@ -57,12 +57,12 @@
     "unsaved_changes_message": "У вас есть несохранённые изменения. Если вы уйдёте, они будут потеряны. Выйти?"
   },
   "title": {
-    "login": "Центр управления CLI Proxy API",
-    "abbr": "CPAMC"
+    "login": "CodexProxy",
+    "abbr": "CodexProxy"
   },
   "splash": {
-    "title": "CLI Proxy API",
-    "subtitle": "Центр управления"
+    "title": "CodexProxy",
+    "subtitle": "Консоль API"
   },
   "login": {
     "subtitle": "Введите данные подключения, чтобы получить доступ к панели управления",
@@ -83,7 +83,7 @@
     "error_timeout": "Время ожидания истекло, сервер не отвечает",
     "error_unauthorized": "Аутентификация не удалась, ключ управления отсутствует или неверен",
     "error_forbidden": "Доступ запрещён: удалённое управление отключено, ключ управления не настроен или IP временно заблокирован",
-    "error_not_found": "Management API не найден, проверьте, что адрес указывает на backend CLIProxyAPI",
+    "error_not_found": "Management API не найден, проверьте, что адрес указывает на backend CodexProxy",
     "error_server": "Backend не смог обработать запрос управления, проверьте журналы сервера",
     "error_cors": "Блокировка CORS, проверьте конфигурацию сервера",
     "error_ssl": "Ошибка проверки SSL/TLS сертификата"
@@ -103,7 +103,7 @@
     "quota_management": "Управление квотами",
     "config_management": "Панель конфигурации",
     "logs": "Просмотр логов",
-    "system_info": "Информация системы"
+    "system_info": "О CodexProxy"
   },
   "nav_groups": {
     "operate": "Работа",
@@ -190,7 +190,7 @@
     "cta_config_desc": "Настройка маршрутизации, повторов, логов и доступа.",
     "cta_quota_desc": "Проверка остатка квоты по каждым учётным данным.",
     "cta_logs_desc": "Следите за запросами и скачивайте отчёты об ошибках.",
-    "cta_system_desc": "Информация о версии и центре управления.",
+    "cta_system_desc": "Сведения о версии и ресурсы CodexProxy.",
     "window_m": "{{minutes}} мин",
     "window_h": "{{hours}} ч",
     "window_hm": "{{hours}} ч {{minutes}} мин"
@@ -291,7 +291,7 @@
     "models_empty": "Для этих учётных данных нет доступных моделей",
     "models_empty_desc": "Возможно, учётные данные ещё не загружены сервером или к ним не привязаны модели.",
     "models_unsupported": "Функция не поддерживается в текущей версии",
-    "models_unsupported_desc": "Обновите CLI Proxy API до последней версии и повторите попытку",
+    "models_unsupported_desc": "Обновите CodexProxy до последней версии и повторите попытку",
     "models_excluded_badge": "Отключена",
     "models_excluded_hint": "Эта OAuth-модель отключена",
     "status_toggle_label": "Включено",
@@ -429,9 +429,9 @@
     "model_count": "Отключено моделей: {{count}}",
     "list_empty_all": "Отключений моделей пока нет — используйте \"Добавить отключение\".",
     "provider_required": "Сначала укажите провайдера",
-    "upgrade_required": "Текущая версия CPA не поддерживает отключение OAuth-моделей. Пожалуйста, обновите систему.",
-    "upgrade_required_title": "Пожалуйста, обновите CLI Proxy API",
-    "upgrade_required_desc": "Текущая версия сервера не поддерживает получение отключения OAuth-моделей. Обновите CPA (CLI Proxy API) до последней версии и повторите попытку."
+    "upgrade_required": "Текущая версия CodexProxy не поддерживает отключение OAuth-моделей. Пожалуйста, обновите систему.",
+    "upgrade_required_title": "Пожалуйста, обновите CodexProxy",
+    "upgrade_required_desc": "Текущая версия сервера не поддерживает получение отключения OAuth-моделей. Обновите CodexProxy до последней версии и повторите попытку."
   },
   "excluded_models": {
     "trigger_summary": "Исключено: {{excluded}} · доступно: {{available}}",
@@ -473,7 +473,7 @@
     "provider_placeholder": "например: codex / claude",
     "provider_hint": "По умолчанию используется текущий фильтр; выберите существующего провайдера или введите новое имя.",
     "model_source_loading": "Загрузка моделей...",
-    "model_source_unsupported": "Текущая версия CPA не поддерживает загрузку списка моделей (ручной ввод остаётся доступным).",
+    "model_source_unsupported": "Текущая версия CodexProxy не поддерживает загрузку списка моделей (ручной ввод остаётся доступным).",
     "model_source_loaded": "Загружено моделей: {{count}}. Используйте выпадающий список \"Исходная модель\" или введите своё значение. Сохранение пустого списка удаляет провайдера. Включите \"Сохранить оригинал\", чтобы оставить исходное имя вместе с псевдонимом.",
     "alias_label": "Псевдонимы моделей",
     "alias_name_placeholder": "Исходное имя модели",
@@ -523,9 +523,9 @@
     "view_mode_diagram": "Диаграмма",
     "view_mode_list": "Список",
     "provider_required": "Сначала укажите провайдера",
-    "upgrade_required": "Эта функция требует более новой версии CLI Proxy API (CPA). Обновите систему.",
-    "upgrade_required_title": "Пожалуйста, обновите CLI Proxy API",
-    "upgrade_required_desc": "Текущая версия сервера не поддерживает API псевдонимов моделей OAuth. Обновите CLI Proxy API (CPA) до последней версии."
+    "upgrade_required": "Эта функция требует более новой версии CodexProxy. Обновите систему.",
+    "upgrade_required_title": "Пожалуйста, обновите CodexProxy",
+    "upgrade_required_desc": "Текущая версия сервера не поддерживает API псевдонимов моделей OAuth. Обновите CodexProxy до последней версии."
   },
   "auth_login": {
     "recommended_provider_section": "Рекомендуемый провайдер",
@@ -561,7 +561,7 @@
     "oauth_callback_required": "Сначала вставьте полный URL перенаправления.",
     "oauth_callback_success": "Callback URL отправлен. Продолжайте ожидать аутентификацию.",
     "oauth_callback_error": "Не удалось отправить Callback URL:",
-    "oauth_callback_upgrade_hint": "Обновите CLI Proxy API или проверьте подключение.",
+    "oauth_callback_upgrade_hint": "Обновите CodexProxy или проверьте подключение.",
     "oauth_callback_status_success": "Callback URL отправлен, ожидаем аутентификацию...",
     "oauth_callback_status_error": "Не удалось отправить Callback URL:",
     "missing_state": "Не удалось получить параметр состояния аутентификации",
@@ -966,8 +966,8 @@
     "weekday_sat": "Сб"
   },
   "system_info": {
-    "title": "Информация о центре управления",
-    "about_title": "CLI Proxy API Management Center",
+    "title": "О CodexProxy",
+    "about_title": "CodexProxy",
     "models_title": "Доступные модели",
     "models_desc": "Показывает ответ /models и автоматически использует сохранённые API-ключи для авторизации.",
     "models_loading": "Загрузка доступных моделей...",
@@ -980,18 +980,21 @@
     "version_check_error": "Не удалось проверить обновление",
     "version_current_missing": "Версия сервера недоступна; сравнение невозможно",
     "version_unknown": "Неизвестно",
-    "quick_links_title": "Быстрые ссылки",
-    "quick_links_desc": "Доступ к репозиториям проекта и документации для помощи и обновлений.",
-    "link_main_repo": "Основной репозиторий",
-    "link_main_repo_desc": "Исходный код основной программы CLI Proxy API",
-    "link_webui_repo": "Репозиторий WebUI",
-    "link_webui_repo_desc": "Исходный код фронтенда центра управления",
+    "quick_links_title": "Ресурсы CodexProxy",
+    "quick_links_desc": "Документация проекта, исходный код и поддержка.",
+    "link_main_repo": "Репозиторий CodexProxy",
+    "link_main_repo_desc": "Исходный код, изменения и история разработки.",
     "link_docs": "Документация",
-    "link_docs_desc": "Учебные пособия и руководства по настройке",
+    "link_docs_desc": "Развёртывание, настройка и изоляция аккаунтов.",
     "clear_login_title": "Локальные данные входа",
     "clear_login_desc": "Очистите локально сохранённые данные входа и выполните выход.",
     "clear_login_button": "Очистить данные входа",
-    "clear_login_confirm": "Очистить локальные данные входа и выйти?"
+    "clear_login_confirm": "Очистить локальные данные входа и выйти?",
+    "about_description": "Управление аккаунтами Codex и Claude, маршрутизация API-запросов и настройка доступа к аккаунтам для каждого клиентского ключа.",
+    "upstream_credit": "На основе",
+    "release_history": "Выпуски",
+    "link_issues": "Ошибки и предложения",
+    "link_issues_desc": "Сообщите об ошибке или предложите улучшение."
   },
   "notification": {
     "request_log_updated": "Настройка журналирования запросов обновлена",
@@ -1028,13 +1031,13 @@
     "toggle_collapse": "Свернуть боковую панель",
     "expand": "Развернуть",
     "collapse": "Свернуть",
-    "subtitle": "Консоль управления CLI Proxy API",
+    "subtitle": "Codex · Claude",
     "auth_files_count": "Файлов аутентификации: {{count}}"
   },
   "footer": {
-    "api_version": "Версия CLI Proxy API",
+    "api_version": "Версия CodexProxy",
     "build_date": "Время сборки",
-    "version": "Версия интерфейса управления"
+    "version": "Версия консоли"
   },
   "providersPage": {
     "header": {

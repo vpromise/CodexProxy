@@ -2,6 +2,7 @@ package managementasset
 
 import (
 	"bytes"
+	"regexp"
 	"testing"
 )
 
@@ -10,7 +11,7 @@ func TestHTMLReturnsScopedBundledPanel(t *testing.T) {
 	if len(html) < 100_000 {
 		t.Fatalf("bundled panel size = %d, want a production single-file build", len(html))
 	}
-	if !bytes.Contains(html, []byte("CLI Proxy API Management Center")) {
+	if !bytes.Contains(html, []byte("<title>CodexProxy</title>")) {
 		t.Fatal("bundled panel is missing the management application title")
 	}
 	if !bytes.Contains(html, []byte("v1.2.3")) {
@@ -19,6 +20,8 @@ func TestHTMLReturnsScopedBundledPanel(t *testing.T) {
 	if bytes.Contains(html, []byte(managementVersionPlaceholder)) {
 		t.Fatal("bundled panel still contains the version placeholder")
 	}
+	// Encoded image bytes can coincidentally contain provider names.
+	panelText := regexp.MustCompile(`data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+`).ReplaceAll(html, nil)
 	for _, removed := range [][]byte{
 		[]byte("Plugin Store"),
 		[]byte("Plugin Management"),
@@ -28,7 +31,7 @@ func TestHTMLReturnsScopedBundledPanel(t *testing.T) {
 		[]byte("Kimi"),
 		[]byte("Vertex"),
 	} {
-		if bytes.Contains(html, removed) {
+		if bytes.Contains(panelText, removed) {
 			t.Fatalf("bundled panel contains removed marker %q", removed)
 		}
 	}
