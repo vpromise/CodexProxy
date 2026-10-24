@@ -214,3 +214,38 @@ The complete frontend and management-asset inputs match the previously verified
 repair tree exactly. Management-handler, configuration and management-asset
 package tests and the server build passed again on the integrated tree. The main
 working checkout's preexisting deployment-ledger edits were left untouched.
+
+## Claude session identity repair — 2026-10-24
+
+The isolation caller prefix used by account affinity also reached Claude's
+outbound UUID generation. Confirmed native sessions were therefore hashed again,
+while a child request retained its original `parent_session_id`. The repair
+extracts the native protocol signal separately and preserves its UUID; local
+affinity and non-native session derivation retain their existing caller scope.
+Claude continuity and fallback diagnostics independently namespace their local
+cache keys with the authorized access scope, so two keys sharing an account and
+an explicit session UUID cannot inherit each other's cached request/message IDs.
+
+`TestClaudeIsolationPreservesNativeSessionIdentity` exercises the real manager
+and executor with an in-memory upstream and synthetic credentials. Its Messages
+and streaming cases reproduced the session/parent mismatch before the repair.
+Afterward, Messages, streaming, and count_tokens preserve the native session
+header; Messages also preserves the parent/child metadata relationship. The
+count_tokens request retains its metadata-free shape. Additional regressions
+cover JSON and legacy metadata, header priority, unconfirmed callers, credential
+and device identity, and independent continuity for two keys sharing an account.
+
+Validation on `codex/fix-isolation-claude-session`, based on main `602bc44f`:
+
+- Complete executor, authorization, session, and service package tests passed.
+- The helper package passed after excluding the same two macOS loopback-binding
+  tests documented above; the unrestricted run reproduced only those failures.
+- Race checks passed for the new identity/continuity regressions, native session
+  helpers, caller affinity, overlapping pools, and account-pool authorization.
+- Server build, formatting of changed Go files, and `git diff --check` passed.
+
+All provider requests in the new tests use an in-memory RoundTripper; the broader
+regressions use synthetic fixtures. No real account was tested, production was
+not modified, and no disabled credential was re-enabled. This repair addresses a
+reproduced compatibility defect; it does not establish the reason for the
+reported account ban.

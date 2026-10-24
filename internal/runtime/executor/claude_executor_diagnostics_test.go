@@ -100,7 +100,7 @@ func TestInjectClaudeDiagnosticsMatchesNativeFieldOrderAndContinuity(t *testing.
 	body := []byte(`{"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"max_tokens":1,"messages":[]}`)
 	testID := uuid.NewString()
 	auth := &cliproxyauth.Auth{ID: "credential-diagnostics-order-" + testID}
-	first, state := injectClaudeDiagnostics(body, auth, "session-diagnostics-order-"+testID)
+	first, state := injectClaudeDiagnostics(t.Context(), body, auth, "session-diagnostics-order-"+testID)
 	wantOrder := `"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"diagnostics":{"previous_message_id":null},"max_tokens"`
 	if !bytes.Contains(first, []byte(wantOrder)) {
 		t.Fatalf("diagnostics field order differs from native: %s", first)
@@ -110,7 +110,7 @@ func TestInjectClaudeDiagnosticsMatchesNativeFieldOrderAndContinuity(t *testing.
 	}
 
 	commitClaudeDiagnostics(state, "msg_01ABCDEF0123456789ABCDEFG")
-	second, _ := injectClaudeDiagnostics(body, auth, "session-diagnostics-order-"+testID)
+	second, _ := injectClaudeDiagnostics(t.Context(), body, auth, "session-diagnostics-order-"+testID)
 	if got := gjson.GetBytes(second, "diagnostics.previous_message_id").String(); got != "msg_01ABCDEF0123456789ABCDEFG" {
 		t.Fatalf("second previous_message_id = %q, want committed upstream ID", got)
 	}

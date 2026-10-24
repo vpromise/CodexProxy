@@ -44,6 +44,53 @@ func TestClaudeAgentSessionUUIDPreservesNativeSession(t *testing.T) {
 	}
 }
 
+func TestClaudeAgentSessionUUIDPreservesNativeSessionWithIsolation(t *testing.T) {
+	const sessionID = "11111111-2222-4333-8444-555555555555"
+	const otherSession = "66666666-7777-4888-8999-aaaaaaaaaaaa"
+	jsonPayload := []byte(`{"metadata":{"user_id":"{\"session_id\":\"` + sessionID + `\"}"}}`)
+	for _, test := range []struct {
+		name       string
+		headers    http.Header
+		original   []byte
+		translated []byte
+		want       string
+	}{
+		{name: "header", headers: http.Header{"X-Claude-Code-Session-Id": {sessionID}}, want: sessionID},
+		{name: "json metadata", original: jsonPayload, want: sessionID},
+		{name: "legacy metadata", original: []byte(`{"metadata":{"user_id":"user_device_account_account_session_` + sessionID + `"}}`), want: sessionID},
+		{name: "translated fallback", translated: jsonPayload, want: sessionID},
+		{name: "header wins", headers: http.Header{"x-claude-code-session-id": {otherSession}}, original: jsonPayload, want: otherSession},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, caller := range []string{"caller-a", "caller-b"} {
+				metadata := map[string]any{"account_pool_caller": caller}
+				got := ClaudeAgentSessionUUIDForRequest(test.headers, test.original, test.translated, true, metadata)
+				if got != test.want {
+					t.Fatalf("native session = %q, want %q regardless of local caller namespace", got, test.want)
+				}
+			}
+		})
+	}
+}
+
+func TestClaudeAgentSessionUUIDKeepsUnconfirmedRequestsCallerScoped(t *testing.T) {
+	const nativeSessionID = "11111111-2222-4333-8444-555555555555"
+	headers := http.Header{"X-Claude-Code-Session-Id": {nativeSessionID}}
+	payload := []byte(`{"metadata":{"user_id":"{\"session_id\":\"` + nativeSessionID + `\"}"}}`)
+	ids := make(map[string]bool)
+	for _, caller := range []string{"caller-a", "caller-b"} {
+		metadata := map[string]any{"account_pool_caller": caller, cliproxyexecutor.ExecutionSessionMetadataKey: "same-explicit-session"}
+		got := ClaudeAgentSessionUUIDForRequest(headers, payload, nil, false, metadata)
+		if got == nativeSessionID || got == "" || ids[got] {
+			t.Fatalf("unconfirmed session was preserved or shared across callers: %q", got)
+		}
+		if repeated := ClaudeAgentSessionUUIDForRequest(nil, nil, nil, false, metadata); repeated != got {
+			t.Fatal("unconfirmed signals changed the caller-scoped conversation")
+		}
+		ids[got] = true
+	}
+}
+
 func TestClaudeAgentSessionUUIDIgnoresUnconfirmedClaudeSignals(t *testing.T) {
 	const nativeSessionID = "11111111-2222-4333-8444-555555555555"
 	metadata := map[string]any{cliproxyexecutor.ExecutionSessionMetadataKey: "non-native-conversation"}

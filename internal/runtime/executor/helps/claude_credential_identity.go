@@ -67,15 +67,21 @@ func ClaudeRequestHasExecutionMetadata(metadataSets ...map[string]any) bool {
 
 func claudeAgentSessionUUID(headers http.Header, originalPayload, translatedPayload []byte, metadataSets ...map[string]any) string {
 	metadata := mergeClaudeSessionMetadata(metadataSets...)
+	identityPayload := originalPayload
 	identity := cliproxyauth.ExtractSessionID(headers, originalPayload, metadata)
 	if identity == "" && len(translatedPayload) > 0 {
+		identityPayload = translatedPayload
 		identity = cliproxyauth.ExtractSessionID(headers, translatedPayload, metadata)
 	}
 	if identity == "" {
 		return uuid.NewString()
 	}
-	if strings.HasPrefix(identity, "claude:") {
-		if parsed, errParse := uuid.Parse(strings.TrimPrefix(identity, "claude:")); errParse == nil {
+	// Affinity identities include the local caller namespace. Native protocol
+	// UUIDs must instead be read from the original signals so parent references
+	// still identify the session sent upstream. Unconfirmed signals were stripped
+	// by ClaudeAgentSessionUUIDForRequest before reaching this function.
+	if nativeSessionID := cliproxyauth.ExtractClaudeSessionID(headers, identityPayload); nativeSessionID != "" {
+		if parsed, errParse := uuid.Parse(nativeSessionID); errParse == nil {
 			return parsed.String()
 		}
 	}

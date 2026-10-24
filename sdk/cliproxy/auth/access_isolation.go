@@ -57,6 +57,16 @@ func AccessScopeFromContext(ctx context.Context) *AccessScope {
 }
 
 func (s *AccessScope) Enabled() bool { return s != nil && s.enabled }
+
+// LocalSessionKey namespaces internal session state by the authorized caller.
+// This key must never replace a client session identifier in an upstream request.
+func (s *AccessScope) LocalSessionKey(sessionID string) string {
+	if !s.Enabled() || s.caller == "" || sessionID == "" {
+		return sessionID
+	}
+	return s.caller + ":" + sessionID
+}
+
 func (s *AccessScope) Allows(a *Auth) bool {
 	return !s.Enabled() || (!s.denied && a != nil && a.Provider == s.provider && s.members[AccountIdentity(a)])
 }

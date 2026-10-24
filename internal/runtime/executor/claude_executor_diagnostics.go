@@ -18,8 +18,9 @@ type claudeDiagnosticsRequestState struct {
 	promptID string
 }
 
-func injectClaudeDiagnostics(body []byte, auth *cliproxyauth.Auth, sessionID string) ([]byte, claudeDiagnosticsRequestState) {
-	key, sequence, previousMessageID, _, promptID := helps.BeginClaudeContinuity(claudeDiagnosticsCredentialIdentity(auth), sessionID, false, "")
+func injectClaudeDiagnostics(ctx context.Context, body []byte, auth *cliproxyauth.Auth, sessionID string) ([]byte, claudeDiagnosticsRequestState) {
+	localSessionKey := cliproxyauth.AccessScopeFromContext(ctx).LocalSessionKey(sessionID)
+	key, sequence, previousMessageID, _, promptID := helps.BeginClaudeContinuity(claudeDiagnosticsCredentialIdentity(auth), localSessionKey, false, "")
 	return injectClaudeDiagnosticsWithState(body, key, sequence, previousMessageID, promptID)
 }
 

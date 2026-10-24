@@ -208,7 +208,8 @@ func resolveClaudeContinuityTags(
 
 	credIdentity := claudeDiagnosticsCredentialIdentity(auth)
 	isNewTurn := helps.IsClaudeNewPromptTurn(payload)
-	continuityKey, seq, prevMsgID, storedPrevReq, storedPromptID := helps.BeginClaudeContinuity(credIdentity, sessionID, isNewTurn, existingPromptID)
+	localSessionKey := cliproxyauth.AccessScopeFromContext(ctx).LocalSessionKey(sessionID)
+	continuityKey, seq, prevMsgID, storedPrevReq, storedPromptID := helps.BeginClaudeContinuity(credIdentity, localSessionKey, isNewTurn, existingPromptID)
 
 	if existingPromptID != "" {
 		promptID = existingPromptID

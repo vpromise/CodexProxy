@@ -957,6 +957,15 @@ func ExtractSessionID(headers http.Header, payload []byte, metadata map[string]a
 	return primary
 }
 
+// ExtractClaudeSessionID returns the native protocol session signal without the
+// local affinity namespace. It does not establish whether the caller is native.
+func ExtractClaudeSessionID(headers http.Header, payload []byte) string {
+	if sid := sessionHeaderValue(headers, "X-Claude-Code-Session-Id"); sid != "" {
+		return sid
+	}
+	return cliproxysession.ClaudeMetadataSessionID(payload)
+}
+
 // extractSessionIDs returns (primaryID, fallbackID) for session affinity.
 // fallbackID preserves an earlier binding when a stronger body identifier appears
 // later, and lets callers bind both identifiers when both are present.
@@ -971,10 +980,7 @@ func extractSessionIDs(headers http.Header, payload []byte, metadata map[string]
 			}
 		}
 	}()
-	if sid := sessionHeaderValue(headers, "X-Claude-Code-Session-Id"); sid != "" {
-		return "claude:" + sid, ""
-	}
-	if sid := cliproxysession.ClaudeMetadataSessionID(payload); sid != "" {
+	if sid := ExtractClaudeSessionID(headers, payload); sid != "" {
 		return "claude:" + sid, ""
 	}
 	if sid := sessionHeaderValue(headers, "Session-Id"); sid != "" {
