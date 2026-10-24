@@ -61,9 +61,9 @@ func TestRequestCodexTokenCompletionKeepsConcurrentSessionPending(t *testing.T) 
 	router.GET("/codex-auth-url", handler.RequestCodexToken)
 
 	firstState := requestCodexTokenState(t, router)
+	finishCodexOAuthSessionOnCleanup(t, authDir, firstState, "first-cleanup")
 	secondState := requestCodexTokenState(t, router)
-	defer CompleteOAuthSession(firstState)
-	defer CompleteOAuthSession(secondState)
+	finishCodexOAuthSessionOnCleanup(t, authDir, secondState, "second-cleanup")
 
 	if _, errWrite := WriteOAuthCallbackFileForPendingSession(authDir, "codex", firstState, "first-code", ""); errWrite != nil {
 		t.Fatalf("write first callback file: %v", errWrite)
@@ -73,6 +73,22 @@ func TestRequestCodexTokenCompletionKeepsConcurrentSessionPending(t *testing.T) 
 	if !IsOAuthSessionPending(secondState, "codex") {
 		t.Fatalf("expected concurrent codex session %s to remain pending after %s completed", secondState, firstState)
 	}
+}
+
+func finishCodexOAuthSessionOnCleanup(t *testing.T, authDir, state, code string) {
+	t.Helper()
+	t.Cleanup(func() {
+		if !IsOAuthSessionPending(state, "codex") {
+			return
+		}
+		// Complete the simulated login through its worker. Marking the session
+		// done here would leave that worker polling the global store while later
+		// tests replace it. The worker's final completion fences its store reads.
+		if _, errWrite := WriteOAuthCallbackFileForPendingSession(authDir, "codex", state, code, ""); errWrite != nil {
+			t.Fatalf("write cleanup callback file: %v", errWrite)
+		}
+		waitForOAuthSessionDone(t, state)
+	})
 }
 
 func requestCodexTokenState(t *testing.T, router http.Handler) string {

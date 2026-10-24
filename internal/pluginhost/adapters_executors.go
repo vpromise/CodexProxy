@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
@@ -16,6 +17,7 @@ import (
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
+	"github.com/tidwall/gjson"
 )
 
 type executorManager interface {
@@ -803,11 +805,47 @@ func (a *executorAdapter) CountTokens(ctx context.Context, auth *coreauth.Auth, 
 	if errCountTokens != nil {
 		return coreexecutor.Response{}, errCountTokens
 	}
+	var payload []byte
+	translatedTokenCount := false
+	if prepared.outputFormat != prepared.requestedFormat {
+		// A token-count reply is not a model response; translating it as one
+		// wraps the count in a full completion message.
+		if count, okCount := pluginExecutorTokenCount(pluginResp.Payload); okCount {
+			if sdktranslator.HasTokenCountTransformer(prepared.outputFormat, prepared.requestedFormat) {
+				translated := sdktranslator.TranslateTokenCount(ctx, prepared.outputFormat, prepared.requestedFormat, count, pluginResp.Payload)
+				payload = translated
+				translatedTokenCount = true
+			}
+		}
+	}
+	if !translatedTokenCount {
+		payload = a.translateExecutorResponse(ctx, prepared, pluginResp.Payload, false, nil)
+	}
 	return coreexecutor.Response{
-		Payload:  a.translateExecutorResponse(ctx, prepared, pluginResp.Payload, false, nil),
+		Payload:  payload,
 		Metadata: cloneAnyMap(pluginResp.Metadata),
 		Headers:  cloneHeader(pluginResp.Headers),
 	}, nil
+}
+
+func pluginExecutorTokenCount(payload []byte) (int64, bool) {
+	for _, path := range []string{"choices", "content", "candidates", "output", "response.output"} {
+		if gjson.GetBytes(payload, path).Exists() {
+			return 0, false
+		}
+	}
+	// response.usage.input_tokens is the native Codex count shape.
+	paths := []string{"usage.prompt_tokens", "input_tokens", "response.usage.input_tokens", "total_tokens"}
+	for _, path := range paths {
+		value := gjson.GetBytes(payload, path)
+		if value.Exists() && value.Type == gjson.Number {
+			count, errParse := strconv.ParseInt(value.Raw, 10, 64)
+			if errParse == nil && count >= 0 {
+				return count, true
+			}
+		}
+	}
+	return 0, false
 }
 
 func (a *executorAdapter) HttpRequest(ctx context.Context, auth *coreauth.Auth, req *http.Request) (resp *http.Response, err error) {

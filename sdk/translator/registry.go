@@ -243,6 +243,18 @@ func (r *Registry) TranslateNonStream(ctx context.Context, from, to Format, mode
 	return body
 }
 
+// HasTokenCountTransformer reports whether a token-count handler is registered.
+func (r *Registry) HasTokenCountTransformer(from, to Format) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.responses[to][from].TokenCount != nil
+}
+
+// HasTokenCountTransformer checks the default registry without invoking a handler.
+func HasTokenCountTransformer(from, to Format) bool {
+	return defaultRegistry.HasTokenCountTransformer(from, to)
+}
+
 // TranslateTokenCount applies the registered token count response translator.
 func (r *Registry) TranslateTokenCount(ctx context.Context, from, to Format, count int64, rawJSON []byte) []byte {
 	r.mu.RLock()
