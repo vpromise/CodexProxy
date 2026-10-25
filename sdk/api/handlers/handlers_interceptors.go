@@ -223,6 +223,11 @@ func nextStreamChunk(ctx context.Context, pending *[]coreexecutor.StreamChunk, c
 		case <-ctx.Done():
 			return coreexecutor.StreamChunk{}, false, true
 		case chunk, ok = <-chunks:
+			// Cancellation and channel closure can both be ready. A closed
+			// channel must not turn an already-canceled request into success.
+			if !ok && ctx.Err() != nil {
+				return coreexecutor.StreamChunk{}, false, true
+			}
 		}
 	} else {
 		chunk, ok = <-chunks
