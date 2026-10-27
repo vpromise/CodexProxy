@@ -52,6 +52,7 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
 		return cliproxyexecutor.Response{}, errAccess
 	}
+	ctx = coreusage.CaptureAPIKey(ctx)
 	req, opts = cliproxysession.Enrich(req, opts)
 	normalized := m.normalizeProviders(providers)
 	if len(normalized) == 0 {
@@ -104,6 +105,7 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
 		return cliproxyexecutor.Response{}, errAccess
 	}
+	ctx = coreusage.CaptureAPIKey(ctx)
 	req, opts = cliproxysession.Enrich(req, opts)
 	normalized := m.normalizeProviders(providers)
 	if len(normalized) == 0 {
@@ -156,6 +158,7 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 	if errAccess := m.ValidateAccessSelection(ctx, providers, authSelectionModelFromOptions(opts, req.Model), opts); errAccess != nil {
 		return nil, errAccess
 	}
+	ctx = coreusage.CaptureAPIKey(ctx)
 	req, opts = cliproxysession.Enrich(req, opts)
 	if m.HomeEnabled() {
 		if unlockSession := m.lockHomeWebsocketSession(ctx, opts); unlockSession != nil {

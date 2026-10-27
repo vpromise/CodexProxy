@@ -262,7 +262,7 @@ func (r *UsageReporter) EnsurePublished(ctx context.Context) {
 
 func (r *UsageReporter) publishRecord(ctx context.Context, record usage.Record) {
 	record.ResponseHeaders = internallogging.GetResponseHeaders(ctx)
-	usage.PublishRecord(ctx, record)
+	usage.PublishRecord(usage.WithCapturedAPIKey(ctx, r.apiKey), record)
 }
 
 func (r *UsageReporter) buildRecord(detail usage.Detail, failed bool, failures ...usage.Failure) usage.Record {
@@ -388,6 +388,9 @@ func (r *usageTTFTReadCloser) Read(p []byte) (int, error) {
 }
 
 func APIKeyFromContext(ctx context.Context) string {
+	if key, captured := usage.CapturedAPIKeyFromContext(ctx); captured {
+		return key
+	}
 	if ctx == nil {
 		return ""
 	}

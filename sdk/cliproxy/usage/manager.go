@@ -328,6 +328,7 @@ func (m *Manager) Publish(ctx context.Context, record Record) {
 		m.mu.Unlock()
 		return
 	}
+	ctx = WithCapturedAPIKey(ctx, record.APIKey)
 	m.queue = append(m.queue, queueItem{ctx: ctx, record: record})
 	m.mu.Unlock()
 	m.cond.Signal()

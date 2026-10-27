@@ -14,6 +14,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executionregistry"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	coreusage "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/usage"
 )
 
 const (
@@ -381,6 +382,7 @@ func setHomeUserAPIKeyOnGinContext(ctx context.Context, apiKey string) {
 	if apiKey == "" || ctx == nil {
 		return
 	}
+	coreusage.SetCapturedAPIKey(ctx, apiKey)
 	ginCtx, ok := ctx.Value("gin").(interface{ Set(string, any) })
 	if !ok || ginCtx == nil {
 		return
