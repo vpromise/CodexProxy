@@ -832,17 +832,6 @@ func (c *compositeReadCloser) Close() error {
 	return firstErr
 }
 
-// peekableBody wraps a bufio.Reader around the original ReadCloser so that
-// magic bytes can be inspected without consuming them from the stream.
-type peekableBody struct {
-	*bufio.Reader
-	closer io.Closer
-}
-
-func (p *peekableBody) Close() error {
-	return p.closer.Close()
-}
-
 func claudeResponseContentEncoding(header http.Header) string {
 	return strings.Join(header.Values("Content-Encoding"), ",")
 }
@@ -852,45 +841,9 @@ func decodeResponseBodyWithMemoryLimit(body io.ReadCloser, contentEncoding strin
 		return nil, fmt.Errorf("response body is nil")
 	}
 	if contentEncoding == "" {
-		// No Content-Encoding header.  Attempt best-effort magic-byte detection to
-		// handle misbehaving upstreams that compress without setting the header.
-		// Only gzip (1f 8b) and zstd (28 b5 2f fd) have reliable magic sequences;
-		// br and deflate have none and are left as-is.
-		// The bufio wrapper preserves unread bytes so callers always see the full
-		// stream regardless of whether decompression was applied.
-		pb := &peekableBody{Reader: bufio.NewReader(body), closer: body}
-		magic, peekErr := pb.Peek(4)
-		if peekErr == nil || (peekErr == io.EOF && len(magic) >= 2) {
-			switch {
-			case len(magic) >= 2 && magic[0] == 0x1f && magic[1] == 0x8b:
-				gzipReader, gzErr := gzip.NewReader(pb)
-				if gzErr != nil {
-					_ = pb.Close()
-					return nil, fmt.Errorf("magic-byte gzip: failed to create reader: %w", gzErr)
-				}
-				return &compositeReadCloser{
-					Reader: gzipReader,
-					closers: []func() error{
-						gzipReader.Close,
-						pb.Close,
-					},
-				}, nil
-			case len(magic) >= 4 && magic[0] == 0x28 && magic[1] == 0xb5 && magic[2] == 0x2f && magic[3] == 0xfd:
-				decoder, zdErr := newClaudeZstdReader(pb, maxMemory)
-				if zdErr != nil {
-					_ = pb.Close()
-					return nil, fmt.Errorf("magic-byte zstd: failed to create reader: %w", zdErr)
-				}
-				return &compositeReadCloser{
-					Reader: decoder,
-					closers: []func() error{
-						func() error { decoder.Close(); return nil },
-						pb.Close,
-					},
-				}, nil
-			}
-		}
-		return pb, nil
+		return helps.LazySniffResponseBody(body, func(reader io.Reader) (*zstd.Decoder, error) {
+			return newClaudeZstdReader(reader, maxMemory)
+		}), nil
 	}
 	encodings := strings.Split(contentEncoding, ",")
 	if maxMemory > 0 {
@@ -966,7 +919,7 @@ func decodeResponseBodyWithMemoryLimit(body io.ReadCloser, contentEncoding strin
 
 func newClaudeZstdReader(reader io.Reader, maxMemory uint64) (*zstd.Decoder, error) {
 	if maxMemory == 0 {
-		return zstd.NewReader(reader)
+		return zstd.NewReader(reader, zstd.WithDecoderConcurrency(1))
 	}
 	return zstd.NewReader(reader,
 		zstd.WithDecoderConcurrency(1),

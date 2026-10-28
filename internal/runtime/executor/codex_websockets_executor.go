@@ -202,9 +202,13 @@ func (e *CodexWebsocketsExecutor) InterruptExecutionSession(ctx context.Context,
 		return cliproxyexecutor.ErrNoActiveUpstreamWebsocket
 	}
 	sess.activeMu.Lock()
-	_, alreadyTerminal := sess.terminalResponseIDs[gjson.GetBytes(payload, "response_id").String()]
+	targetID := gjson.GetBytes(payload, "response_id").String()
+	_, alreadyTerminal := sess.terminalResponseIDs[targetID]
 	alreadyTerminal = alreadyTerminal && sess.responseStateConn == conn
-	active := sess.activeConn == conn && sess.activeCh != nil
+	liveChannel := sess.activeConn == conn && sess.activeCh != nil
+	// The read loop closes the interrupt window before delivering a terminal event.
+	active := liveChannel && !sess.activeResponseTerminal &&
+		(sess.activeResponseID == "" || sess.activeResponseID == targetID)
 	var disconnectErr error
 	if sess.terminalConn == conn {
 		disconnectErr = sess.terminalErr
@@ -221,8 +225,11 @@ func (e *CodexWebsocketsExecutor) InterruptExecutionSession(ctx context.Context,
 	}
 	// A retained socket from an earlier turn is not the current upstream.
 	// Never send controls for a later HTTP turn to that retained socket.
-	if !active {
+	if !liveChannel {
 		return cliproxyexecutor.ErrNoActiveUpstreamWebsocket
+	}
+	if !active {
+		return fmt.Errorf("response.interrupt does not target the active upstream response")
 	}
 	if !authEnabled {
 		return fmt.Errorf("websocket credential is no longer enabled")
