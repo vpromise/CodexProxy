@@ -125,6 +125,9 @@ func (h *Host) interceptRequest(ctx context.Context, req pluginapi.RequestInterc
 			return invoke(interceptor, callCtx, callReq)
 		}, nextReq); ok {
 			current.Headers = mergeHeaders(current.Headers, resp.Headers, resp.ClearHeaders)
+			if len(resp.ClearHeaders) > 0 {
+				current.ClearHeaders = append(current.ClearHeaders, resp.ClearHeaders...)
+			}
 			if len(resp.Body) > 0 {
 				current.Body = bytes.Clone(resp.Body)
 			}
@@ -135,6 +138,19 @@ func (h *Host) interceptRequest(ctx context.Context, req pluginapi.RequestInterc
 				current.ResponseBody = bytes.Clone(resp.ResponseBody)
 				break
 			}
+		}
+	}
+	if len(current.ClearHeaders) > 0 && len(current.Headers) > 0 {
+		filtered := current.ClearHeaders[:0]
+		for _, key := range current.ClearHeaders {
+			if current.Headers.Values(key) == nil {
+				filtered = append(filtered, key)
+			}
+		}
+		if len(filtered) == 0 {
+			current.ClearHeaders = nil
+		} else {
+			current.ClearHeaders = filtered
 		}
 	}
 	return current
