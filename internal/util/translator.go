@@ -240,41 +240,74 @@ func CanonicalToolName(name string) string {
 	return strings.ToLower(canonical)
 }
 
+func claudePayloadMayContainToolAddition(rawJSON []byte) bool {
+	return bytes.Contains(rawJSON, []byte("tool_addition")) ||
+		bytes.Contains(rawJSON, []byte(`\u`)) ||
+		bytes.Contains(rawJSON, []byte(`\U`))
+}
+
+func forEachClaudeInlineToolAdditionDefinition(rawJSON []byte, fn func(def gjson.Result)) {
+	if !claudePayloadMayContainToolAddition(rawJSON) {
+		return
+	}
+	messages := gjson.GetBytes(rawJSON, "messages")
+	if !messages.IsArray() {
+		return
+	}
+	messages.ForEach(func(_, message gjson.Result) bool {
+		if message.Get("role").String() != "system" {
+			return true
+		}
+		content := message.Get("content")
+		if !content.IsArray() {
+			return true
+		}
+		content.ForEach(func(_, part gjson.Result) bool {
+			if part.Get("type").String() != "tool_addition" {
+				return true
+			}
+			toolSpec := part.Get("tool")
+			if toolSpec.Get("type").String() == "tool_definition" || toolSpec.Get("definition").IsObject() {
+				if def := toolSpec.Get("definition"); def.IsObject() {
+					fn(def)
+				}
+			}
+			return true
+		})
+		return true
+	})
+}
+
 // ToolNameMapFromClaudeRequest returns a canonical-name -> original-name map extracted from a Claude request.
 // It is used to restore exact tool name casing for clients that require strict tool name matching (e.g. Claude Code).
 func ToolNameMapFromClaudeRequest(rawJSON []byte) map[string]string {
 	if len(rawJSON) == 0 || !gjson.ValidBytes(rawJSON) {
 		return nil
 	}
-
-	tools := gjson.GetBytes(rawJSON, "tools")
-	if !tools.Exists() || !tools.IsArray() {
-		return nil
-	}
-
-	toolResults := tools.Array()
-	out := make(map[string]string, len(toolResults))
-	tools.ForEach(func(_, tool gjson.Result) bool {
+	var out map[string]string
+	recordTool := func(tool gjson.Result) {
 		name := strings.TrimSpace(tool.Get("name").String())
 		if name == "" {
 			name = strings.TrimSpace(tool.Get("function.name").String())
 		}
-		if name == "" {
-			return true
-		}
 		key := CanonicalToolName(name)
 		if key == "" {
-			return true
+			return
+		}
+		if out == nil {
+			out = make(map[string]string, 4)
 		}
 		if _, exists := out[key]; !exists {
 			out[key] = name
 		}
-		return true
-	})
-
-	if len(out) == 0 {
-		return nil
 	}
+	if tools := gjson.GetBytes(rawJSON, "tools"); tools.IsArray() {
+		tools.ForEach(func(_, tool gjson.Result) bool {
+			recordTool(tool)
+			return true
+		})
+	}
+	forEachClaudeInlineToolAdditionDefinition(rawJSON, recordTool)
 	return out
 }
 

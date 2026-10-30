@@ -64,6 +64,9 @@ func RecordAPIRequest(ctx context.Context, cfg *config.Config, info UpstreamRequ
 	if cfg == nil || cfg.CommercialMode {
 		return
 	}
+	if !cfg.RequestLog && logging.DeferredAPIRequestCaptureDisabled(ctx) {
+		return
+	}
 	ginCtx := ginContextFrom(ctx)
 	if ginCtx == nil {
 		return
