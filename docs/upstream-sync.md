@@ -100,10 +100,10 @@ Production configurations and raw logs remain in the mode-0700 release directory
 | Last reviewed upstream main | [7cad1cb7](https://github.com/router-for-me/CLIProxyAPI/commit/7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc) (`7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc`); complete November2 dispositions below |
 | Released selection boundary | v8.0.51 / `7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc`; selective only |
 | Release at that review | [v8.0.51](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.51), published 2026-11-01T17:08:04Z; all three lightweight tags resolved independently |
-| Latest verified published implementation | [cee13d2d](https://github.com/vpromise/CodexProxy/commit/cee13d2d56c1b5890d339bb3c64516844dea3e2a) (`cee13d2d56c1b5890d339bb3c64516844dea3e2a`): October31 WebSocket request retention, explicit Claude tool_addition and generic-chat stream usage; account isolation/session/memory repairs retained |
-| Published source tree | `1ba2f77aaafed7ac1818d59e78322dc3d969ad12` (October31 implementation) |
-| Latest publication | November1 review [12bf719f](https://github.com/vpromise/CodexProxy/commit/12bf719ffcba17ac0813593759ae6cbf1bb119fb) normally pushed and SHA/tree verified at 2026-11-01T05:04:57.539477+08:00; documentation only, no new implementation; CI not triggered |
-| Unpublished selected fixes | November2 four groups validated on published main 8305f488; publication pending in this pre-commit snapshot. All existing six branch tips are ancestors of base; no older approved unpublished batch. Original feature-checkout edits remain separate. |
+| Latest verified published implementation | [554a9420](https://github.com/vpromise/CodexProxy/commit/554a9420d4ef07574759e59ce1930b60c0c2a9a5) (`554a9420d4ef07574759e59ce1930b60c0c2a9a5`): November2 replay metadata, readable MCP names, developer roles and existing plugin stream framing; account isolation/session/memory repairs preserved |
+| Published source tree | `37d7b0da26d7db9f9ae14dc20905ecb56803c654` (November2 implementation) |
+| Latest publication | Implementation 554a9420 normally pushed; SSH/API SHA and local/API tree verified at 2026-11-02T05:06:20.208281+08:00; exact-SHA CI not triggered |
+| Unpublished selected fixes | None. November2 implementation is verified on main. Original feature-checkout ledger/deployment edits remain uncommitted and preserved separately; no other approved unpublished batch. |
 | Pending candidate | 13 active themes K1–K6/U1–U7, 84 original closed IDs retained. New evidence grouped under K1/K3/K6/U1/U3; no new approvals or blanket plugin/provider/migration backlog. |
 | Deployment | Historical receipts only. Newer local-only October27 light-host notes are preserved outside this publication. No live server access, deployment, tag or Release in this run. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
@@ -111,6 +111,12 @@ Production configurations and raw logs remain in the mode-0700 release directory
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
 The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.51 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
+## Publication verification — 2026-11-02
+
+Implementation **[554a9420](https://github.com/vpromise/CodexProxy/commit/554a9420d4ef07574759e59ce1930b60c0c2a9a5)** (`554a9420d4ef07574759e59ce1930b60c0c2a9a5`), tree **37d7b0da26d7db9f9ae14dc20905ecb56803c654**, normally advanced verified fork main from **8305f488c01e1b7826a223af4f8defedc0ce9f3e**. SSH and GitHub API SHA and local/API trees matched at **2026-11-02T05:06:20.208281+08:00**. All four repair groups described below are committed and pushed on the account-isolation baseline. The unchanged 1749-file tested manifest identifies the exact code; this receipt changes only the ledger and needs no repeated Go suite/build.
+
+Exact implementation SHA: **0 Actions runs, 0 check runs, 0 commit-status entries**. Six active workflows listen to PR/tag events rather than main pushes. Actions is enabled; main has no protection/applicable rules. **Publication succeeded; CI was not triggered, not passed.** This receipt is normally committed/pushed and independently verified; its own final SHA/tree/check results are retained in the task report. No empty commit, forced push, workflow/policy change, Release, tag or deployment occurred.
 
 ## Selective review and validation — 2026-11-02
 
@@ -247,7 +253,7 @@ This applies to the policy/lifecycle plans above, not to independent verified co
 
 ### Publication state
 
-Selected code and this ledger are validated locally, not yet claimed pushed in this pre-commit snapshot. Normal main push, SHA/tree and exact-SHA CI readback follow; publication receipt will identify the implementation. Historical deployment records are untouched. Review/test/source evidence and the complete Chinese decision report will remain under `outputs/codexproxy-upstream-sync-2026-11-02*` in the task workspace before task-owned scratch cleanup.
+The pre-commit validation state above is superseded by the verified publication receipt immediately before this section. The selected implementation is normally pushed; CI did not trigger. Historical deployment records are untouched. Review/test/source evidence and the complete Chinese decision report will remain under `outputs/codexproxy-upstream-sync-2026-11-02*` in the task workspace before task-owned scratch cleanup.
 
 ## Review publication verified — 2026-11-01
 
