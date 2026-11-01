@@ -180,9 +180,7 @@ func convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 			case "message", "":
 				// Handle regular message conversion
 				role := item.Get("role").String()
-				if role == "developer" {
-					role = "user"
-				}
+				// Preserve instruction roles; only real user turns participate in attachment-loss refusal.
 				mergeableAssistantIndex = -1
 				if role != "assistant" {
 					appendPendingReasoningMessage()

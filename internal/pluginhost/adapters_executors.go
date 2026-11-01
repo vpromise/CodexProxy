@@ -553,7 +553,7 @@ func (a *executorAdapter) translateExecutorResponse(ctx context.Context, prepare
 }
 
 func (a *executorAdapter) translateExecutorStreamChunks(ctx context.Context, prepared preparedExecutorCall, in <-chan pluginapi.ExecutorStreamChunk) <-chan pluginapi.ExecutorStreamChunk {
-	if prepared.requestedFormat == "" || (prepared.outputFormat == prepared.requestedFormat && prepared.requestedFormat != sdktranslator.FormatOpenAIResponse) {
+	if prepared.requestedFormat == "" || (prepared.outputFormat == prepared.requestedFormat && prepared.requestedFormat != sdktranslator.FormatOpenAIResponse && !sdktranslator.HasStreamResponseTransformer(prepared.outputFormat, prepared.requestedFormat)) {
 		return in
 	}
 	if in == nil {
@@ -562,22 +562,38 @@ func (a *executorAdapter) translateExecutorStreamChunks(ctx context.Context, pre
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Only registered same-format translators need event reassembly. Preserve
+	// passthrough formats and their existing hook-invocation contract.
+	sameFormatNative := prepared.outputFormat == prepared.requestedFormat && sdktranslator.HasStreamResponseTransformer(prepared.outputFormat, prepared.requestedFormat)
+	if sameFormatNative {
+		in = deframeExecutorSSEChunks(ctx, in)
+	}
 	out := make(chan pluginapi.ExecutorStreamChunk)
 	go func() {
 		defer close(out)
 		var param any
+		sawSameFormatDone := false
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case chunk, ok := <-in:
 				if !ok {
-					a.emitTranslatedExecutorStreamTail(ctx, prepared, out, &param)
+					if !sawSameFormatDone {
+						a.emitTranslatedExecutorStreamTail(ctx, prepared, out, &param)
+					}
 					return
 				}
 				if chunk.Err != nil {
 					_ = sendExecutorPluginStreamChunk(ctx, out, chunk)
 					continue
+				}
+				if sameFormatNative && prepared.outputFormat == sdktranslator.FormatOpenAI {
+					terminal := bytes.TrimSpace(chunk.Payload)
+					terminal = bytes.TrimSpace(bytes.TrimPrefix(terminal, []byte("data:")))
+					if bytes.Equal(terminal, []byte("[DONE]")) {
+						sawSameFormatDone = true
+					}
 				}
 				frames := a.translateExecutorStreamPayload(ctx, prepared, chunk.Payload, &param)
 				for _, frame := range frames {
@@ -592,7 +608,7 @@ func (a *executorAdapter) translateExecutorStreamChunks(ctx context.Context, pre
 }
 
 func (a *executorAdapter) translateExecutorStreamPayload(ctx context.Context, prepared preparedExecutorCall, payload []byte, param *any) [][]byte {
-	if prepared.requestedFormat != "" && prepared.outputFormat == prepared.requestedFormat {
+	if prepared.requestedFormat != "" && prepared.outputFormat == prepared.requestedFormat && !sdktranslator.HasStreamResponseTransformer(prepared.outputFormat, prepared.requestedFormat) {
 		out := payload
 		if prepared.requestedFormat == sdktranslator.FormatOpenAIResponse {
 			out = helps.EnsureResponsesUsageDetails(out)
