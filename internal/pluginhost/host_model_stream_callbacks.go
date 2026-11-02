@@ -20,6 +20,10 @@ func (h *Host) callHostModelExecuteStream(ctx context.Context, request []byte) (
 	if executor == nil {
 		return nil, fmt.Errorf("host model executor is unavailable")
 	}
+	callerPluginID := hostCallbackPluginIDFromContext(ctx)
+	if callbackPluginID := h.callbackContextPluginID(req.HostCallbackID); callerPluginID != "" && callbackPluginID != "" && callerPluginID != callbackPluginID {
+		return nil, fmt.Errorf("host callback ID does not belong to the calling plugin")
+	}
 	skipPluginID := h.callbackCallerPluginID(ctx, req.HostCallbackID)
 	callbackCtx := h.resolveCallbackContext(req.HostCallbackID, ctx)
 	if callbackCtx == nil {
@@ -34,16 +38,19 @@ func (h *Host) callHostModelExecuteStream(ctx context.Context, request []byte) (
 	}
 	streamID := ""
 	if h.modelStreams != nil {
-		streamID = h.modelStreams.open(req.HostCallbackID, stream.Chunks, cancel)
+		streamID = h.modelStreams.open(callerPluginID, req.HostCallbackID, stream.Chunks, cancel)
 	}
 	if streamID == "" {
 		cancel()
 		return nil, fmt.Errorf("host model stream bridge is unavailable")
 	}
 	if req.HostCallbackID != "" {
-		h.addCallbackCleanup(req.HostCallbackID, func() {
-			h.modelStreams.close(streamID)
+		attached := h.addCallbackCleanup(req.HostCallbackID, func() {
+			h.modelStreams.close(callerPluginID, streamID)
 		})
+		if !attached {
+			return nil, fmt.Errorf("host callback context closed while opening model stream")
+		}
 	}
 	return marshalRPCResult(pluginapi.HostModelStreamResponse{
 		StatusCode: stream.StatusCode,
@@ -60,7 +67,7 @@ func (h *Host) callHostModelStreamRead(ctx context.Context, request []byte) ([]b
 	if h == nil || h.modelStreams == nil {
 		return nil, fmt.Errorf("host model stream bridge is unavailable")
 	}
-	chunk, done, errRead := h.modelStreams.read(ctx, req.StreamID)
+	chunk, done, errRead := h.modelStreams.read(ctx, hostCallbackPluginIDFromContext(ctx), req.StreamID)
 	if errRead != nil {
 		return nil, errRead
 	}
@@ -75,13 +82,13 @@ func (h *Host) callHostModelStreamRead(ctx context.Context, request []byte) ([]b
 	return marshalRPCResult(resp)
 }
 
-func (h *Host) callHostModelStreamClose(request []byte) ([]byte, error) {
+func (h *Host) callHostModelStreamClose(ctx context.Context, request []byte) ([]byte, error) {
 	var req pluginapi.HostModelStreamCloseRequest
 	if errUnmarshal := json.Unmarshal(request, &req); errUnmarshal != nil {
 		return nil, fmt.Errorf("decode host model stream close request: %w", errUnmarshal)
 	}
 	if h != nil && h.modelStreams != nil {
-		h.modelStreams.close(req.StreamID)
+		h.modelStreams.close(hostCallbackPluginIDFromContext(ctx), req.StreamID)
 	}
 	return marshalRPCResult(rpcEmptyResponse{})
 }

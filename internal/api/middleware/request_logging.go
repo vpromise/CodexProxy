@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,15 +69,32 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 		attachRequestLogSources(c, logger, loggerEnabled)
 		attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, captureBody)
 
-		// Process the request
+		// Finalize even when a handler unwinds to the outer recovery middleware.
+		defer func() {
+			recovered := recover()
+			if recovered != nil && !isAbortHandlerPanic(recovered) {
+				wrapper.panicked = true
+				if !wrapper.ResponseWriter.Written() {
+					wrapper.statusCode = http.StatusInternalServerError
+					if wrapper.streamWriter != nil {
+						_ = wrapper.streamWriter.WriteStatus(http.StatusInternalServerError, wrapper.headers)
+					}
+				}
+			}
+			if errFinalize := wrapper.Finalize(c); errFinalize != nil {
+				log.WithError(errFinalize).Warn("failed to finalize request log")
+			}
+			if recovered != nil {
+				panic(recovered)
+			}
+		}()
 		c.Next()
-
-		// Finalize logging after request processing
-		if err = wrapper.Finalize(c); err != nil {
-			// Log error but don't interrupt the response
-			// In a real implementation, you might want to use a proper logger here
-		}
 	}
+}
+
+func isAbortHandlerPanic(recovered any) bool {
+	err, ok := recovered.(error)
+	return ok && errors.Is(err, http.ErrAbortHandler)
 }
 
 type fileBodySourceFactory interface {

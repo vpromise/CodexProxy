@@ -135,9 +135,6 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	engine.Use(logging.CPATraceIDMiddleware())
 	engine.Use(claudeRequestIDMiddleware())
 	engine.Use(claudeRequestBodyLimitMiddleware(claudehandlers.RequestBodyMaxBytes))
-	for _, mw := range optionState.extraMiddleware {
-		engine.Use(mw)
-	}
 
 	// Add request logging middleware (positioned after recovery, before auth)
 	// Resolve logs directory relative to the configuration file directory.
@@ -153,6 +150,11 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 				toggle = setter.SetEnabled
 			}
 		}
+	}
+
+	// Capture custom middleware recovery responses before finalizing the request log.
+	for _, mw := range optionState.extraMiddleware {
+		engine.Use(mw)
 	}
 
 	engine.Use(corsMiddleware())

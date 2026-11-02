@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -17,6 +18,7 @@ type modelStreamBridge struct {
 }
 
 type modelStreamEntry struct {
+	pluginID        string
 	ownerCallbackID string
 	chunks          <-chan handlers.ModelExecutionChunk
 	cancel          context.CancelFunc
@@ -26,7 +28,7 @@ func newModelStreamBridge() *modelStreamBridge {
 	return &modelStreamBridge{streams: make(map[string]modelStreamEntry)}
 }
 
-func (b *modelStreamBridge) open(ownerCallbackID string, chunks <-chan handlers.ModelExecutionChunk, cancel context.CancelFunc) string {
+func (b *modelStreamBridge) open(pluginID, ownerCallbackID string, chunks <-chan handlers.ModelExecutionChunk, cancel context.CancelFunc) string {
 	if b == nil || chunks == nil {
 		if cancel != nil {
 			cancel()
@@ -36,6 +38,7 @@ func (b *modelStreamBridge) open(ownerCallbackID string, chunks <-chan handlers.
 	id := strconv.FormatUint(b.next.Add(1), 10)
 	b.mu.Lock()
 	b.streams[id] = modelStreamEntry{
+		pluginID:        strings.TrimSpace(pluginID),
 		ownerCallbackID: ownerCallbackID,
 		chunks:          chunks,
 		cancel:          cancel,
@@ -44,10 +47,12 @@ func (b *modelStreamBridge) open(ownerCallbackID string, chunks <-chan handlers.
 	return id
 }
 
-func (b *modelStreamBridge) read(ctx context.Context, id string) (handlers.ModelExecutionChunk, bool, error) {
+func (b *modelStreamBridge) read(ctx context.Context, pluginID, id string) (handlers.ModelExecutionChunk, bool, error) {
 	if b == nil {
 		return handlers.ModelExecutionChunk{}, true, fmt.Errorf("model stream bridge is unavailable")
 	}
+	id = strings.TrimSpace(id)
+	pluginID = strings.TrimSpace(pluginID)
 	if id == "" {
 		return handlers.ModelExecutionChunk{}, true, fmt.Errorf("model stream id is required")
 	}
@@ -57,32 +62,41 @@ func (b *modelStreamBridge) read(ctx context.Context, id string) (handlers.Model
 	if !ok || entry.chunks == nil {
 		return handlers.ModelExecutionChunk{}, true, nil
 	}
+	if entry.pluginID != pluginID {
+		return handlers.ModelExecutionChunk{}, true, fmt.Errorf("model stream %s is not open", id)
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	select {
 	case <-ctx.Done():
-		b.close(id)
+		b.close(pluginID, id)
 		return handlers.ModelExecutionChunk{}, true, ctx.Err()
 	case chunk, okRead := <-entry.chunks:
 		if !okRead {
-			b.close(id)
+			b.close(pluginID, id)
 			return handlers.ModelExecutionChunk{}, true, nil
 		}
 		if chunk.Err != nil {
-			b.close(id)
+			b.close(pluginID, id)
 			return chunk, true, nil
 		}
 		return chunk, false, nil
 	}
 }
 
-func (b *modelStreamBridge) close(id string) {
+func (b *modelStreamBridge) close(pluginID, id string) {
+	id = strings.TrimSpace(id)
+	pluginID = strings.TrimSpace(pluginID)
 	if b == nil || id == "" {
 		return
 	}
 	b.mu.Lock()
-	entry := b.streams[id]
+	entry, ok := b.streams[id]
+	if !ok || entry.pluginID != pluginID {
+		b.mu.Unlock()
+		return
+	}
 	delete(b.streams, id)
 	b.mu.Unlock()
 	if entry.cancel != nil {

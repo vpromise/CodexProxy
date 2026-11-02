@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-11-02 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-11-03 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -96,21 +96,127 @@ Production configurations and raw logs remain in the mode-0700 release directory
 
 | Item | Recorded state |
 | --- | --- |
-| Latest upstream check | 2026-11-02T04:58:56.318988+08:00: v8.0.49–v8.0.51; 44 released commits (38 non-merges, 6 empty remerge resolutions); 0 main-only commits |
-| Last reviewed upstream main | [7cad1cb7](https://github.com/router-for-me/CLIProxyAPI/commit/7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc) (`7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc`); complete November2 dispositions below |
-| Released selection boundary | v8.0.51 / `7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc`; selective only |
-| Release at that review | [v8.0.51](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.51), published 2026-11-01T17:08:04Z; all three lightweight tags resolved independently |
+| Latest upstream check | 2026-11-03T05:07:39.438470+08:00: v8.0.52; 16 released commits (10 non-merges, 6 empty remerge resolutions); 0 main-only commits |
+| Last reviewed upstream main | [6e6afab9](https://github.com/router-for-me/CLIProxyAPI/commit/6e6afab99a1939525ecb6bb1f0873c8e7a9df877) (`6e6afab99a1939525ecb6bb1f0873c8e7a9df877`); complete November3 dispositions below |
+| Released selection boundary | v8.0.52 / `6e6afab99a1939525ecb6bb1f0873c8e7a9df877`; selective only; broad JSON migration excluded from implementation |
+| Release at that review | [v8.0.52](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.52), published 2026-11-02T19:15:02Z; lightweight tag resolved independently |
 | Latest verified published implementation | [554a9420](https://github.com/vpromise/CodexProxy/commit/554a9420d4ef07574759e59ce1930b60c0c2a9a5) (`554a9420d4ef07574759e59ce1930b60c0c2a9a5`): November2 replay metadata, readable MCP names, developer roles and existing plugin stream framing; account isolation/session/memory repairs preserved |
 | Published source tree | `37d7b0da26d7db9f9ae14dc20905ecb56803c654` (November2 implementation) |
 | Latest publication | Implementation 554a9420 normally pushed; SSH/API SHA and local/API tree verified at 2026-11-02T05:06:20.208281+08:00; exact-SHA CI not triggered |
-| Unpublished selected fixes | None. November2 implementation is verified on main. Original feature-checkout ledger/deployment edits remain uncommitted and preserved separately; no other approved unpublished batch. |
-| Pending candidate | 13 active themes K1–K6/U1–U7, 84 original closed IDs retained. New evidence grouped under K1/K3/K6/U1/U3; no new approvals or blanket plugin/provider/migration backlog. |
+| Unpublished selected fixes | November3 logging panic cleanup and narrow plugin stream ownership/closed-scope repairs are validated in an isolated candidate; publication receipt will supersede this preparation state. No older approved unpublished code was found. |
+| Pending candidate | 14 active themes K1–K6/U1–U8; 84 original closed IDs remain archived. K6 gains pool deduplication dependency; new U8 is remaining plugin-instance/teardown scope. Broad JSON migration, advertisements and removed providers do not expand the active queue. |
 | Deployment | Historical receipts only. Newer local-only October27 light-host notes are preserved outside this publication. No live server access, deployment, tag or Release in this run. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
-The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.51 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.52 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
+## Selective review and validation — 2026-11-03
+
+Checked **2026-11-03T05:07:39.438470+08:00**. Reviewed **7cad1cb7df48c6c5ffb7ff0b34ef8198806115bc..6e6afab99a1939525ecb6bb1f0873c8e7a9df877**: all 16 commits in official **v8.0.52**, published **2026-11-02T19:15:02Z**. Independently resolved lightweight tag equals upstream main; **0 main-only commits**. Six merges have empty remerge-diffs. Full diffs, relevant tests and issue/PR rationale 7159, 7161, 7162, 7163, 7167, 7186 and 7187 are retained. Scope review of the large migration does not certify all its 705 files; it establishes why that architectural batch is excluded from this selection.
+
+Isolated base is published main **1b30249871f8e227d60b394e87c925dd0a5c01df**, tree `4b0b53f42f7f2ae49fd53b8f7851639154e211b5` (the exact verified base tree is recorded in pre-push evidence). All six local branch tips are ancestors of this base: existing account/provider isolation, native session identity, revoked-key removal and memory repairs are retained. Original checkout remains `codex/user-provider-isolation / 5e986f5e`, empty index, its original modified ledger only. No competing sync or older authorized unpublished implementation was found.
+
+### Selected repairs and preservation
+
+1. **a5795047**: finalize request logging when handlers panic; close streaming log writers once, avoid duplicate/reopened writers, and use captured worker channel/writer references to avoid finalization races. Preserve committed response status, `http.ErrAbortHandler`, error-only logging and local deferred-body/builder cleanup. Retain outer recovery around local request-ID/body-limit middleware; move custom middleware inside logging so custom recovery responses are captured. No new body limit, network timeout, provider or framework is added.
+2. **3698b159 + d96b1941, partial**: bind existing host model streams to trusted caller plugin ID; reject foreign reads/closes and foreign callback ID before execution. When callback cleanup registration finds a closed scope, its existing cancellation runs and the call now returns an error rather than a closed stream ID. Untagged internal callers retain their existing namespace. No instance-generation, HTTP-operation or global teardown framework is imported; that remainder is U8, not claimed integrated.
+3. **8a82bed5, equivalent**: `TransportCache.Get` already defers mutex unlock since **516ec3a0006b8255837db681e5128d42ad72903b**. A new non-hanging regression confirms recovered builder panic propagates and leaves cache/cleanup usable. No production transport change. Upstream retirement/partial-predicate details depend on absent pool architecture.
+
+### Complete range disposition
+
+| Commit | Subject | Classification | Local applicability and reason |
+| --- | --- | --- | --- |
+| [7c627ffb](https://github.com/router-for-me/CLIProxyAPI/commit/7c627ffbdb4acff7107e05e4416e45c15a003d50) | fix(auth/antigravity): request aicode OAuth scope | excluded | Antigravity OAuth aicode scope only; removed native provider, no supported caller. |
+| [8a82bed5](https://github.com/router-for-me/CLIProxyAPI/commit/8a82bed5825ec776683d77c44b2b7dfa5c034e56) | fix(helps): release TransportCache mutex on builder panic and retire purged entries | equivalent / framework remainder excluded | Local TransportCache.Get already defers unlock since 516ec3a0006b8255837db681e5128d42ad72903b; fresh recovered-builder regression passes before and after. Upstream detachMatching/retirement guard belongs to unadopted per-key pool framework; no production edit. |
+| [3698b159](https://github.com/router-for-me/CLIProxyAPI/commit/3698b1597aba1e52a54a39a536f3e32fe77379df) | fix(pluginhost): scope model execution streams to the owning plugin and instance | partial; remaining U8 | Bind existing model streams to trusted plugin ID, reject foreign read/close and foreign callback ID before execution. Per-instance identity and plugin/host teardown integration require absent instance framework; retained as U8. |
+| [8643ea56](https://github.com/router-for-me/CLIProxyAPI/commit/8643ea56d520617c7c3e436d4eb2f847238604b9) | fix(config): include connection-pool settings in credential deduplication keys | discussion K6 | Connection-pool configuration is not present locally. Changing credential ID/auth-index seeds for pool overrides depends on the K6 plan; no standalone deduplication bug in current native config. Retain as a dependency, not an extra question. |
+| [a5795047](https://github.com/router-for-me/CLIProxyAPI/commit/a5795047bfb4b32371a80cdf94b520f3054c436f) | fix(api/middleware): finalize request logging on handler panic | adapted | Finalize logging on handler panic, avoid reopening/duplicate streaming writers, pass stable channel/writer to worker, preserve committed response status and ErrAbortHandler semantics. Preserve local deferred-builder cleanup and outer recovery; custom middleware moves inside logging so its recovery response is captured. No upstream max-body/deadline framework. |
+| [c888ff72](https://github.com/router-for-me/CLIProxyAPI/commit/c888ff72d46280202b51a5f635059ccd2dbb22e6) | fix(translator): normalize omitted and function roles in Gemini ingress translators | excluded | Gemini ingress normalization only, including snake_case function parts and inferred role alternation. Native routes/registered translators do not expose Gemini; no native Codex/Claude behavior to transplant. |
+| [06ec5eac](https://github.com/router-for-me/CLIProxyAPI/commit/06ec5eac72d0e317d4b2c6bbb2da2728e0aa2639) | Merge pull request #7187 from sususu98/fix/gemini-omitted-content-role-7186 | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [32e3fd55](https://github.com/router-for-me/CLIProxyAPI/commit/32e3fd550d4cc4155fce8fd4d96b5840f36d48fb) | Merge pull request #7164 from sususu98/fix/transport-cache-panic-unlock-7162 | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [ef04e83a](https://github.com/router-for-me/CLIProxyAPI/commit/ef04e83ae9e22ebd9d8e1ed8d8db0976e2db543f) | Merge pull request #7165 from sususu98/fix/credential-dedup-connection-pool-7163 | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [f31d60aa](https://github.com/router-for-me/CLIProxyAPI/commit/f31d60aadb86d300cde7815ee97197357ae30fcc) | Merge pull request #7166 from sususu98/fix/request-logging-finalize-on-panic-7161 | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [533687e4](https://github.com/router-for-me/CLIProxyAPI/commit/533687e41899288ca4913363293f6980cd4f239d) | Merge pull request #6315 from SomSamantray/fix/antigravity-aicode-scope | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [d96b1941](https://github.com/router-for-me/CLIProxyAPI/commit/d96b19416846c6dafc88ad3307b16aab061255ea) | fix(pluginhost): reject model stream registration after concurrent teardown | partial; remaining U8 | Reject returning a stream ID when callback cleanup registration fails after scope teardown, using existing addCallbackCleanup cancellation. Full in-flight instance/plugin/host teardown fencing remains U8; not claimed integrated. |
+| [d7af3711](https://github.com/router-for-me/CLIProxyAPI/commit/d7af371173ab046c291a873afec6ed6dd5019815) | Merge pull request #7167 from sususu98/fix/pluginhost-model-stream-ownership-7159 | merge accounted | Empty remerge-diff; component commits classified individually, no additional resolution. |
+| [b1a3e50b](https://github.com/router-for-me/CLIProxyAPI/commit/b1a3e50bdc3370dd92c508462a9343a675c27d9d) | docs: remove OpenLux sponsorship from READMEs | excluded | Upstream sponsorship removal; preserve fork branding, no runtime benefit. |
+| [be2563ff](https://github.com/router-for-me/CLIProxyAPI/commit/be2563ff74a40979a9aadc59d0b24cedc6ba2e81) | docs: update Xcode sponsorship copy | excluded | Upstream advertising copy; preserve fork branding, no runtime benefit. |
+| [6e6afab9](https://github.com/router-for-me/CLIProxyAPI/commit/6e6afab99a1939525ecb6bb1f0873c8e7a9df877) | refactor: migrate gjson, sjson, and base64 to MoeForge/moego | conditional archive | 705-file JSON/Base64 dependency and mutable Doc pipeline migration (32997 additions/24650 deletions), including pointer-based finalizer probes, byte ownership and module/example changes. No isolated native correctness fix or measured local bottleneck justifies this architecture/dependency replacement. Retain current gjson/sjson/std base64; re-evaluate only with a measured supported-path need, separately authorized plan and differential/ownership tests. This is scope triage, not a claim that every migrated behavior is validated. |
+
+### Actual validation
+
+Fresh **Go 1.27.1 darwin/arm64, CGO_ENABLED=1**, `GOFLAGS=-mod=readonly`; task-owned caches, frozen dependencies/catalogs/management bundle. All final commands use the identical **1753-file** source/test/build manifest, excluding only this ledger: **2f5ffbbc6b4b2811e25c05872ccf7b6aa95490edb973897cffc2b36112f3462c**, unchanged before/after. These are new executions, not reused November2 results.
+
+Old production code compiled but failed **6 top-level behavioral regression tests** covering panic logging/recovery and model stream ownership/closed callback registration. The transport equivalence regression passed before the changes. All 7 now pass. No test fixture weakening or new exclusion was used.
+
+| Check | Completed result | Log SHA-256 |
+| --- | --- | --- |
+| regression-final | exit 0; 7 top-level tests / 4 test packages; 2.3s | `73d54acd77e89020d78c53953df6f1107a7f2e86661cdeff102c43083a441abd` |
+| full | exit 0; 4105 top-level tests / 68 test packages; 23.41s | `9f8df66eebde42911646c5d583256714f8643c51bef861fcc796222021a34d9d` |
+| race | exit 0; 1378 top-level tests / 6 test packages; 29.06s | `44173364a24c9b5133cbe0c1ce09c082c95680ee745651b556516737259d80b2` |
+| build | exit 0; 0 top-level tests / 0 test packages; 11.2s | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+Commands:
+
+```text
+go test -json -count=1 ./internal/api/middleware ./internal/api ./internal/pluginhost ./internal/runtime/executor/helps -run Test(RequestLoggingPanic|ServerLoggingCapturesExtra|ModelStreamRejects|TransportCacheRecovered)
+```
+
+```text
+go test -json -count=1 -skip ^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$ ./...
+```
+
+```text
+go test -json -race -count=1 -skip ^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$ ./internal/api/middleware ./internal/api ./internal/pluginhost ./internal/runtime/executor/helps ./internal/logging ./sdk/cliproxy/auth
+```
+
+```text
+go build -o /private/tmp/codexproxy-sync-20261103-s24_btza/codexproxy-test ./cmd/server
+```
+
+Full suite: **4105 tests / 68 packages**, plus 24 packages without tests. Race: **1378 tests / 6 packages** (middleware, API integration, pluginhost, executor helpers, logging, auth manager). Build succeeded. Actual `go list -e -json` compiler/test/embed audit: **92 packages / 1146 candidate inputs**, no package errors or unrecorded inputs. Original checkout differs in **177 actual inputs** and is not claimed tested as a combined tree; all **1685 regular files**, including ignored user files, preserve their original hashes. No ignored compiler input exists in either checkout.
+
+Fresh listener probe passes 127.0.0.1 and ::1; 127.0.0.2 still fails errno49. Only the two existing `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS` exclusions apply. `TestClaudeCodeTLSClientHelloCapture` is unconfigured and skips in full/race. This race selection contains no WebSocket allocation-skip tests; their ordinary full-suite results pass. No Linux unit tests, real provider inference, production credential access or server checks occurred.
+
+Fingerprints remain **Claude 2.1.280 / Codex runtime 0.154.0 / catalog-fetch 0.155.0**, read from current candidate source. No external latest-client claim, dependency/catalog refresh or deployment.
+
+### Pending decisions retained individually
+
+The complete previous source mappings and plans below remain in force. There are **14 topics**, not one approval item per historical commit. All 84 original closed IDs remain archived; no response or daily trigger grants approval.
+
+| Topic | Current local behavior / concrete next decision | Validation and rollback boundary |
+| --- | --- | --- |
+| K1 — configuration/file consistency | Existing false/null/nested-clear, watcher freshness and relative auth-dir .cds issues remain. fd02b720 also binds compatibility executors to config snapshots, tied to the unadopted pooling framework. Decide exact write/delete/read-failure semantics before broad ownership changes. | Preserve prior false/null/ABA/restart fixtures; test config replacement and failed persistence. Roll back only new ownership/write policy, never restore stale tokens. |
+| K2 — queued refresh identity (81756a57) | Queue still lacks enqueue identity while completion fences exist. Decide capture/validate identity and pending-marker ownership without changing five-day lead or frequency. | Queue/delete/recreate/disable/cancel/full/race; roll back queue bookkeeping only. |
+| K3 — quota/late-result and payment classification | Prior 429/cancel/late-success/missing-DONE questions remain. d00267c3 additionally turns exact Anthropic credit-balance 400 into 30-minute payment cooldown and affinity rebinding; current local path still treats it as request fault. Prior billing-reset approval does not cover this. Decide same-pool failover and duration separately. | Exact/nonmatching bodies, ordinary400, no fallback, pool isolation, ABA/late results/manual disable. Roll back classification/rebinding only; preserve stored cooldowns. |
+| K4 — shutdown/WS lifetime | Startup-based shutdown deadline and provider-wide session invalidation still require a concrete close/retain policy. No automatic replay or cross-pool switching approved. | Long uptime, reload, pinned/queued turns, cancellation/race; roll back lifecycle wiring only. |
+| K5 — remote config initialization (f9437700) | Conditional remote-store initialization can precede management-secret hashing; no live leak verified. Identify a real store consumer; prefer fail-closed sanitization before upload. | YAML anchors/duplicates/upload failures/restart; roll back by disabling initialization, not uploading plaintext. |
+| K6 — active-body/FD budgets and optional pools | Existing bounded transport/cache and account isolation retained. bf834311 through fd02b720 add per-key/per-runtime/secret-scoped opt-in pooling and 300s idle timeout. Decide actual API-key consumers, budgets and explicit idle-timeout policy; do not add active-request deadlines. | Credential/proxy/tenant/runtime isolation, hot reload/secret rotation, custom transports, LRU/FD bounds. Disable only new pooling/budget and retire idle connections; preserve active requests. |
+| U1 — terminal renewal/recovery | 95f125ff excludes access-only Codex auth from automatic refresh; a96e640d preserves sign-in-required quarantine on manual refresh. Local disabled auth is already excluded, and RequiresSignIn/SIWC/disabled-refresh framework is absent. Decide a narrow no-refresh-token queue gate separately from terminal quarantine/re-login recovery. 7b4c64b0 is not a demonstrated local disabled-refresh bug. | Missing/blank/wrong token key, usable access token, Runtime evaluator, token later added, stale/ABA/manual disable/race. Revert eligibility only; never revive rejected credentials or restore old tokens. |
+| U2 — connection errors / short429 | No new response samples or approval. Keep statusless H2 classification and exact per-minute retry exception separately decidable. | Sent/unsent/status precedence/conflicting Retry-After; rollback narrow classification without shortening persisted deadlines. |
+| U3 — continuity and optional visible commentary | cc4b9949 mirrors public Codex commentary from its retained thinking marker into visible Claude text; local default stays hidden. Decide actual Claude UI/TTS demand and explicit opt-in, separately from history/cache/private capsule retention. | On/off stream/nonstream, genuine reasoning, adjacent/nonadjacent copies, interruption/parallel sessions; rollback display flag/new cache only without deleting history. |
+| U4 — pinned models/capabilities | No selected catalog or fingerprint change. Need actual native models/aliases and off/auto contract before adding metadata/betas. | Golden catalogs, routes/aliases/body-suffix/count_tokens; rollback selected metadata/mapping only. |
+| U5 — necessary tools/schema | Readable gateway names were completed November2; ec06c3cb is Gemini-only and excluded. Existing out-of-int64 bounds, full tool-search/web-search history and forced-auto decisions require concrete native samples. | Numeric precision, strict tools, paired history, HTTP/WS/compact; rollback narrow converters/flags, no paid search auto-enable. |
+| U6 — mixed model visibility | Healthy-sibling/single-auth repairs remain; only mixed manual-disable/quota catalog presentation remains undecided. | Mixed/expiry/no-timestamp/cache invalidation; rollback presentation aggregation only, no routing change. |
+| U7 — Guardian parent affinity | No established Guardian consumer; local session selection stays provider/session/model-scoped. Decide eligible same-pool parent inheritance and child precedence. | Permissions/cooldown/disable/TTL/cross-user/race; rollback affinity index/selection only. |
+
+**K6 update — 8643ea56:** pool options enter credential deduplication and ID/auth-index seeds. Current fork has no such options, so this is a dependency of an approved pool design, not a standalone native bug. Any future pool plan must test same key/different pool, inheritance, persisted identity, manual-disable targeting and existing cooldown/affinity ownership. No additional approval topic is created.
+
+**U8 — remaining plugin-instance/teardown scope (3698b159, d96b1941):** plugin-ID ownership and closed-callback registration fixes are completed in this selection. Local host has no `hostCallbackInstance`, HTTP-operation/inflight or removable-cleanup framework. Same-name plugin load generations and global/plugin shutdown still need a lifecycle design. Confirm actual dynamic-plugin use and whether update/stop cancels or drains its in-flight model streams. Proposed scope: unique generation identity through existing loaders/callbacks, in-flight cancellation registration, and teardown limited to the owning generation. Benefit: avoid stale-instance access/leaked work; risk: missed identity propagation or premature cancellation, including platform-specific loaders. Test two plugins, same-name generations, startup/registration/cleanup interleavings, host stop, EOF/error/cancel, repeated close and race across relevant supported loaders. Roll back only new generation/teardown wiring while retaining this run's plugin-ID checks. Without an actual plugin consumer, keep this conditional; do not enable plugins just to justify it.
+
+The **6e6afab9 JSON/Base64 migration** is independently excluded from the implementation and active approval queue under the user's backlog-pruning authorization. Reconsider only after a measured native-path bottleneck or concrete correctness need, with a separately authorized dependency/pipeline plan and differential tests for duplicate/escaped JSON keys, precision, byte ownership, hooks and finalizer ordering. No claim is made that the migration is defective or never useful.
+
+Protected decisions remain pending under the user's request and [SKILL.md](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md):
+
+> Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.
+
+This requirement applies to the retained policy/lifecycle plans. U8 additionally needs a concrete architectural scope. Independent completed fixes are not awaiting permission.
+
+### Publication state
+
+Prepared selection is fully validated and will be committed/pushed normally to verified fork main; a subsequent receipt records the exact implementation SHA and remote/CI result. No deployment, tag, Release, CI/policy, Keeper or skill change is part of this run. Task-owned evidence is retained in `outputs/codexproxy-upstream-sync-2026-11-03*` before cleanup. Historical deployment notes and the original checkout's newer uncommitted deployment history are preserved separately.
 
 ## Publication verification — 2026-11-02
 

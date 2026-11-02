@@ -48,6 +48,8 @@ type ResponseWriterWrapper struct {
 	statusCode          int                        // statusCode stores the HTTP status code of the response.
 	headers             map[string][]string        // headers stores the response headers.
 	logOnErrorOnly      bool                       // logOnErrorOnly enables logging only when an error response is detected.
+	panicked            bool                       // Records a handler panic even after a committed success response.
+	finalized           bool                       // Prevents outer recovery from reopening a streaming log.
 	firstChunkTimestamp time.Time                  // firstChunkTimestamp captures TTFB for streaming responses.
 }
 
@@ -160,6 +162,12 @@ func (w *ResponseWriterWrapper) WriteString(data string) (int, error) {
 // It captures the status code, detects if the response is streaming based on the Content-Type header,
 // and initializes the appropriate logging mechanism (standard or streaming).
 func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
+	if w.ResponseWriter.Written() {
+		if statusCode >= http.StatusBadRequest && statusCode != clienterror.StatusClientClosedRequest {
+			w.panicked = true
+		}
+		return
+	}
 	w.statusCode = statusCode
 
 	// Capture response headers using the new method
@@ -167,29 +175,33 @@ func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
 
 	// Detect streaming based on Content-Type
 	contentType := w.ResponseWriter.Header().Get("Content-Type")
-	w.isStreaming = w.detectStreaming(contentType)
+	w.isStreaming = w.detectStreaming(contentType) || w.streamWriter != nil
 
-	// If streaming, initialize streaming log writer
-	if w.isStreaming && w.logger.IsEnabled() {
-		requestBody := w.extractRequestBody(nil)
-		streamWriter, err := w.logger.LogStreamingRequest(
-			w.requestInfo.URL,
-			w.requestInfo.Method,
-			w.requestInfo.Headers,
-			requestBody,
-			w.requestInfo.RequestID,
-		)
-		if err == nil {
-			w.streamWriter = streamWriter
-			w.chunkChannel = make(chan []byte, 100) // Buffered channel for async writes
-			doneChan := make(chan struct{})
-			w.streamDone = doneChan
+	// If streaming, initialize streaming log writer once and refresh uncommitted status updates.
+	if !w.finalized && w.isStreaming && w.logger != nil && w.logger.IsEnabled() {
+		if w.streamWriter == nil {
+			streamWriter, err := w.logger.LogStreamingRequest(
+				w.requestInfo.URL,
+				w.requestInfo.Method,
+				w.requestInfo.Headers,
+				w.extractRequestBody(nil),
+				w.requestInfo.RequestID,
+			)
+			if err == nil {
+				chunkChan := make(chan []byte, 100) // Buffered channel for async writes
+				doneChan := make(chan struct{})
+				w.streamWriter = streamWriter
+				w.chunkChannel = chunkChan
+				w.streamDone = doneChan
 
-			// Start async chunk processor
-			go w.processStreamingChunks(doneChan)
+				// Start async chunk processor with captured locals so Finalize clearing fields cannot race.
+				go w.processStreamingChunks(doneChan, chunkChan, streamWriter)
 
-			// Write status immediately
-			_ = streamWriter.WriteStatus(statusCode, w.headers)
+				// Write status immediately
+				_ = streamWriter.WriteStatus(statusCode, w.headers)
+			}
+		} else {
+			_ = w.streamWriter.WriteStatus(statusCode, w.headers)
 		}
 	}
 
@@ -248,19 +260,19 @@ func (w *ResponseWriterWrapper) detectStreaming(contentType string) bool {
 
 // processStreamingChunks runs in a separate goroutine to process response chunks from the chunkChannel.
 // It asynchronously writes each chunk to the streaming log writer.
-func (w *ResponseWriterWrapper) processStreamingChunks(done chan struct{}) {
+func (w *ResponseWriterWrapper) processStreamingChunks(done chan struct{}, chunkChan <-chan []byte, streamWriter logging.StreamingLogWriter) {
 	if done == nil {
 		return
 	}
 
 	defer close(done)
 
-	if w.streamWriter == nil || w.chunkChannel == nil {
+	if streamWriter == nil || chunkChan == nil {
 		return
 	}
 
-	for chunk := range w.chunkChannel {
-		w.streamWriter.WriteChunkAsync(chunk)
+	for chunk := range chunkChan {
+		streamWriter.WriteChunkAsync(chunk)
 	}
 }
 
@@ -269,6 +281,10 @@ func (w *ResponseWriterWrapper) processStreamingChunks(done chan struct{}) {
 // For non-streaming responses, it logs the complete request and response details,
 // including any API-specific request/response data stored in the Gin context.
 func (w *ResponseWriterWrapper) Finalize(c *gin.Context) error {
+	if w == nil || w.finalized {
+		return nil
+	}
+	w.finalized = true
 	if c != nil {
 		// Keep builders available until error logging finishes, then release their bodies.
 		defer c.Set(logging.DeferredAPIRequestContextKey, nil)
@@ -297,7 +313,7 @@ func (w *ResponseWriterWrapper) Finalize(c *gin.Context) error {
 		}
 	}
 
-	hasAPIError := hasActionableError(c, finalStatusCode, slicesAPIResponseError)
+	hasAPIError := w.panicked || hasActionableError(c, finalStatusCode, slicesAPIResponseError)
 	forceLog := w.logOnErrorOnly && hasAPIError && !w.logger.IsEnabled()
 	websocketTimelineSource := w.extractWebsocketTimelineSource(c)
 	apiRequestSource := w.extractAPIRequestSource(c)
