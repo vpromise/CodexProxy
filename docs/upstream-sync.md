@@ -100,10 +100,10 @@ Production configurations and raw logs remain in the mode-0700 release directory
 | Last reviewed upstream main | [e6e5708e](https://github.com/router-for-me/CLIProxyAPI/commit/e6e5708e677adb2463d45accdd24bc9fd028ddd8) (`e6e5708e677adb2463d45accdd24bc9fd028ddd8`); complete November5 dispositions below |
 | Released selection boundary | v8.0.55 / `e6e5708e677adb2463d45accdd24bc9fd028ddd8`; selective only; no KV, capsule, expanded modality or plugin-replay framework |
 | Release at that review | [v8.0.55](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.55), published 2026-11-04T18:03:50Z; v8.0.54 at 2026-11-04T12:16:11Z / `78a9cc9aaa8ae90a66300d9cbddfe7c894307622`; lightweight tags resolved independently |
-| Latest verified published implementation | [013df1c7](https://github.com/vpromise/CodexProxy/commit/013df1c71212de519102f43d13348ae6c0b7773f) (`013df1c71212de519102f43d13348ae6c0b7773f`): November4 scoped image capabilities, output budgets and partial citation replay fixes; prior account/session/memory repairs retained |
-| Published source tree | `0bf3a65bd2d614842effc79a27e19d66f6a478fb` (November4 implementation) |
-| Latest publication | Implementation 013df1c7 normally pushed; SSH/API SHA and local/API tree verified at 2026-11-04T08:46:38.943434+08:00; exact-SHA CI not triggered |
-| Unpublished selected fixes | November5 two adaptations validated in an isolated worktree; commit/push pending at this entry. No older approved unpublished batch; original local deployment notes preserved. |
+| Latest verified published implementation | [96f38add](https://github.com/vpromise/CodexProxy/commit/96f38add6a8c893243a85bded489b1d675e0710c) (`96f38add6a8c893243a85bded489b1d675e0710c`): November5 Codex item-ID normalization and Claude effort usage labels; account/session/memory repairs retained |
+| Published source tree | `e53983ef8d042aa474ff4580dfc43e98a98d4117` (November5 implementation) |
+| Latest publication | Implementation 96f38add normally pushed; SSH/API SHA and local/API tree verified at 2026-11-05T05:12:09.203850+08:00; exact-SHA CI not triggered |
+| Unpublished selected fixes | None. November5 two selected repairs verified on main. Original feature-checkout deployment notes remain uncommitted; no older approved unpublished batch. |
 | Pending candidate | 14 active themes K1–K6/U1–U8; 84 original closed IDs remain archived. November5 date/KV and plugin-reload tradeoffs grouped into U3/U8; unused compaction/modality/framework work conditionally archived. |
 | Deployment | Historical receipts only. Newer local-only October27 light-host notes are preserved outside this publication. No live server access, deployment, tag or Release in this run. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
@@ -111,6 +111,12 @@ Production configurations and raw logs remain in the mode-0700 release directory
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
 The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.55 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
+## Publication verification — 2026-11-05
+
+Implementation **[96f38add](https://github.com/vpromise/CodexProxy/commit/96f38add6a8c893243a85bded489b1d675e0710c)** (`96f38add6a8c893243a85bded489b1d675e0710c`), tree **e53983ef8d042aa474ff4580dfc43e98a98d4117**, normally advanced fork main from **9fba84db07fef4d2af075196b67bc4204c37e3f0**. SSH/API main SHA and local/API tree matched at **2026-11-05T05:12:09.203850+08:00**. Both selected repairs are committed and pushed on the existing account-isolation baseline. The exact 1759-file tested manifest is unchanged; this publication receipt changes only the ledger and does not repeat tests/build.
+
+At the implementation SHA: **0 Actions runs, 0 check runs, 0 commit-status entries**. Six active workflows listen only to PR/tag events, not normal main pushes; Actions is enabled and main has no protection or applicable rules. **Push succeeded; CI did not trigger, not passed.** This documentation receipt is normally committed/pushed and its final SHA/tree/CI are independently recorded in the dated report. No forced push, empty commit, policy/CI change, deployment, server access, tag or Release. Original file/index state, all six local branch refs and other worktrees remain preserved.
 
 ## Selective review and validation — 2026-11-05
 
@@ -165,7 +171,7 @@ The existing **14 themes K1–K6/U1–U8** remain, with all historical decisions
 - **U8 plugin lifecycle:** 6e103599 confirms ignored quiesce operational errors and uncoordinated usage dispatch in the local host. Actual stateful plugin/hot-reload usage is unconfirmed. Decide abort/rollback, drain versus cancel, bounded backpressure and idempotent replay before importing a queue. Tests need barriers for quiesce failure/panic/unsupported, in-flight drain, successful replacement, failed rollback, saturation, cancellation and duplicate delivery under race; rollback only new queue/reload wiring, retaining published plugin-ID ownership checks.
 - Expanded modality counters (6d7e6a3b), absent moego/Antigravity paths and generic private compaction do not become individual approval requests. Native aggregate usage accounting and current model/fingerprint metadata stay intact.
 
-Publication is pending for this entry until the exact implementation SHA is pushed and verified. A separate receipt records the actual result; no deployment is part of this task.
+The selection was subsequently committed and pushed as recorded in the November5 publication receipt above; no deployment is part of this task.
 
 ## Publication verification — 2026-11-04
 
