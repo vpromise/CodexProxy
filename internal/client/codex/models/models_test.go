@@ -84,8 +84,8 @@ func TestCodexClientModelsResponse_InputModalitiesFromRegistry(t *testing.T) {
 	if got, _ := modalities[1].(string); got != "image" {
 		t.Fatalf("input_modalities[1] = %q, want image", got)
 	}
-	if got, ok := visionEntry["supports_image_detail_original"].(bool); !ok || !got {
-		t.Fatalf("supports_image_detail_original = %#v, want true", visionEntry["supports_image_detail_original"])
+	if got, ok := visionEntry["supports_image_detail_original"].(bool); !ok || got {
+		t.Fatalf("supports_image_detail_original = %#v, want false for non-Codex route", visionEntry["supports_image_detail_original"])
 	}
 
 	if textOnlyEntry == nil {
@@ -115,8 +115,8 @@ func TestCodexClientModelsResponse_InputModalitiesFromRegistry(t *testing.T) {
 	if got, _ := mixedModalities[1].(string); got != "image" {
 		t.Fatalf("mixed input_modalities[1] = %q, want image", got)
 	}
-	if got, ok := mixedEntry["supports_image_detail_original"].(bool); !ok || !got {
-		t.Fatalf("mixed supports_image_detail_original = %#v, want true", mixedEntry["supports_image_detail_original"])
+	if got, ok := mixedEntry["supports_image_detail_original"].(bool); !ok || got {
+		t.Fatalf("mixed supports_image_detail_original = %#v, want false for non-Codex route", mixedEntry["supports_image_detail_original"])
 	}
 
 	if imageEntry == nil {

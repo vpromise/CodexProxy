@@ -91,6 +91,7 @@ func buildCodexClientModels(models []map[string]any, providersForModel Providers
 			applyCodexClientMaxContextLengthOverride(entry, model)
 			applyCodexClientMaxTokens(entry, model)
 			applyCodexClientSearchToolSupport(entry, id, true, providersForModel)
+			applyCodexClientImageDetailSupport(entry, id, true, providersForModel)
 			sanitizeCodexClientReasoningMetadata(entry, clientVersion)
 			applyCodexClientVisibilityOverride(entry, id)
 			if optimizeMultiAgentV2 {
@@ -104,6 +105,7 @@ func buildCodexClientModels(models []map[string]any, providersForModel Providers
 		applyCodexClientModelMetadata(entry, id, model, optimizeMultiAgentV2, clientVersion)
 		applyCodexClientMaxTokens(entry, model)
 		applyCodexClientSearchToolSupport(entry, id, false, providersForModel)
+		applyCodexClientImageDetailSupport(entry, id, false, providersForModel)
 		sanitizeCodexClientReasoningMetadata(entry, clientVersion)
 		applyCodexClientVisibilityOverride(entry, id)
 		result = append(result, entry)
@@ -331,6 +333,31 @@ func applyCodexClientVisibilityOverride(entry map[string]any, id string) {
 	case "gpt-image-1.5", "gpt-image-2":
 		entry["visibility"] = "hide"
 	}
+}
+
+// Original image detail is a Codex capability, not a consequence of accepting images.
+func applyCodexClientImageDetailSupport(entry map[string]any, id string, templateModel bool, providersForModel ProvidersForModelFunc) {
+	if _, exists := entry["supports_image_detail_original"]; !exists {
+		return
+	}
+	if templateModel {
+		// A catalog without provider metadata retains its native template contract.
+		if providersForModel == nil {
+			return
+		}
+		providers := providersForModel(id)
+		pureCodex := len(providers) > 0
+		for _, provider := range providers {
+			if !strings.EqualFold(strings.TrimSpace(provider), "codex") {
+				pureCodex = false
+				break
+			}
+		}
+		if pureCodex {
+			return
+		}
+	}
+	entry["supports_image_detail_original"] = false
 }
 
 func applyCodexClientInputModalitiesMetadata(entry map[string]any, modalities []string) {

@@ -196,3 +196,90 @@ func attachClaudeCitations(textBlock []byte, annotations gjson.Result) []byte {
 	}
 	return updated
 }
+
+// stripUnbackedClaudeWebSearchCitations keeps the answer text but removes search
+// citations when their assistant turn contains a search without replayable results.
+// Tool results continue a turn; a new user message starts the next one. Inspect
+// the complete turn so an earlier assistant block is also handled after a tool hop.
+func stripUnbackedClaudeWebSearchCitations(messages [][]byte) [][]byte {
+	turnStart := 0
+	missingResults := false
+	stripTurn := func(end int) {
+		if !missingResults {
+			return
+		}
+		for i := turnStart; i < end; i++ {
+			message := gjson.ParseBytes(messages[i])
+			if message.Get("role").String() != "assistant" || !message.Get("content").IsArray() {
+				continue
+			}
+			parts := message.Get("content").Array()
+			changed := false
+			rawParts := make([][]byte, 0, len(parts))
+			for _, part := range parts {
+				raw := []byte(part.Raw)
+				if part.Get("type").String() == "text" && part.Get("citations").IsArray() {
+					var kept [][]byte
+					dropped := false
+					for _, citation := range part.Get("citations").Array() {
+						if citation.Get("type").String() == "web_search_result_location" {
+							dropped = true
+						} else {
+							kept = append(kept, []byte(citation.Raw))
+						}
+					}
+					if dropped {
+						var err error
+						if len(kept) == 0 {
+							raw, err = sjson.DeleteBytes(raw, "citations")
+						} else {
+							raw, err = sjson.SetRawBytes(raw, "citations", translatorcommon.JoinRawArray(kept))
+						}
+						if err != nil {
+							raw = []byte(part.Raw)
+						} else {
+							changed = true
+						}
+					}
+				}
+				rawParts = append(rawParts, raw)
+			}
+			if changed {
+				if updated, err := sjson.SetRawBytes(messages[i], "content", translatorcommon.JoinRawArray(rawParts)); err == nil {
+					messages[i] = updated
+				}
+			}
+		}
+	}
+	for i, raw := range messages {
+		message := gjson.ParseBytes(raw)
+		content := message.Get("content")
+		if message.Get("role").String() == "user" {
+			boundary := !content.IsArray()
+			for _, part := range content.Array() {
+				if part.Get("type").String() != "tool_result" {
+					boundary = true
+				}
+			}
+			if boundary {
+				stripTurn(i)
+				turnStart = i
+				missingResults = false
+			}
+			continue
+		}
+		if message.Get("role").String() == "assistant" {
+			for _, part := range content.Array() {
+				if part.Get("type").String() != "web_search_tool_result" {
+					continue
+				}
+				results := part.Get("content")
+				if !results.Exists() || results.Type == gjson.Null || (results.IsArray() && len(results.Array()) == 0) {
+					missingResults = true
+				}
+			}
+		}
+	}
+	stripTurn(len(messages))
+	return messages
+}

@@ -543,6 +543,8 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 		})
 	}
 	flushPendingMessage()
+	messageBlocks = stripUnbackedClaudeWebSearchCitations(messageBlocks)
+
 	hadMessages := len(messageBlocks) > 0
 	if !preserveEmptyThinkingBlocks {
 		messageBlocks = stripTrailingClaudeThinkingBlocks(messageBlocks)

@@ -276,8 +276,10 @@ func TestConvertOpenAIResponsesRequestToCodexNormalizesRequiredFields(t *testing
 	if role := gjson.GetBytes(output, "input.0.role").String(); role != "developer" {
 		t.Fatalf("input.0.role = %q, want developer", role)
 	}
+	if got := gjson.GetBytes(output, "max_output_tokens").Int(); got != 4096 {
+		t.Fatalf("max_output_tokens = %d, want 4096", got)
+	}
 	for _, path := range []string{
-		"max_output_tokens",
 		"max_completion_tokens",
 		"temperature",
 		"top_p",
