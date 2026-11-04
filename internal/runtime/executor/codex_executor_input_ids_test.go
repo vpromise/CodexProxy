@@ -17,8 +17,8 @@ import (
 
 func TestCodexExecutorExecuteStreamSanitizesOverlongInputItemIDs(t *testing.T) {
 	longReasoningItemID := "rs_" + strings.Repeat("a", 64)
-	longCallItemID := strings.Repeat("codex-call-item-", 6)
-	longOutputItemID := strings.Repeat("codex-output-item-", 6)
+	longCallItemID := strings.Repeat("codex+call/item-", 6)
+	longOutputItemID := strings.Repeat("codex+output/item-", 6)
 	encryptedContent := validOpenAIResponsesReasoningEncryptedContentForTest()
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +66,9 @@ func TestCodexExecutorExecuteStreamSanitizesOverlongInputItemIDs(t *testing.T) {
 		{path: "input.1.id", originalID: longOutputItemID},
 	} {
 		actual := gjson.GetBytes(gotBody, testCase.path).String()
+		if strings.ContainsAny(actual, "+/") {
+			t.Fatalf("upstream item ID contains invalid characters: %q", actual)
+		}
 		if len([]rune(actual)) > 64 || actual == testCase.originalID {
 			t.Fatalf("input.%d.id was not shortened to at most 64 characters: %q", index, actual)
 		}

@@ -594,6 +594,19 @@ func extractThinkingConfigForUsage(body []byte, provider string) ThinkingConfig 
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "codex", "openai-response":
 		return extractCodexUsageConfig(body)
+	case "claude":
+		if gjson.GetBytes(body, "thinking.type").String() == "between_tools" {
+			return ThinkingConfig{Mode: ModeNone, Budget: 0}
+		}
+		config := extractThinkingConfig(body, provider)
+		if config.Mode == ModeNone && hasThinkingConfig(config) {
+			return config
+		}
+		// The last directive is the current turn's effort; the top-level value can be a cache placeholder.
+		if directive := extractClaudeEffortDirectiveConfig(body); hasThinkingConfig(directive) {
+			return directive
+		}
+		return config
 	default:
 		return extractThinkingConfig(body, provider)
 	}

@@ -23,6 +23,9 @@ func TestSanitizeCodexInputItemIDsBoundaries(t *testing.T) {
 	}
 	for _, path := range []string{"input.1.id", "input.2.id"} {
 		actual := gjson.GetBytes(got, path).String()
+		if !isPortableToolCallID(actual) {
+			t.Fatalf("invalid input ID characters: %q", actual)
+		}
 		if len([]rune(actual)) != 64 {
 			t.Fatalf("%s length = %d, want 64: %q", path, len([]rune(actual)), actual)
 		}
