@@ -598,3 +598,51 @@ func (h *mockPluginUsageHost) ExecutePluginExecutorStream(ctx context.Context, p
 	h.lastOptions = opts
 	return h.streamResult, nil
 }
+
+func TestHandlerPluginExecutorPublishesFirstByteTiming(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		name := fmt.Sprintf("first-byte-%t", streaming)
+		t.Run(name, func(t *testing.T) {
+			plugin := newCapturePluginExecutorUsagePlugin(name)
+			registerUsagePluginForTest(t, name, plugin)
+			chunks := make(chan coreexecutor.StreamChunk, 3)
+			chunks <- coreexecutor.StreamChunk{}
+			// A metadata frame is a response byte even before visible output arrives.
+			chunks <- coreexecutor.StreamChunk{Payload: []byte("data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n")}
+			chunks <- coreexecutor.StreamChunk{Payload: []byte("data: [DONE]\n\n")}
+			close(chunks)
+			host := &mockPluginUsageHost{
+				execResp:     coreexecutor.Response{Payload: []byte(`{"choices":[{"message":{"content":"hello"}}]}`)},
+				streamResult: &coreexecutor.StreamResult{Chunks: chunks},
+			}
+			host.hasRouters = true
+			host.route = func(context.Context, pluginapi.ModelRouteRequest) (pluginapi.ModelRouteResponse, bool) {
+				return pluginapi.ModelRouteResponse{Handled: true, TargetKind: pluginapi.ModelRouteTargetExecutor, Target: name}, true
+			}
+			handler := NewBaseAPIHandlers(&sdkconfig.SDKConfig{}, nil)
+			handler.SetModelRouterHost(host)
+			if streaming {
+				data, _, errs := handler.ExecuteStreamWithAuthManager(context.Background(), "openai", "gpt-4o", []byte(`{"model":"gpt-4o","stream":true}`), "")
+				for range data {
+				}
+				for err := range errs {
+					if err != nil {
+						t.Fatalf("stream error: %+v", err)
+					}
+				}
+			} else {
+				_, _, err := handler.ExecuteWithAuthManager(context.Background(), "openai", "gpt-4o", []byte(`{"model":"gpt-4o"}`), "")
+				if err != nil {
+					t.Fatalf("execution error: %+v", err)
+				}
+			}
+			record := plugin.waitRecord(t)
+			if record.TTFT <= 0 {
+				t.Fatalf("TTFT = %v, want positive first-byte duration", record.TTFT)
+			}
+			if record.TTFT > record.Latency {
+				t.Fatalf("TTFT %v exceeds latency %v", record.TTFT, record.Latency)
+			}
+		})
+	}
+}

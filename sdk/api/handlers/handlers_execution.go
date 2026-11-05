@@ -192,6 +192,7 @@ func (h *BaseAPIHandler) executeWithPluginExecutor(ctx context.Context, entryPro
 	if !execOptions.InternalSource {
 		reporter = helps.NewUsageReporter(execCtx, executorPluginID, modelName, nil)
 		reporter.SetTranslatedReasoningEffort(req.Payload, entryProtocol)
+		reporter.StartResponseTTFT()
 	}
 	resp, errExecute := host.ExecutePluginExecutor(execCtx, executorPluginID, req, opts)
 	if errExecute != nil {
@@ -203,6 +204,9 @@ func (h *BaseAPIHandler) executeWithPluginExecutor(ctx context.Context, entryPro
 		return nil, nil, errMsg
 	}
 	if reporter != nil && !nestedTracker.hasNestedExecution() {
+		if len(resp.Payload) > 0 {
+			reporter.MarkFirstResponseByte()
+		}
 		detail := parsePluginExecutorResponseUsage(responseProtocol, resp.Payload)
 		reporter.Publish(execCtx, detail)
 		reporter.EnsurePublished(execCtx)

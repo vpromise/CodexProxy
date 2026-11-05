@@ -64,6 +64,7 @@ func (h *BaseAPIHandler) streamWithPluginExecutor(ctx context.Context, entryProt
 	if !execOptions.InternalSource {
 		reporter = helps.NewUsageReporter(execCtx, executorPluginID, modelName, nil)
 		reporter.SetTranslatedReasoningEffort(req.Payload, entryProtocol)
+		reporter.StartResponseTTFT()
 	}
 	streamResult, errStream := host.ExecutePluginExecutorStream(execCtx, executorPluginID, req, opts)
 	if errStream != nil {
@@ -212,6 +213,7 @@ func (h *BaseAPIHandler) streamWithPluginExecutor(ctx context.Context, entryProt
 			if len(chunk.Payload) == 0 {
 				continue
 			}
+			reporter.MarkFirstResponseByte()
 			observePluginExecutorStreamUsage(responseProtocol, chunk.Payload, &streamUsage)
 			payload := cloneBytes(chunk.Payload)
 			if streamInterceptorsActive {
