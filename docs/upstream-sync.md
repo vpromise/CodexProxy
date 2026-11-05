@@ -132,7 +132,7 @@ All 14 historical decision themes remain individually active (K1-K6/U1-U8); obso
 
 Protected policy changes remain pending because [the synchronization skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md) requires: **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** Previous authorization for dmit2 routing configuration and deployment does not approve unrelated source-policy changes. In particular, questions about cooldown do not enable cooldown persistence or automatic terminal-credential quarantine/recovery. Independent fixes above are not blocked by these decisions.
 
-Publication mapping will be appended only after SSH/API commit and tree verification. No server was accessed, deployed, tagged or released by this run.
+Publication verified: implementation [41f1189d](https://github.com/vpromise/CodexProxy/commit/41f1189d068f7979dd7fb08d1c745e4534b893af) / tree `9d53300ac5a8ad8ab77f87385f6f81b0cada1e33`, normally pushed to fork main and independently read back via SSH and GitHub API at 2026-11-06T05:12:02.615443+08:00. Exact-SHA workflow runs/check-runs/statuses are all zero. Actions is enabled; the active workflows are PR/tag-triggered, so this direct main push did not trigger CI. This is successful publication with no CI run, not a green CI result. The follow-up ledger-only commit records this mapping without changing tested inputs. No server was accessed, deployed, tagged or released by this run.
 
 ## Current checkpoint
 
@@ -144,10 +144,10 @@ Publication mapping will be appended only after SSH/API commit and tree verifica
 | Last reviewed upstream main | [c2f402b4](https://github.com/router-for-me/CLIProxyAPI/commit/c2f402b45643f0740d70b9010fd7d8d0aab7ef65) (`c2f402b45643f0740d70b9010fd7d8d0aab7ef65`); all November6 dispositions below |
 | Released selection boundary | v8.0.57 / `c2f402b45643f0740d70b9010fd7d8d0aab7ef65`; selective only; no SIWC, new search framework, logging policy or automatic image-model substitution |
 | Release at that review | [v8.0.57](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.57), published 2026-11-05T16:20:39Z; v8.0.56 at 2026-11-05T03:53:33Z / `585f97deac9aa57c700301221fb1a7085e1827cc`; lightweight tags independently resolved |
-| Latest verified published implementation | [96f38add](https://github.com/vpromise/CodexProxy/commit/96f38add6a8c893243a85bded489b1d675e0710c) (`96f38add6a8c893243a85bded489b1d675e0710c`): November5 Codex item-ID normalization and Claude effort usage labels; account/session/memory repairs retained |
-| Published source tree | `e53983ef8d042aa474ff4580dfc43e98a98d4117` (November5 implementation) |
-| Latest publication | Implementation 96f38add normally pushed; SSH/API SHA and local/API tree verified at 2026-11-05T05:12:09.203850+08:00; exact-SHA CI not triggered |
-| Unpublished selected fixes | November6 typed thinking parts and partial direct-plugin first-byte timing: implemented and validated in isolated candidate; publication pending until remote verification below. No older approved unfinished batch found. |
+| Latest verified published implementation | [41f1189d](https://github.com/vpromise/CodexProxy/commit/41f1189d068f7979dd7fb08d1c745e4534b893af) (`41f1189d068f7979dd7fb08d1c745e4534b893af`): November6 typed thinking arrays and direct-plugin first-byte timing; all prior local isolation/session/memory repairs retained |
+| Published source tree | `9d53300ac5a8ad8ab77f87385f6f81b0cada1e33` (November6 implementation) |
+| Latest publication | Implementation 41f1189d normally pushed; SSH/API SHA and local/API tree verified at 2026-11-06T05:12:02.615443+08:00; exact-SHA CI has no triggered run/check/status, not a passing CI result |
+| Unpublished selected fixes | None. November6 two independent selected repairs are verified on main. Existing original-checkout deployment/routing notes remain unstaged; no older approved unpublished batch found. |
 | Pending candidate | 14 active themes K1-K6/U1-U8; 84 original closed IDs remain archived. New refusal/count_tokens, bounded error logging, WS429, image-model and tool_search topics amend existing themes; no duplicate commit-count backlog. |
 | Deployment | Historical receipts only. Local-only October27 and November5 deployment/routing notes preserved in the original modified checkout. This run did not access or deploy servers. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
