@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -491,15 +492,37 @@ func claudeErrorStatus(msg *interfaces.ErrorMessage) int {
 }
 
 func (h *ClaudeCodeAPIHandler) toClaudeError(msg *interfaces.ErrorMessage) claudeErrorResponse {
+	return h.toClaudeErrorWithRetryAfter(msg, claudeCooldownRetryAfter(msg))
+}
+
+func claudeCooldownRetryAfter(msg *interfaces.ErrorMessage) string {
+	if msg == nil || msg.DirectResponse || !coreauth.IsQuotaCooldownError(msg.Error) {
+		return ""
+	}
+	duration, ok := handlers.ResolveDownstreamRetryAfter(msg.Error)
+	if !ok {
+		return ""
+	}
+	headers := make(http.Header)
+	helps.SetClaudeDownstreamRetryAfterHeaders(headers, duration)
+	return headers.Get("Retry-After")
+}
+
+func (h *ClaudeCodeAPIHandler) toClaudeErrorWithRetryAfter(msg *interfaces.ErrorMessage, retryAfter string) claudeErrorResponse {
 	status := claudeErrorStatus(msg)
 	errText := http.StatusText(status)
 	if msg != nil && !msg.DirectResponse && coreauth.IsModelCooldownError(msg.Error) {
 		if coreauth.IsQuotaCooldownError(msg.Error) {
+			message := "Rate limit reached. Please try again later."
+			if seconds, errParse := strconv.ParseInt(retryAfter, 10, 64); errParse == nil && seconds > 0 && seconds <= (1<<63-1)/int64(time.Second) {
+				// This is the capped client retry delay, not the provider quota-reset time.
+				message += " (retry after " + (time.Duration(seconds) * time.Second).String() + ")"
+			}
 			return claudeErrorResponse{
 				Type: "error",
 				Error: claudeErrorDetail{
 					Type:    "rate_limit_error",
-					Message: "Rate limit reached. Please try again later.",
+					Message: message,
 				},
 			}
 		}
@@ -595,7 +618,7 @@ func (h *ClaudeCodeAPIHandler) WriteErrorResponse(c *gin.Context, msg *interface
 		// Copied header metadata is the fallback when no semantic duration exists.
 		clampClaudeThrottleRetryHeaders(c, status)
 	}
-	writeClaudeProtocolErrorBody(c, status, h.claudeErrorBody(msg))
+	writeClaudeProtocolErrorBody(c, status, h.claudeErrorBodyWithRetryAfter(msg, c.Writer.Header().Get("Retry-After")))
 }
 
 func writeClaudeDownstreamRetryAfter(c *gin.Context, status int, msg *interfaces.ErrorMessage) bool {
@@ -674,6 +697,10 @@ func appendClaudeAPIResponse(c *gin.Context, data []byte) {
 
 // claudeErrorBody adds the replay signal without discarding upstream fields.
 func (h *ClaudeCodeAPIHandler) claudeErrorBody(msg *interfaces.ErrorMessage) []byte {
+	return h.claudeErrorBodyWithRetryAfter(msg, claudeCooldownRetryAfter(msg))
+}
+
+func (h *ClaudeCodeAPIHandler) claudeErrorBodyWithRetryAfter(msg *interfaces.ErrorMessage, retryAfter string) []byte {
 	var upstream []byte
 	if msg != nil {
 		upstream = clienterror.ErrorResponseBody(msg.Error)
@@ -692,6 +719,6 @@ func (h *ClaudeCodeAPIHandler) claudeErrorBody(msg *interfaces.ErrorMessage) []b
 	if msg != nil && msg.DirectResponse {
 		return bytes.Clone(msg.Body)
 	}
-	body, _ := json.Marshal(h.toClaudeError(msg))
+	body, _ := json.Marshal(h.toClaudeErrorWithRetryAfter(msg, retryAfter))
 	return body
 }

@@ -49,6 +49,7 @@ func (e *CodexWebsocketsExecutor) Execute(ctx context.Context, auth *cliproxyaut
 		return resp, errTranslate
 	}
 
+	body = helps.NormalizeCodexClaudeOutputBudget(body, from.String(), req.Payload)
 	body, err = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return resp, err

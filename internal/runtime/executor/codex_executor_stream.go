@@ -49,6 +49,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		return nil, errTranslate
 	}
 
+	body = helps.NormalizeCodexClaudeOutputBudget(body, from.String(), req.Payload)
 	body, err = helps.ApplyRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return nil, err
