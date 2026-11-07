@@ -142,7 +142,11 @@ func (h *BaseAPIHandler) ForwardStream(c *gin.Context, flusher http.Flusher, can
 				cancel(nil)
 				return
 			}
+			before := c.Writer.Size()
 			writeChunk(chunk)
+			if keepAlive != nil && c.Writer.Size() > before {
+				keepAlive.Reset(keepAliveInterval)
+			}
 			if !flush() {
 				return
 			}

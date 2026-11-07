@@ -1050,7 +1050,7 @@ func (h *OpenAIAPIHandler) streamRoutedImages(c *gin.Context, imageReq []byte, i
 			_, _ = c.Writer.Write(chunk)
 			flusher.Flush()
 			streamStarted = true
-			h.forwardRawImageStream(cliCtx, c, func(err error) { cliCancel(err) }, dataChan, errChan)
+			h.forwardRawImageStreamWithState(cliCtx, c, func(err error) { cliCancel(err) }, dataChan, errChan, advanceImagesSSENewlineCount(2, chunk))
 			return
 		case <-keepAliveC:
 			setImagesSSEHeaders(c)
@@ -1061,7 +1061,33 @@ func (h *OpenAIAPIHandler) streamRoutedImages(c *gin.Context, imageReq []byte, i
 	}
 }
 
+// advanceImagesSSENewlineCount tracks event boundaries across arbitrary chunk splits.
+func advanceImagesSSENewlineCount(count int, chunk []byte) int {
+	for _, b := range chunk {
+		switch b {
+		case '\n':
+			if count < 2 {
+				count++
+			}
+		case '\r':
+		default:
+			count = 0
+		}
+	}
+	return count
+}
+
+func ensureImagesSSEEventBoundary(w io.Writer, count int) {
+	if count < 2 {
+		_, _ = w.Write([]byte(strings.Repeat("\n", 2-count)))
+	}
+}
+
 func (h *OpenAIAPIHandler) forwardRawImageStream(ctx context.Context, c *gin.Context, cancel func(error), data <-chan []byte, errs <-chan *interfaces.ErrorMessage) {
+	h.forwardRawImageStreamWithState(ctx, c, cancel, data, errs, 2)
+}
+
+func (h *OpenAIAPIHandler) forwardRawImageStreamWithState(ctx context.Context, c *gin.Context, cancel func(error), data <-chan []byte, errs <-chan *interfaces.ErrorMessage, trailingNewlines int) {
 	keepAlive, keepAliveC := h.newImagesStreamKeepAliveTicker()
 	defer func() {
 		if keepAlive != nil {
@@ -1079,6 +1105,7 @@ func (h *OpenAIAPIHandler) forwardRawImageStream(ctx context.Context, c *gin.Con
 			return
 		case errMsg, ok := <-errs:
 			if ok && errMsg != nil {
+				ensureImagesSSEEventBoundary(c.Writer, trailingNewlines)
 				writeImagesStreamErrorEvent(c, errMsg)
 				if flusher, ok := c.Writer.(http.Flusher); ok {
 					flusher.Flush()
@@ -1090,6 +1117,7 @@ func (h *OpenAIAPIHandler) forwardRawImageStream(ctx context.Context, c *gin.Con
 		case chunk, ok := <-data:
 			if !ok {
 				if errMsg, hasPendingError := handlers.PendingStreamError(errs); hasPendingError {
+					ensureImagesSSEEventBoundary(c.Writer, trailingNewlines)
 					writeImagesStreamErrorEvent(c, errMsg)
 					if flusher, ok := c.Writer.(http.Flusher); ok {
 						flusher.Flush()
@@ -1100,11 +1128,21 @@ func (h *OpenAIAPIHandler) forwardRawImageStream(ctx context.Context, c *gin.Con
 				cancel(nil)
 				return
 			}
+			if len(chunk) == 0 {
+				continue
+			}
 			_, _ = c.Writer.Write(chunk)
+			trailingNewlines = advanceImagesSSENewlineCount(trailingNewlines, chunk)
+			if keepAlive != nil {
+				keepAlive.Reset(handlers.StreamingKeepAliveInterval(h.Cfg))
+			}
 			if flusher, ok := c.Writer.(http.Flusher); ok {
 				flusher.Flush()
 			}
 		case <-keepAliveC:
+			if trailingNewlines < 2 {
+				continue
+			}
 			if flusher, ok := c.Writer.(http.Flusher); ok {
 				writeImagesStreamKeepAlive(c, flusher)
 			}
@@ -1195,13 +1233,21 @@ func (h *OpenAIAPIHandler) streamOpenAICompatImages(c *gin.Context, compatReq []
 			_, _ = c.Writer.Write(chunk)
 			flusher.Flush()
 			streamStarted = true
+			trailingNewlines := advanceImagesSSENewlineCount(2, chunk)
 			h.ForwardStream(c, flusher, func(err error) { cliCancel(err) }, dataChan, errChan, handlers.StreamForwardOptions{
 				NormalizeTerminalError: sanitizeResponsesStreamErrorMessage,
 				WriteChunk: func(next []byte) {
 					_, _ = c.Writer.Write(next)
+					trailingNewlines = advanceImagesSSENewlineCount(trailingNewlines, next)
 				},
 				WriteTerminalError: func(errMsg *interfaces.ErrorMessage) {
+					ensureImagesSSEEventBoundary(c.Writer, trailingNewlines)
 					writeImagesStreamErrorEvent(c, errMsg)
+				},
+				WriteKeepAlive: func() {
+					if trailingNewlines >= 2 {
+						_, _ = c.Writer.Write([]byte(": keep-alive\n\n"))
+					}
 				},
 			})
 			return
@@ -1656,6 +1702,15 @@ func (h *OpenAIAPIHandler) forwardImagesStream(ctx context.Context, c *gin.Conte
 			keepAlive.Stop()
 		}
 	}()
+
+	originalWriteEvent := writeEvent
+	writeEvent = func(name string, payload []byte) {
+		before := c.Writer.Size()
+		originalWriteEvent(name, payload)
+		if keepAlive != nil && c.Writer.Size() > before {
+			keepAlive.Reset(handlers.StreamingKeepAliveInterval(h.Cfg))
+		}
+	}
 
 	emitError := func(errMsg *interfaces.ErrorMessage) *interfaces.ErrorMessage {
 		errMsg = writeImagesStreamErrorEvent(c, errMsg)

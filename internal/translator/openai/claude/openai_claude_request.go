@@ -107,6 +107,11 @@ func convertClaudeRequestToOpenAI(modelName string, inputRawJSON []byte, stream 
 				}
 			}
 		}
+	} else if !thinkingConfig.Exists() {
+		// Newer clients can send effort without a legacy thinking object.
+		if effort := root.Get("output_config.effort"); effort.Type == gjson.String && strings.TrimSpace(effort.String()) != "" {
+			out, _ = sjson.SetBytes(out, "reasoning_effort", strings.ToLower(strings.TrimSpace(effort.String())))
+		}
 	}
 
 	// Process messages and system.

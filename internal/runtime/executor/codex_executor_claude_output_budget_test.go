@@ -87,7 +87,7 @@ func TestCodexClaudeOutputBudgetBoundariesAndPayloadRules(t *testing.T) {
 		{name: "fallback field", field: `,"max_output_tokens":1`, want: "16"},
 		{name: "zero remains invalid", field: `,"max_tokens":0`, want: "0"},
 		{name: "negative remains invalid", field: `,"max_tokens":-1`, want: "-1"},
-		{name: "fractional input is not normalized", field: `,"max_tokens":1.5`, want: "1"},
+		{name: "fractional source translated to integer", field: `,"max_tokens":1.5`, want: "16"},
 		{name: "non-numeric input", field: `,"max_tokens":"1"`},
 		{
 			name: "override matches normalized value", field: `,"max_tokens":1`, want: "8",
@@ -97,7 +97,7 @@ func TestCodexClaudeOutputBudgetBoundariesAndPayloadRules(t *testing.T) {
 			name: "final filter wins", field: `,"max_tokens":1`,
 			payload: config.PayloadConfig{Filter: []config.PayloadFilterRule{{Models: modelRule, Params: []string{"max_output_tokens"}}}},
 		},
-		{name: "native responses unchanged", field: `,"max_output_tokens":1`, from: sdktranslator.FormatOpenAIResponse, want: "1"},
+		{name: "native responses minimum", field: `,"max_output_tokens":1`, from: sdktranslator.FormatOpenAIResponse, want: "16"},
 	}
 	for _, tc := range cases {
 		for _, useWebsocket := range []bool{false, true} {

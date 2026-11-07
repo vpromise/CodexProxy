@@ -433,7 +433,7 @@ func convertOpenAINonStreamingToAnthropic(rawJSON []byte) [][]byte {
 		var contentBlocks [][]byte
 
 		for _, reasoningText := range collectOpenAIObjectReasoningTexts(choice.Get("message")) {
-			if reasoningText == "" {
+			if strings.TrimSpace(reasoningText) == "" {
 				continue
 			}
 			block := []byte(`{"type":"thinking","thinking":""}`)
@@ -794,7 +794,7 @@ func ConvertOpenAIResponseToClaudeNonStream(_ context.Context, _ string, origina
 		if message := choice.Get("message"); message.Exists() {
 
 			for _, reasoningText := range collectOpenAIObjectReasoningTexts(message) {
-				if reasoningText == "" {
+				if strings.TrimSpace(reasoningText) == "" {
 					continue
 				}
 				block := []byte(`{"type":"thinking","thinking":""}`)
@@ -901,13 +901,16 @@ func emitOpenAIThinkingDelta(param *ConvertOpenAIResponseToAnthropicParams, resu
 	if param.OpenToolCallIndex != -1 {
 		if n := len(param.InterleavedContentChunks); n > 0 && param.InterleavedContentChunks[n-1].Type == "thinking" {
 			param.InterleavedContentChunks[n-1].Text += reasoningText
-		} else {
+		} else if strings.TrimSpace(reasoningText) != "" {
 			param.InterleavedContentChunks = append(param.InterleavedContentChunks, InterleavedContentChunk{
 				Type: "thinking",
 				Text: reasoningText,
 			})
 		}
 	} else {
+		if !param.ThinkingContentBlockStarted && strings.TrimSpace(reasoningText) == "" {
+			return
+		}
 		stopTextContentBlock(param, results)
 		if !param.ThinkingContentBlockStarted {
 			if param.ThinkingContentBlockIndex == -1 {
@@ -1031,7 +1034,7 @@ func appendOpenAIMessageContent(contentResult gjson.Result, toolNameMap map[stri
 					})
 				}
 			case "reasoning", "thinking":
-				if text := openAIContentPartThinkingText(item); text != "" {
+				if text := openAIContentPartThinkingText(item); thinkingBuilder.Len() > 0 || strings.TrimSpace(text) != "" {
 					flushText()
 					thinkingBuilder.WriteString(text)
 				}
