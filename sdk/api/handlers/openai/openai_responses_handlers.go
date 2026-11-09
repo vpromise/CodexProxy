@@ -23,6 +23,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/httpwire"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
+	translatorcommon "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/common"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
 	"github.com/tidwall/gjson"
@@ -696,6 +697,7 @@ func (h *OpenAIResponsesAPIHandler) Responses(c *gin.Context) {
 	}
 
 	rawJSON = h.prepareCodexMultiAgentV2Tools(c, rawJSON)
+	rawJSON = translatorcommon.SanitizeOrphanResponsesToolOutputs(rawJSON)
 
 	// Check if the client requested a streaming response.
 	streamResult := gjson.GetBytes(rawJSON, "stream")
@@ -735,6 +737,7 @@ func (h *OpenAIResponsesAPIHandler) Compact(c *gin.Context) {
 		}
 	}
 
+	rawJSON = translatorcommon.SanitizeOrphanResponsesToolOutputs(rawJSON)
 	c.Header("Content-Type", "application/json")
 	modelName := gjson.GetBytes(rawJSON, "model").String()
 	cliCtx, cliCancel := h.GetContextWithCancel(h, c, context.Background())
