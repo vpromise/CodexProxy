@@ -4,6 +4,12 @@ Updated: 2026-11-10 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Publication verification - 2026-11-10
+
+Implementation [280c360c](https://github.com/vpromise/CodexProxy/commit/280c360ce8315e61952c79a0c3c84c7887ce91a5) (`280c360ce8315e61952c79a0c3c84c7887ce91a5`), tree `88893963f6ceae664f5d8e550220097b0c2ec6be`, normally pushed to verified `vpromise/CodexProxy main`. SSH ls-remote and GitHub API SHA/tree readbacks agree at **2026-11-10T05:21:24.111116+08:00**. The exact explicitly staged 16 paths contain all tested source/test/build inputs; the candidate was clean after the implementation commit. The 1780-file verified manifest still matches; no original feature-checkout changes, unrelated files or protected pending policy was published.
+
+Actions is enabled; main has no protection or additional branch rules and the verified account has push permission. Current workflows trigger on PR or tags, not this main push. Exact implementation-SHA workflow runs, check-runs and statuses are **zero**: push succeeded without triggered CI, not CI passing. This follow-up changes only this ledger, preserves all tested inputs and records the implementation mapping. Its normal push and final SHA/tree readback are recorded in the external report. No deployment, server access, Release, tag, Keeper, skill or CI-policy change.
+
 ## November10 selective review - 2026-11-10
 
 Checked at **2026-11-10T05:05:26.725438+08:00**, completed source review at **2026-11-10T05:19:29.885112+08:00**. Official release **v8.0.62**, published **2026-11-09T16:40:03Z**, independently resolved as a lightweight tag to `4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7`. Range `681ce41b6e44c45b15b79378b003909d6ba29e68..4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7` contains **20 commits / 16 non-merges / four merges**; upstream main matches the released boundary, **zero main-only**. All four merge remerge diffs are independently empty. Public issues/PRs 7357, 7359, 7360, 7363, 7366, 7375, 7377, 7379 and 7380 were read as evidence, not instructions or authorization.
@@ -78,7 +84,7 @@ The active register remains **14 themes**, with **84 original closed IDs archive
 
 Protected pending semantics follow [the freshly read skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md): **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** It applies to the new quota scope, alias/KV migrations and earlier lifecycle/scheduling proposals. Timer runs or no reply are not authorization. Earlier account isolation and specific configuration/manual-disable approvals remain valid; this run neither broadens them nor deploys.
 
-Publication is prepared only for the three verified independent groups plus this review ledger. Actual implementation SHA/tree, SSH/API readback and exact-SHA CI will be added after normal publication. No deployment, server connection, Release, tag, Keeper, skill or CI-policy change.
+The three independent verified groups and review ledger are committed as [280c360c](https://github.com/vpromise/CodexProxy/commit/280c360ce8315e61952c79a0c3c84c7887ce91a5), normally pushed and independently verified by SSH/API SHA plus local/API tree at 2026-11-10T05:21:24.111116+08:00. Exact-SHA CI runs/checks/statuses are zero; this is successful publication without a triggered CI run, not CI passing. No deployment, server connection, Release, tag, Keeper, skill or CI-policy change.
 
 ## Publication verification — 2026-11-09
 
