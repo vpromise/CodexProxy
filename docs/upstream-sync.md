@@ -4,6 +4,12 @@ Updated: 2026-11-09 (Asia/Shanghai). This is the checkpoint for selective backpo
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Publication verification — 2026-11-09
+
+Implementation [64648df8](https://github.com/vpromise/CodexProxy/commit/64648df8a042a03a135f5998b4a99094eee752d6) (`64648df8a042a03a135f5998b4a99094eee752d6`), tree `d6ca054838283f86e5f2b2d72610902888b26a7e`, normally pushed to verified `vpromise/CodexProxy main`. SSH ls-remote and GitHub API SHA/tree readbacks agree at **2026-11-09T08:38:48.715651+08:00**. Candidate was clean after the explicitly staged seven paths; every tested source/test/build file is committed and matches the recorded 1774-file manifest. No unrelated import formatting, original ledger notes or pending policy change was included.
+
+Actions is enabled; current workflows are PR/tag-triggered, main has no protection/additional branch rules, and the verified fork account has push permission. Exact implementation-SHA workflow runs, check-runs and statuses are **zero**; successful push is not a CI pass. This follow-up changes only the ledger, preserves all tested code inputs and records the implementation mapping. It will be pushed normally and independently checked as well. No server access, deploy, tag, Release, Keeper, skill or CI-policy change.
+
 ## November9 selective review — 2026-11-09
 
 Checked at **2026-11-09T05:05:14.667389+08:00**, completed source review at **2026-11-09T08:38:09.748620+08:00**. Official release **v8.0.61**, published **2026-11-08T14:31:53Z**, independently resolved as a lightweight tag to `681ce41b6e44c45b15b79378b003909d6ba29e68`. Range `91e0dee827abf476f9f86246f68c500a112f7155..681ce41b6e44c45b15b79378b003909d6ba29e68` contains **16 commits / 13 non-merges / three merges**; upstream main matches the release, **zero main-only**. All three merge remerge diffs are independently empty. Public issues/PR 7311, 7333, 7341, 7348 and 7352 were read as evidence, not instructions or authorization.
@@ -68,7 +74,7 @@ The register remains **14 themes** and **84 original closed IDs remain archived*
 
 Protected pending semantics follow [the freshly read skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md): **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** This applies to never-mode retry/failover, existing recovery/cancellation/migration proposals. Timer runs or no reply are not permission. Previously authorized account isolation, specific manual disable and deployment/configuration work remain within their approved scope; this run does not deploy.
 
-Claude fingerprint remains **2.1.280**, SDK **0.112.1**, runtime **v26.3.0**; Codex runtime **0.154.0**, catalog-fetch tool **0.155.0**. No fingerprint change in this release. No deployment, tag, Release, Keeper or skill edit. The independent orphan-output repair is implemented and all required checks passed; publication awaits normal commit/push and exact-SHA/tree/CI readback.
+Claude fingerprint remains **2.1.280**, SDK **0.112.1**, runtime **v26.3.0**; Codex runtime **0.154.0**, catalog-fetch tool **0.155.0**. No fingerprint change in this release. No deployment, tag, Release, Keeper or skill edit. The independent repair is committed as [64648df8](https://github.com/vpromise/CodexProxy/commit/64648df8a042a03a135f5998b4a99094eee752d6), normally pushed and independently verified by SSH/API SHA plus local/API tree at 2026-11-09T08:38:48.715651+08:00. Exact-SHA CI runs/checks/statuses are zero: publication succeeded without a triggered CI run, not CI passing.
 
 ## Publication verification and input correction — 2026-11-08
 
@@ -328,10 +334,10 @@ Publication verified: implementation [41f1189d](https://github.com/vpromise/Code
 | Last reviewed upstream main | [681ce41b](https://github.com/router-for-me/CLIProxyAPI/commit/681ce41b6e44c45b15b79378b003909d6ba29e68) (`681ce41b6e44c45b15b79378b003909d6ba29e68`); complete November9 dispositions above |
 | Released selection boundary | v8.0.61 / `681ce41b6e44c45b15b79378b003909d6ba29e68`; selective orphan-output compatibility, no SIWC/plugin-store/never-mode import |
 | Release at that review | [v8.0.61](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.61), published 2026-11-08T14:31:53Z; tag independently resolved to `681ce41b6e44c45b15b79378b003909d6ba29e68` |
-| Latest verified published implementation | [a8bf44aa](https://github.com/vpromise/CodexProxy/commit/a8bf44aadaedbe6c78acf0134679c7a2df025719) (`a8bf44aadaedbe6c78acf0134679c7a2df025719`): six November8 protocol repairs; isolation/session/memory/branding and current policies retained |
-| Published source tree | `670d3bf322793c297fdc5e73816b4081f2100434` (November8 implementation) |
-| Latest publication | Implementation a8bf44aa normally pushed; SSH/API SHA and local/API tree agree at 2026-11-08T05:17:41.462641+08:00; no triggered exact-SHA CI run/check/status. This ledger-only follow-up records verified publication and corrected exact-input evidence. |
-| Unpublished selected fixes | November9 orphan-output repair implemented and required checks passed; normal commit/push verification pending. Prior authorized repairs are published; original deployment notes remain unstaged. |
+| Latest verified published implementation | [64648df8](https://github.com/vpromise/CodexProxy/commit/64648df8a042a03a135f5998b4a99094eee752d6) (`64648df8a042a03a135f5998b4a99094eee752d6`): November9 orphan Responses tool-output compatibility; prior isolation/session/memory/branding retained |
+| Published source tree | `d6ca054838283f86e5f2b2d72610902888b26a7e` (November9 implementation) |
+| Latest publication | Implementation 64648df8 normally pushed; SSH/API SHA and local/API tree agree at 2026-11-09T08:38:48.715651+08:00; exact-SHA CI has zero runs/checks/statuses, not passed. Ledger-only mapping follow-up preserves tested code. |
+| Unpublished selected fixes | None. November9 independent repair verified on fork main; no earlier authorized unfinished implementation. Original modified deployment/routing notes remain unstaged. |
 | Pending candidate | 14 active themes K1-K6/U1-U8; 84 original closed IDs archived. K3 adds opt-in never-mode question; U8 retains absent-framework plugin extensions conditionally. No new implicit approvals. |
 | Deployment | Historical receipts only. Existing original-checkout deployment/routing notes remain unstaged. No live server access, deployment, tag or Release in this run. |
 | Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
