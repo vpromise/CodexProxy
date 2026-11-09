@@ -1347,7 +1347,7 @@ func applyClaudeHeadersWithNativeProfile(
 	// allowed to populate or reuse another client's software profile.
 	if stabilizeDeviceProfile {
 		if confirmedClaudeCode {
-			helps.ApplyClaudeDeviceProfileHeaders(r, deviceProfile)
+			helps.ApplyClaudeDeviceProfileHeaders(r, deviceProfile, helps.HeaderValueCaseInsensitive(incomingHeaders, "User-Agent"))
 		} else {
 			helps.ApplyClaudeDefaultDeviceProfileHeaders(r, cfg)
 		}

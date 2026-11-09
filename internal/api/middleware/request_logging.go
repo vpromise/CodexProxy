@@ -49,7 +49,8 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 		}
 
 		loggerEnabled := logger.IsEnabled()
-		captureBody := shouldCaptureRequestBody(loggerEnabled, c.Request)
+		hasMatchedRoute := c.FullPath() != ""
+		captureBody := hasMatchedRoute && shouldCaptureRequestBody(loggerEnabled, c.Request)
 
 		// Capture request information
 		requestInfo, err := captureRequestInfo(c, captureBody)
@@ -62,12 +63,15 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 
 		// Create response writer wrapper
 		wrapper := NewResponseWriterWrapper(c.Writer, logger, requestInfo)
+		wrapper.ginContext = c
 		if !loggerEnabled {
 			wrapper.logOnErrorOnly = true
 		}
 		c.Writer = wrapper
-		attachRequestLogSources(c, logger, loggerEnabled)
-		attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, captureBody)
+		attachRequestLogSources(c, logger, loggerEnabled && hasMatchedRoute)
+		if hasMatchedRoute {
+			attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, captureBody)
+		}
 
 		// Finalize even when a handler unwinds to the outer recovery middleware.
 		defer func() {

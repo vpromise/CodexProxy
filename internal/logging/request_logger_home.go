@@ -244,3 +244,16 @@ func (w *homeStreamingLogWriter) Close() error {
 	}
 	return client.RPushRequestLog(context.Background(), raw)
 }
+
+// Discard stops buffering without enqueueing a request log.
+func (w *homeStreamingLogWriter) Discard() error {
+	if w == nil {
+		return nil
+	}
+	if w.chunkChan != nil {
+		close(w.chunkChan)
+		<-w.doneChan
+		w.chunkChan = nil
+	}
+	return nil
+}

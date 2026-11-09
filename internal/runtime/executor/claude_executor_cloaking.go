@@ -1534,12 +1534,105 @@ const claudeCacheControlTTL1h = "1h"
 // suppress system/latest-user breakpoints. Callers still run enforceCacheControlLimit.
 // See: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 func ensureCacheControl(payload []byte) []byte {
+	var materializedInMessages bool
+	payload, materializedInMessages = materializeTopLevelCacheControl(payload)
 	if !claudePayloadHasCacheableSystem(payload) {
 		payload = injectToolsCacheControl(payload)
 	}
 	payload = injectSystemCacheControl(payload)
-	payload = injectMessagesCacheControl(payload)
+	if !materializedInMessages {
+		payload = injectMessagesCacheControl(payload)
+	}
 	return payload
+}
+
+func isValidTopClaudeCacheControl(cc gjson.Result) bool {
+	return cc.IsObject() && cc.Get("type").String() == "ephemeral"
+}
+
+// materializeTopLevelCacheControl makes automatic caching participate in the
+// existing breakpoint and TTL rules without changing native passthrough policy.
+func materializeTopLevelCacheControl(payload []byte) ([]byte, bool) {
+	top := gjson.GetBytes(payload, "cache_control")
+	if !isValidTopClaudeCacheControl(top) {
+		return payload, false
+	}
+	apply := func(blockPath string, inMessages bool) ([]byte, bool) {
+		existing := gjson.GetBytes(payload, blockPath+".cache_control")
+		updated := payload
+		if !isValidTopClaudeCacheControl(existing) || (len(existing.Map()) == 1 && len(top.Map()) > 1) {
+			var errSet error
+			updated, errSet = sjson.SetRawBytes(payload, blockPath+".cache_control", []byte(top.Raw))
+			if errSet != nil {
+				return payload, false
+			}
+		}
+		result, errDelete := sjson.DeleteBytes(updated, "cache_control")
+		if errDelete != nil {
+			return payload, false
+		}
+		return result, inMessages
+	}
+	applyString := func(path, text string, inMessages bool) ([]byte, bool) {
+		block := []byte(buildTextBlock(text, nil))
+		block, errSet := sjson.SetRawBytes(block, "cache_control", []byte(top.Raw))
+		if errSet != nil {
+			return payload, false
+		}
+		updated, errSet := sjson.SetRawBytes(payload, path, append(append([]byte("["), block...), ']'))
+		if errSet != nil {
+			return payload, false
+		}
+		result, errDelete := sjson.DeleteBytes(updated, "cache_control")
+		if errDelete != nil {
+			return payload, false
+		}
+		return result, inMessages
+	}
+	messages := gjson.GetBytes(payload, "messages").Array()
+	last := -1
+	for i, message := range messages {
+		role := message.Get("role").String()
+		if (role == "user" || role == "assistant") && claudeMessageEligibleForRollingCache(message) {
+			last = i
+		}
+	}
+	if last >= 0 {
+		final := messages[len(messages)-1]
+		content := final.Get("content")
+		if final.Get("role").String() == "system" && content.Type == gjson.String && strings.TrimSpace(content.String()) != "" {
+			return applyString(fmt.Sprintf("messages.%d.content", len(messages)-1), content.String(), true)
+		}
+		content = messages[last].Get("content")
+		if content.IsArray() {
+			if index := lastCacheableClaudeMessageContentBlockIndex(messages[last]); index >= 0 {
+				return apply(fmt.Sprintf("messages.%d.content.%d", last, index), true)
+			}
+		} else if content.Type == gjson.String && strings.TrimSpace(content.String()) != "" {
+			return applyString(fmt.Sprintf("messages.%d.content", last), content.String(), true)
+		}
+	}
+	system := gjson.GetBytes(payload, "system")
+	if index := lastCacheableClaudeSystemIndex(system); index >= 0 {
+		return apply(fmt.Sprintf("system.%d", index), false)
+	}
+	if system.Type == gjson.String && strings.TrimSpace(system.String()) != "" {
+		return applyString("system", system.String(), false)
+	}
+	tools := gjson.GetBytes(payload, "tools").Array()
+	for i := len(tools) - 1; i >= 0; i-- {
+		if !tools[i].Get("defer_loading").Bool() {
+			return apply(fmt.Sprintf("tools.%d", i), false)
+		}
+	}
+	return payload, false
+}
+
+func claudeCacheControlPath(path string) string {
+	if path == "" {
+		return "cache_control"
+	}
+	return path + ".cache_control"
 }
 
 // claudePayloadHasCacheableSystem reports whether the payload has a system prompt
@@ -1623,7 +1716,7 @@ func upgradeClaudeCacheControlTTL(payload []byte, ttl string) []byte {
 			upgraded += `,"scope":` + scope.Raw
 		}
 		upgraded += "}"
-		updated, errSet := sjson.SetRawBytes(payload, path+".cache_control", []byte(upgraded))
+		updated, errSet := sjson.SetRawBytes(payload, claudeCacheControlPath(path), []byte(upgraded))
 		if errSet != nil {
 			return
 		}
@@ -1649,7 +1742,7 @@ func stripClaudeCacheControlTTL(payload []byte) []byte {
 		if !cacheControl.IsObject() || !cacheControl.Get("ttl").Exists() {
 			return
 		}
-		updated, errDel := sjson.DeleteBytes(payload, path+".cache_control.ttl")
+		updated, errDel := sjson.DeleteBytes(payload, claudeCacheControlPath(path)+".ttl")
 		if errDel != nil {
 			return
 		}
@@ -1687,6 +1780,9 @@ func forEachClaudeCacheControlBlock(payload []byte, visit func(path string, bloc
 			})
 			return true
 		})
+	}
+	if top := gjson.GetBytes(payload, "cache_control"); top.IsObject() {
+		visit("", gjson.Parse(`{"cache_control":`+top.Raw+`}`))
 	}
 }
 
@@ -1736,6 +1832,10 @@ func countCacheControls(payload []byte) int {
 		})
 	}
 
+	if isValidTopClaudeCacheControl(gjson.GetBytes(payload, "cache_control")) {
+		count++
+	}
+
 	return count
 }
 
@@ -1772,7 +1872,7 @@ func normalizeCacheControlTTL(payload []byte) []byte {
 		if !seen5m {
 			return
 		}
-		ttlPath := path + ".cache_control.ttl"
+		ttlPath := claudeCacheControlPath(path) + ".ttl"
 		updated, errDel := sjson.DeleteBytes(payload, ttlPath)
 		if errDel != nil {
 			return
@@ -1810,6 +1910,10 @@ func normalizeCacheControlTTL(payload []byte) []byte {
 			})
 			return true
 		})
+	}
+
+	if top := gjson.GetBytes(payload, "cache_control"); top.IsObject() {
+		processBlock("", gjson.Parse(`{"cache_control":`+top.Raw+`}`))
 	}
 
 	if !modified {
@@ -1998,6 +2102,12 @@ func enforceCacheControlLimit(payload []byte, maxBlocks int) []byte {
 			excess--
 			return true
 		})
+	}
+
+	if excess > 0 && isValidTopClaudeCacheControl(gjson.GetBytes(payload, "cache_control")) {
+		if updated, errDelete := sjson.DeleteBytes(payload, "cache_control"); errDelete == nil {
+			payload = updated
+		}
 	}
 
 	return payload
