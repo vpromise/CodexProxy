@@ -4,6 +4,70 @@ Updated: 2026-11-10 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Corrected toth branding and deployed merged main — 2026-11-10
+
+The user reported the old management branding at **cpvn.hoperouter.com**.
+Readback confirmed that toth still served feature source `2e045edb` and title
+`CLI Proxy API Management Center`; the feature branch had not yet incorporated
+main's branding commit when that artifact was built. PR #12 subsequently merged
+the rebased feature with main. This rollout replaces that older artifact with
+published **[`36f1e544`](https://github.com/vpromise/CodexProxy/commit/36f1e5448c4d0f3352b9d6288879099ec1e83a8f)**
+(`36f1e5448c4d0f3352b9d6288879099ec1e83a8f`). Activation was at
+**2026-11-10 21:35:11 Asia/Shanghai**, with verification and atomic completion
+receipt readback at **21:38:48**. Only toth's CodexProxy executable was replaced;
+Caddy, SSH and postfix retained their process identities and settings.
+
+| Identity | Verified value |
+| --- | --- |
+| Version / tree | `codexproxy-20261110-36f1e544` / `4a8c3ebe9b24c3fa3213e06de88bfa096d6ed812` |
+| Static Linux/amd64 binary SHA-256 | `0de254b8ea5e06ef591c1cf589ce406b23a80408c514daa33fc76391135613f2` |
+| Served management HTML SHA-256 | `9b07c2cc1bf9c391c3f34929117d941001a79815ce6a3385f586b88d79dfa87c` |
+| Served title / decoded custom WebP SHA-256 | `CodexProxy` / `07cfb4c52bd50d6d3c64e5a83c85e2b18c6358ed8b98ccec44e76f94136156da` |
+| Canonical source manifest | `ad082542f50966ce3251e9b706c8133c3b20855cd282c1a1bb8e84c82c3efd93`; 1800 files |
+| Preserved configuration SHA-256 | `dfcfba6a60144bc42ba4096b6fce1ed2bfc44dec397076deab0d0fb968f12992` |
+| Management / API | https://cpvn.hoperouter.com/management.html / https://cpvn.hoperouter.com/v1 |
+| Protected release / recovery | `/opt/codexproxy/releases/20261110-36f1e544-main-branding`; `ROLLBACK.sh` |
+
+The operator's current policy was captured immediately before activation and
+preserved exactly: **two client keys, two empty pools, zero upstream accounts**,
+and egress modes **direct-ip / inherit**. The direct-IP setting added since the
+initial deployment was retained. Credential/config/unit/gateway/fstab/account
+hashes, process environment, resource limits, firewall and SELinux enforcement
+matched the live baseline. Resources remain cgroup v1 **3 GiB memory**, **2.5 GiB
+soft limit**, **3.25 GiB combined memory+swap** (not an independent swap limit),
+CPUQuota **150%**, GOMEMLIMIT **2GiB**, GOMAXPROCS **2**. Backend remains loopback-only;
+existing host swap, logging settings, keys and account storage were preserved.
+
+The isolated Go **1.27.3** static build reused the **1799 source-matched input**
+validation from PR #12: **8443 full shuffled race test/subtest passes / 68 test
+packages**, **4811 Linux test/subtest passes / 7 packages**, clean vet, and
+**372 frontend tests / 1190 assertions**, lint, TypeScript and production build.
+Documented macOS/optional/race skips remain as recorded in the validation document;
+no new test or CI pass is claimed. All **526 compiler/embed inputs** matched the
+frozen manifest; source, archive, upload, payload-member, installed and running
+artifact checksums were verified. No mutable catalog refresh was used in the build.
+
+Seventeen local/origin/public HTTP gates, authenticated management readbacks and
+five independent workstation HTTPS gates passed with normal TLS verification.
+The served title is **CodexProxy**, and the decoded embedded logo matches the
+custom logo file in main. Public management bytes match the exact expected
+version-substituted bundle. The browser host was unavailable, so no rendered
+screenshot acceptance is claimed. **25 samples over 120.76 seconds** recorded no
+unexpected restart, memory-limit failures or swap usage; final memory was about
+**19.62 MiB** for this empty instance. Captured logs had **zero application/gateway
+errors and zero unclassified warnings**; fourteen authentication rejections were
+classified separately. This is operational acceptance, not loaded-capacity proof.
+No real inference, account import or credential refresh was initiated.
+
+The protected release retains the old executable/config/unit/receipt, exact new
+source/build/validation evidence, original upgrade runner and a syntax-checked
+binary-only recovery script. Recovery waits for readiness, restores the previous
+compatible `2e045edb` executable and preserves current credentials and pool exits;
+it does not restore an old configuration over operator changes. Release-local
+and root `LATEST_DEPLOYMENT.json` completion receipts were written atomically and
+read back identically. This documentation publication is separate from the running
+source and does not advance the upstream review boundary.
+
 ## Deployed independent toth IPv4 instance — 2026-11-10
 
 At the user's request, **toth** was provisioned as an independent native systemd
