@@ -750,3 +750,31 @@ func TestHostLogCallbackRestoresRegisteredRequestContext(t *testing.T) {
 		t.Fatalf("log output = %q, want message and request_id field", got)
 	}
 }
+
+func TestHostHTTPDoStreamUnavailableBridgeCancelsRequest(t *testing.T) {
+	canceled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+		close(canceled)
+	}))
+	defer server.Close()
+	host := New()
+	host.httpStreams = nil
+	request, errMarshal := json.Marshal(pluginapi.HTTPRequest{Method: http.MethodGet, URL: server.URL})
+	if errMarshal != nil {
+		t.Fatal(errMarshal)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	if _, errCall := host.callHostHTTPDoStream(ctx, request); errCall == nil {
+		t.Fatal("unavailable HTTP stream bridge accepted")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("failed registration retained HTTP request")
+	}
+}

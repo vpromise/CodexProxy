@@ -50,12 +50,13 @@ func (h *Handler) DownloadAuthFile(c *gin.Context) {
 
 // Upload auth file: multipart or raw JSON with ?name=
 func (h *Handler) UploadAuthFile(c *gin.Context) {
-	if h.authManager == nil {
+	h.authStatusMu.Lock()
+	defer h.authStatusMu.Unlock()
+	upload := h.snapshotAuthFileRuntime()
+	if upload.manager == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core auth manager unavailable"})
 		return
 	}
-	h.authStatusMu.Lock()
-	defer h.authStatusMu.Unlock()
 	ctx := c.Request.Context()
 
 	fileHeaders, errMultipart := h.multipartAuthFileHeaders(c)
@@ -64,7 +65,7 @@ func (h *Handler) UploadAuthFile(c *gin.Context) {
 		return
 	}
 	if len(fileHeaders) == 1 {
-		if _, errUpload := h.storeUploadedAuthFile(ctx, fileHeaders[0]); errUpload != nil {
+		if _, errUpload := upload.storeUploadedAuthFile(ctx, fileHeaders[0]); errUpload != nil {
 			if errors.Is(errUpload, errAuthFileMustBeJSON) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "file must be .json"})
 				return
@@ -79,7 +80,7 @@ func (h *Handler) UploadAuthFile(c *gin.Context) {
 		uploaded := make([]string, 0, len(fileHeaders))
 		failed := make([]gin.H, 0)
 		for _, file := range fileHeaders {
-			name, errUpload := h.storeUploadedAuthFile(ctx, file)
+			name, errUpload := upload.storeUploadedAuthFile(ctx, file)
 			if errUpload != nil {
 				failureName := ""
 				if file != nil {
@@ -124,7 +125,7 @@ func (h *Handler) UploadAuthFile(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "failed to read body"})
 		return
 	}
-	if err = h.writeAuthFile(ctx, filepath.Base(name), data); err != nil {
+	if err = upload.writeAuthFile(ctx, filepath.Base(name), data); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -231,7 +232,7 @@ func (h *Handler) multipartAuthFileHeaders(c *gin.Context) ([]*multipart.FileHea
 	return headers, nil
 }
 
-func (h *Handler) storeUploadedAuthFile(ctx context.Context, file *multipart.FileHeader) (string, error) {
+func (r authFileRuntime) storeUploadedAuthFile(ctx context.Context, file *multipart.FileHeader) (string, error) {
 	if file == nil {
 		return "", fmt.Errorf("no file uploaded")
 	}
@@ -249,25 +250,29 @@ func (h *Handler) storeUploadedAuthFile(ctx context.Context, file *multipart.Fil
 	if err != nil {
 		return "", fmt.Errorf("failed to read uploaded file: %w", err)
 	}
-	if err := h.writeAuthFile(ctx, name, data); err != nil {
+	if err := r.writeAuthFile(ctx, name, data); err != nil {
 		return "", err
 	}
 	return name, nil
 }
 
 func (h *Handler) writeAuthFile(ctx context.Context, name string, data []byte) error {
-	dst := filepath.Join(h.cfg.AuthDir, filepath.Base(name))
+	return h.snapshotAuthFileRuntime().writeAuthFile(ctx, name, data)
+}
+
+func (r authFileRuntime) writeAuthFile(ctx context.Context, name string, data []byte) error {
+	dst := filepath.Join(r.cfg.AuthDir, filepath.Base(name))
 	if !filepath.IsAbs(dst) {
 		if abs, errAbs := filepath.Abs(dst); errAbs == nil {
 			dst = abs
 		}
 	}
 	var errIdentity error
-	data, errIdentity = prepareUploadedPoolIdentity(dst, data, h.cfg.AccessIsolation.Enabled || len(h.cfg.AccessIsolation.Pools) > 0)
+	data, errIdentity = prepareUploadedPoolIdentity(dst, data, r.cfg.AccessIsolation.Enabled || len(r.cfg.AccessIsolation.Pools) > 0)
 	if errIdentity != nil {
 		return fmt.Errorf("persist account identity: %w", errIdentity)
 	}
-	auth, err := h.buildAuthFromFileData(dst, data)
+	auth, err := r.buildAuthFromFileData(dst, data)
 	if err != nil {
 		return err
 	}
@@ -277,11 +282,11 @@ func (h *Handler) writeAuthFile(ctx context.Context, name string, data []byte) e
 	if errWrite := fileperm.WritePrivateFile(dst, data); errWrite != nil {
 		return fmt.Errorf("failed to write file: %w", errWrite)
 	}
-	if err := h.upsertAuthRecord(ctx, auth); err != nil {
+	if err := r.upsertAuthRecord(ctx, auth); err != nil {
 		return err
 	}
-	if h.postAuthPersistHook != nil {
-		if errHook := h.postAuthPersistHook(ctx, auth); errHook != nil {
+	if r.postPersistHook != nil {
+		if errHook := r.postPersistHook(ctx, auth); errHook != nil {
 			return fmt.Errorf("post-auth persist hook failed: %w", errHook)
 		}
 	}
@@ -437,6 +442,10 @@ func (h *Handler) findAuthForDelete(name string) *coreauth.Auth {
 }
 
 func (h *Handler) authIDForPath(path string) string {
+	return h.snapshotAuthFileRuntime().authIDForPath(path)
+}
+
+func (r authFileRuntime) authIDForPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
@@ -448,8 +457,8 @@ func (h *Handler) authIDForPath(path string) string {
 		}
 	}
 	id := path
-	if h != nil && h.cfg != nil {
-		authDir := strings.TrimSpace(h.cfg.AuthDir)
+	if r.cfg != nil {
+		authDir := strings.TrimSpace(r.cfg.AuthDir)
 		if resolvedAuthDir, errResolve := util.ResolveAuthDir(authDir); errResolve == nil && resolvedAuthDir != "" {
 			authDir = resolvedAuthDir
 		}
@@ -473,17 +482,18 @@ func (h *Handler) authIDForPath(path string) string {
 }
 
 func (h *Handler) registerAuthFromFile(ctx context.Context, path string, data []byte) error {
-	if h.authManager == nil {
+	r := h.snapshotAuthFileRuntime()
+	if r.manager == nil {
 		return nil
 	}
-	auth, err := h.buildAuthFromFileData(path, data)
+	auth, err := r.buildAuthFromFileData(path, data)
 	if err != nil {
 		return err
 	}
-	return h.upsertAuthRecord(ctx, auth)
+	return r.upsertAuthRecord(ctx, auth)
 }
 
-func (h *Handler) buildAuthFromFileData(path string, data []byte) (*coreauth.Auth, error) {
+func (r authFileRuntime) buildAuthFromFileData(path string, data []byte) (*coreauth.Auth, error) {
 	if path == "" {
 		return nil, fmt.Errorf("auth path is empty")
 	}
@@ -509,15 +519,15 @@ func (h *Handler) buildAuthFromFileData(path string, data []byte) (*coreauth.Aut
 	}
 	lastRefresh, hasLastRefresh := extractLastRefreshTimestamp(metadata)
 
-	authID := h.authIDForPath(path)
+	authID := r.authIDForPath(path)
 	if authID == "" {
 		authID = path
 	}
 	auth := (*coreauth.Auth)(nil)
-	if h != nil && h.cfg != nil {
+	if r.cfg != nil {
 		sctx := &synthesizer.SynthesisContext{
-			Config:      h.cfg,
-			AuthDir:     h.cfg.AuthDir,
+			Config:      r.cfg,
+			AuthDir:     r.cfg.AuthDir,
 			Now:         time.Now(),
 			IDGenerator: synthesizer.NewStableIDGenerator(),
 		}
@@ -549,8 +559,8 @@ func (h *Handler) buildAuthFromFileData(path string, data []byte) (*coreauth.Aut
 	if hasLastRefresh {
 		auth.LastRefreshedAt = lastRefresh
 	}
-	if h != nil && h.authManager != nil {
-		if existing, ok := h.authManager.GetByID(authID); ok {
+	if r.manager != nil {
+		if existing, ok := r.manager.GetByID(authID); ok {
 			auth.CreatedAt = existing.CreatedAt
 			if !hasLastRefresh {
 				auth.LastRefreshedAt = existing.LastRefreshedAt
@@ -563,15 +573,15 @@ func (h *Handler) buildAuthFromFileData(path string, data []byte) (*coreauth.Aut
 	return auth, nil
 }
 
-func (h *Handler) upsertAuthRecord(ctx context.Context, auth *coreauth.Auth) error {
-	if h == nil || h.authManager == nil || auth == nil {
+func (r authFileRuntime) upsertAuthRecord(ctx context.Context, auth *coreauth.Auth) error {
+	if r.manager == nil || auth == nil {
 		return nil
 	}
-	if existing, ok := h.authManager.GetByID(auth.ID); ok {
+	if existing, ok := r.manager.GetByID(auth.ID); ok {
 		auth.CreatedAt = existing.CreatedAt
-		_, err := h.authManager.Update(ctx, auth)
+		_, err := r.manager.Update(ctx, auth)
 		return err
 	}
-	_, err := h.authManager.Register(ctx, auth)
+	_, err := r.manager.Register(ctx, auth)
 	return err
 }

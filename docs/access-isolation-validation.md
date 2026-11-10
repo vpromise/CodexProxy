@@ -1,5 +1,155 @@
 # Account isolation validation
 
+## Follow-up runtime and static-check fixes — 2026-11-10
+
+The auth-upload concurrency finding and all three static diagnostics from the
+expanded pass are now resolved.
+
+- Auth uploads acquire a cloned config, auth manager and persistence hook together
+  under the handler mutex. Raw JSON and multipart batches retain that snapshot
+  through identity enrollment, synthesis, file storage and registration. Body
+  reads and persistence run without holding the config mutex. Regression tests
+  cover concurrent reloads and a blocked upload while the directory, policy,
+  manager and hook are replaced.
+- `FileBodySource.WriteTo` now implements `io.WriterTo`, reporting both bytes and
+  errors, including partial writes and separators. All callers consume the new
+  signature; tests preserve existing log formatting and missing-part behavior.
+- HTTP/model streaming callbacks defer cleanup until successful ownership
+  transfer to the stream bridge. Startup/registration/encoding failures clean
+  up; successful streams remain active until EOF, explicit close or the existing
+  callback lifecycle cleanup. Tests cover unavailable bridges and retain the
+  existing successful-stream lifetime assertions.
+
+Verification on the fixed source:
+
+- Full shuffled macOS race suite: **68 packages / 7,508 test and subtest passes**;
+  only the two previously documented macOS bind tests were explicitly excluded.
+- The deterministic auth-upload race regression and targeted logging/stream
+  lifecycle tests passed three race iterations. The real service OAuth lifecycle
+  and pool-egress service integration passed five race iterations.
+- Full **`go vet ./...` passed with no diagnostics**.
+- Linux/amd64: all five changed package suites passed on `toth`, with **718 test
+  and subtest passes**, no skips and no exclusions. These were isolated temporary
+  network-namespace runs with synthetic credentials and no external route.
+- Darwin/arm64 and static Linux/amd64 server builds passed. Formatting and
+  `git diff --check` passed. No service deployment was performed.
+
+Evidence and source hashes are retained at `/var/folders/b_/t12ytcwj16g3_wglff38ljj80000gn/T/codexproxy-fix-runtime-89or6xvi`. Remote temporary
+files and local disposable builds/snapshots were removed after verification.
+
+## Extended verification — 2026-11-10
+
+The expanded pass used source-only snapshots, synthetic credentials and local
+upstreams. macOS Go tests ran with outbound network restricted to loopback.
+Linux/amd64 test binaries ran on `toth` in temporary network namespaces without
+an external route. The final namespace included a private veth interface so
+Pion could gather non-loopback candidates. Separate credential-free HTTPS probes
+verified the three assigned public exits. No service deployment or host routing
+change was performed.
+
+| Check | Observed result |
+| --- | --- |
+| Final complete Go suite, shuffled | 68 packages; 7,501 test/subtest passes; four runtime skips; two previously documented macOS bind tests excluded |
+| Initial complete Go race suite, shuffled | 68 packages; 7,495 test/subtest passes; seven runtime skips; the same two macOS exclusions. Later SDK repetition found the outstanding race below, so this first pass is not an all-clear |
+| Egress/identity/cache race repetition | Seven packages, 25 iterations, 2,225 test/subtest passes; 75 expected skips for optional public probes and unavailable macOS secondary loopback addresses |
+| New real-service egress integration | Three race iterations passed; covers 32 concurrent requests per wave across overlapping pools, source changes/unavailable source, active SSE completion after revocation, and restoring the inherited global proxy |
+| Linux complete affected packages | All 11 passed; 4,423 test/subtest passes and two optional runtime skips; no macOS exclusions. Both previously excluded bind tests passed |
+| Actual public IPv4 exits | `14.225.71.134`, `14.225.71.135`, and `14.225.71.136` each returned its selected source through the new HTTP transport |
+| Frontend | All 369 tests, 1,183 assertions, lint, TypeScript and production build passed; production HTML equals the embedded asset byte-for-byte with the version placeholder |
+| Builds | Darwin/arm64 and static Linux/amd64 server builds passed |
+| Browser | Browser inventory reports `The browser access host is unavailable`; interactive acceptance remains pending |
+
+### Concurrency finding (resolved by the follow-up above)
+
+**P2: auth upload reads runtime references without synchronization.** A repeated
+SDK race run of `TestAccessIsolationOAuthMaintenance` reported concurrent reads
+in `UploadAuthFile` and `writeAuthFile` against `SetAuthManager`/`SetConfig` during
+reload. The affected reads include the manager reference, auth directory,
+isolation settings and config used for auth synthesis. These operations need a
+consistent config/manager snapshot acquired under the handler mutex.
+
+A deterministic synthetic reproducer concurrently calls the public upload
+handler, invalid-JSON auth parsing, `SetConfig` and `SetAuthManager`. It reports
+six races in the current snapshot and seven in the unchanged baseline
+`5e986f5e432f96abd8abda69a2783cd5abc65b07`. Thus this is an existing runtime
+problem exposed by the expanded checks. It was left unfixed in that test-only
+pass; the follow-up above now records its remediation. A short baseline integration repetition happened to pass; that does not
+invalidate the deterministic race evidence.
+
+At the end of that pass, `go vet ./...` reported three existing locations, with output identical
+to the unchanged HEAD: the nonstandard `WriteTo` signature in
+`internal/logging/request_logger_body_source.go:171`, and cancellation paths in
+`internal/pluginhost/host_callbacks.go:164` and
+`internal/pluginhost/host_model_stream_callbacks.go:29`. No new vet diagnostic
+was introduced by these changes.
+
+### Test isolation corrections and evidence
+
+The first new SSE fixture emitted only `response.created` before waiting, so it
+failed its downstream-content visibility gate. It now emits a text delta before
+waiting, matching the existing native SSE fixtures; all route and revocation
+assertions remain intact. The first Linux namespace had only loopback, while
+the default media relay intentionally excludes loopback candidates. Adding the
+temporary veth inside that namespace made both the existing audio/data bridge
+and the new egress tests pass without changing application behavior.
+
+A shuffled Linux run also exposed a pre-existing test cleanup omission:
+`TestServiceSerializesHomeAndWatcherConfigRuntimeApply` retained its published
+Home client globally. The following pre-ACK test then observed that old client.
+The unchanged HEAD reproduces the same failure with the two tests shuffled under
+seeds 1, 2 and 4. The publishing test now clears only its own client on cleanup;
+the pair passed ten race iterations, and the complete Linux SDK package passed
+with the original failing full-suite shuffle seed. No runtime assertion was
+removed or weakened.
+
+Raw logs, source hashes, the deterministic race reproducer, original failures,
+baseline comparisons and final receipts are retained locally at
+`/var/folders/b_/t12ytcwj16g3_wglff38ljj80000gn/T/codexproxy-comprehensive-fu82d1cm`.
+
+## Pool IPv4 egress — 2026-11-10
+
+The implementation adds per-pool `inherit` and `direct-ip` settings, server-local
+IPv4 suggestions, immutable request routing, pool/source transport partitioning,
+Responses WebSocket reconnection, and Live/Realtime reauthorization. Direct
+WebRTC requires the media relay and gathers host/STUN candidates only on the
+selected IPv4. OAuth renewal and management/background traffic keep their
+existing account routes, as documented in the editor and operator guide.
+
+- Synthetic regressions cover source binding, proxy overrides, unavailable-source
+  rejection, IPv6 rejection, connection reuse, immediate policy publication through
+  both management save endpoints, active request snapshots and existing sockets.
+- The dedicated egress race checks passed in six affected Go packages.
+- The source-only Go suite passed in 68 packages on macOS, excluding the two
+  previously recorded `127.0.0.2` tests. Both excluded tests passed separately
+  using a cross-compiled test binary on the inspected Linux host.
+- The new transport implementation also passed Linux tests with two loopback
+  source addresses and opt-in HTTPS verification of three locally assigned
+  public IPv4 addresses. Every public check observed its selected source address.
+  These checks sent no provider credentials, inference or OAuth refresh requests.
+- SDK transport regression coverage includes inherited legacy `DialTLS` hooks.
+  Applying an explicit base dialer clears both TLS dial hooks, so neither standard
+  HTTPS nor uTLS fallback requests can bypass the selected local source. Tests
+  cover successful bound HTTPS and unavailable-source rejection using a trusted
+  local TLS fixture, without disabling certificate validation.
+- Bound standard and uTLS-fallback transports allocate independent TLS session
+  caches when an SDK default supplies one. A trusted TLS fixture verifies reuse
+  within one pool and fresh sessions across pools.
+- Full-YAML saves reconcile normalized native records before acknowledging
+  revocation. Empty and whitespace-only Codex base URLs are covered with runtime
+  reload blocked, including overlapping pools and stale runtime replay.
+- A local three-peer WebRTC fixture verifies both data-channel events and RTP
+  audio against exit changes and membership revocation. Active upstream output
+  can finish; new unauthorized input closes the session without being forwarded.
+- Frontend verification passed 369 tests, lint, TypeScript and production build;
+  the embedded management page was regenerated with the version placeholder.
+- Server compilation passed. Browser verification was attempted against a local
+  synthetic fixture but the browser access host was unavailable. No screenshot
+  or completed interactive browser acceptance is claimed.
+
+The server inspection and temporary test execution did not change its network
+configuration or activate a CodexProxy service. Full Linux repository-suite
+execution and a live-provider inference request are not claimed.
+
 Branch: `codex/user-provider-isolation`.
 
 ## Implementation coverage
@@ -48,12 +198,11 @@ OAuth login, provider quota probe or paid request was used.
 
 ## Remaining acceptance
 
-Browser acceptance is pending. A separate local service with synthetic accounts
-and the built management UI is available at
-`http://127.0.0.1:18764/management.html#/access-isolation`. Browser security policy
-rejected opening the local origin, including after explicit user consent,
-because of a saved permission or managed policy. No alternate browser, direct
-browser protocol, or other workaround was attempted.
+Browser acceptance remains pending. The latest CUA inventory reports
+`The browser access host is unavailable`. Earlier attempts also encountered a
+browser policy rejection for the local fixture. No acceptance service is left
+running by this test pass, and no alternate browser or browser-protocol workaround
+was used.
 
 Once browser access is available, verify pool creation/rename, provider-filtered
 account selection, overlapping and empty pools, key labels and assignments,
