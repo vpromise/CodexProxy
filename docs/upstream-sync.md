@@ -1,8 +1,110 @@
 # Upstream sync ledger
 
-Updated: 2026-11-10 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-11-10 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
+
+## Deployed independent toth IPv4 instance — 2026-11-10
+
+At the user's request, **toth** was provisioned as an independent native systemd
+instance using **light** as a read-only deployment reference. The application
+started at **2026-11-10 16:30:10 Asia/Shanghai**; final verification and atomic
+receipt readback completed at **16:49:43**. Only toth was modified. The deployed
+source is published feature branch `codex/user-provider-isolation`, commit
+**[`2e045edb`](https://github.com/vpromise/CodexProxy/commit/2e045edb60771a76494eaf8897c2c84031239d73)**
+(`2e045edb60771a76494eaf8897c2c84031239d73`), including the reviewed per-pool IPv4
+source binding, credential fencing and subsequent runtime repairs. This deployment
+does not merge main or advance the upstream review boundary.
+
+| Identity | Verified value |
+| --- | --- |
+| Management / API base | https://cpvn.hoperouter.com/management.html / https://cpvn.hoperouter.com/v1 |
+| Version / source tree | `codexproxy-20261110-2e045edb` / `7d488fc2b728082751e659edc22bce15d3d61993` |
+| Static Linux/amd64 binary SHA-256 | `66810c43c36b20d7142ed3ae925f6818b7ec01c2c69961dc332b3511a6a258e5` |
+| Served management HTML SHA-256 | `c0c633bbb508a239172bbeec18930f8d1bbed5a7ee6e54ebf5ae1bb47db3e09b` |
+| Canonical source manifest | `d72e95aca82825db199adb610fa5925149609ed244afe5f754615d455bc621bd`; 1683 files |
+| Effective configuration SHA-256 | `ce2ed7e5bdd6b6faf82f9d9dcff9e7078eafe21f77eab798ff1f734dc8864e12` |
+| Runtime / configuration | `codexproxy.service`; `/opt/codexproxy/config/config.systemd.yaml` |
+| Binary / account data | `/opt/codexproxy/codexproxy`; `/opt/codexproxy/auths` |
+| Gateway | Official static Caddy v2.11.9; `/usr/local/bin/caddy`; `/etc/caddy/Caddyfile` |
+| Private credential delivery | `/root/codexproxy-toth-credentials.json`, root-only mode 0600 |
+| Protected release and recovery | `/opt/codexproxy/releases/20261110-2e045edb-initial`; `ROLLBACK.sh` |
+
+The domain's server-side A lookup points to **14.225.71.134**. Management inventory
+lists the three existing source addresses **14.225.71.134**, **14.225.71.135** and
+**14.225.71.136**. Account isolation is enabled with independent client keys for
+empty `codex-default` and `claude-default` pools. Their initial egress mode is
+`inherit`; an operator can select an IPv4 for each pool after account import.
+There are **zero upstream accounts**. New independent management/client keys were
+generated only on toth; light's accounts and keys were not copied. The management
+configuration stores a hash, and plaintext delivery values remain in the protected
+root file. No secret values are included in the repository or local receipts.
+OAuth maintenance retains the documented account/global route; media relay
+configuration is separate. Claude `always` remains a per-credential import setting.
+
+Both application and gateway run as dedicated unprivileged users and are enabled
+at boot. The backend is bound only to **127.0.0.1:8317**. Caddy provides HTTPS with
+a valid Let's Encrypt certificate and automatic renewal, and uses streaming
+reverse proxying without added post-connection timeouts. The host is CentOS 7,
+systemd 219 and cgroup v1; its compatibility adaptations use a static gateway,
+file-based bind capability and verified kernel limits. Application limits are
+**3 GiB memory**, **2.5 GiB memory soft limit**, **3.25 GiB combined memory+swap**,
+CPUQuota **150%**, GOMEMLIMIT **2GiB** and GOMAXPROCS **2**. A cgroup v1 combined
+cap is not an independent 256 MiB swap cap or cgroup v2 MemoryHigh. The existing
+approximately 2 GiB host swap and fstab were preserved. Commercial/file logging
+and usage statistics are enabled; debug and detailed request logging are disabled;
+log retention is 128 MiB. SELinux remains **Enforcing**. Only HTTP/HTTPS firewall
+services were added, preserving existing SSH/firewall state and the SSH/postfix
+process identities.
+
+Preflight found the server clock approximately **1749.35 seconds ahead**. Two
+independent NTP sources agreed, and the clock and hardware RTC were corrected
+before TLS activation. The final observed NTP offset was approximately **-0.011
+seconds**. This was a one-time calibration; no persistent NTP service was added.
+
+The isolated Go **1.27.3** static cross-build used CGO_ENABLED=0, mod=readonly,
+trimpath, buildvcs=false and explicit version/commit/date metadata. All **515
+compiler/embed inputs** were in the frozen manifest. Source/test/build inputs
+match the previously validated changes, with only deployment documentation added:
+**7508 full shuffled race test/subtest passes across 68 packages**, clean
+`go vet ./...`, **718 latest affected Linux test/subtest passes across 5 packages**,
+and **369 frontend tests / 1183 assertions**, frontend lint/type checks and build.
+The full macOS run excludes the two documented secondary-loopback binding tests;
+the affected Linux run has no such exclusions. Source archive, manifests, build
+metadata, validation receipts, gateway checksums, uploaded payload and each
+extracted member were retained and verified before execution. No new CI pass is
+claimed.
+
+**17 local/origin/public HTTP gates** and **five independent workstation HTTPS
+checks** passed with normal public certificate validation, exact version/commit
+headers and management bytes. Read-only authenticated checks confirmed management
+access, two correctly bound pool/client keys, empty model lists and the available
+IPv4 inventory. Installed and running binary hashes match the frozen artifacts.
+**25 healthy samples over 120.57 seconds** recorded unchanged application/gateway
+PIDs and start times, no memory or combined memory+swap limit failures, and zero
+swap usage. Final application cgroup memory was approximately **18.05 MiB**. Old
+systemd exposes no restart counter; observed continuity is recorded instead. This
+empty-instance observation does not establish loaded capacity. No live inference,
+credential refresh, rotation or management write was used as a smoke test.
+
+The captured log window contains zero application/gateway errors and zero
+unclassified warnings. It separately records **32 deliberate authentication
+probes**, **150 external missing-path probes**, and **two expected Caddy :80
+redirect-server HTTP/2/HTTP/3 warnings**. Initial verifier assumptions about
+JSON-hidden bind fields, old-systemd properties and journal timestamp syntax were
+corrected with kernel bind checks, PID continuity and numeric journal timestamps;
+the complete gates were rerun. Preparation corrected task-created directory
+permissions before service activation. Original failures and correction records
+remain in protected evidence; failed assertions were not silently discarded.
+
+Release-local `deployment.json` and `/opt/codexproxy/LATEST_DEPLOYMENT.json` were
+written atomically and read back. Recovery retains the initial absence baseline,
+source/build evidence, original verification records, final checks, logs and
+observation. The syntax-checked `ROLLBACK.sh` stops/disables only the new services
+and removes only task-added firewall services absent from baseline, while retaining
+credentials, account data, artifacts and clock calibration. There was no previous
+installation to restore. This ledger update is published separately from the
+running source commit and preserves all earlier deployment and sync records.
 
 ## Deployed latest main to dmit2 — 2026-11-05
 
