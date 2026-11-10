@@ -106,6 +106,53 @@ credentials, account data, artifacts and clock calibration. There was no previou
 installation to restore. This ledger update is published separately from the
 running source commit and preserves all earlier deployment and sync records.
 
+### Post-deployment simulation — 2026-11-10
+
+User-authorized simulation completed at **2026-11-10 17:23:30 Asia/Shanghai**
+against the installed **2e045edb** artifact. **63/63 assertions passed**. The public
+and origin production listeners passed health, missing/invalid/misused-key
+rejection, empty catalogs, non-streaming/streaming requests for an unregistered
+synthetic model, client-to-management rejection, and **24 public catalog requests
+with four workers**. Final authenticated management reads succeeded both locally
+and over public HTTPS, confirming two empty pools and zero upstream accounts.
+
+Positive generation tests used the exact installed binary under the same
+unprivileged application user, with separate temporary configuration/storage and a
+loopback-only listener. All upstreams and credentials were synthetic. **62 native
+Codex/Claude mock requests** covered model/account isolation, unassigned clients,
+non-streaming and SSE responses, shared-account pools with distinct source IPs,
+and **48 mixed-pool requests with six workers** using the same session hint.
+The mock upstream observed the expected TCP source for each of the three exits.
+An active SSE stream flushed before completion, retained its captured original
+exit through policy changes/revocation, and completed; new operations adopted the
+new exit or were denied after revocation. Other authorized pools stayed usable.
+A valid but unavailable IPv4 produced **503 with no upstream arrival or route/proxy
+fallback**; recovery did not poison the shared credential. IPv6 policy input was
+rejected with 422, and stale policy revisions with 409. A deliberately unusable
+global proxy remained bypassed by all successful direct-IP operations.
+
+Independent HTTPS probes to an external IP observer also confirmed selected
+**14.225.71.134 / .135 / .136** were observed as those same public addresses.
+This checks host source routing/NAT separately from the native mock protocol path.
+Production executable/configuration/credential/unit/gateway/fstab/account hashes,
+service and neighbor PIDs/start times, and memory failure counters matched their
+pre-test baseline. Temporary processes/configuration were removed. Captured
+production logs contain zero errors or unclassified warnings; **50 deliberate
+authentication rejections** and **40 deliberate unregistered-model HTTP 400s**
+across all harness attempts were classified separately. Caddy emitted no warning
+or error in that captured window.
+
+Protected evidence is under
+**`/opt/codexproxy/releases/simulation-20261110T091933Z`**. Final and
+`/opt/codexproxy/LATEST_SIMULATION.json` receipts were written atomically and read
+back. Earlier attempts and harness corrections are retained: case-insensitive
+header handling, Python 2 urllib2 chunked-read buffering replaced by `curl -N`
+for first-byte observation, the documented save-versus-dial contract for unavailable
+IPv4, and classification of deliberate model errors. All final assertions were
+rerun. No application source or production routing setting changed. No real
+provider inference/refresh, positive native WebSocket/WebRTC test, capacity test
+or endurance test is claimed; the production listener still has no real accounts.
+
 ## Deployed latest main to dmit2 — 2026-11-05
 
 At **2026-11-05 21:33:45 Asia/Shanghai**, dmit2 alone was upgraded from
