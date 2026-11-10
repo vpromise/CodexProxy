@@ -1,8 +1,193 @@
 # Upstream sync ledger
 
-Updated: 2026-11-10 (Asia/Shanghai). This is the checkpoint for selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
+Updated: 2026-11-10 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
+
+## Deployed latest main to dmit2 — 2026-11-05
+
+At **2026-11-05 21:33:45 Asia/Shanghai**, dmit2 alone was upgraded from
+**44341db1b61aa93c4127bb3843956ef3b785112e** to published main
+**[a095b1f9](https://github.com/vpromise/CodexProxy/commit/a095b1f9266dc00c7289fc9f700c8ef50cfee6e8)**
+(`a095b1f9266dc00c7289fc9f700c8ef50cfee6e8`). Verification and atomic receipt readback completed at
+**2026-11-05 21:38:13 Asia/Shanghai**. Version **codexproxy-20261105-a095b1f9**,
+source tree **76d45b7cc3a794f294733e3cd3623bb0a806baa9**, static Linux/amd64 binary SHA-256
+**652ee05d84b9dac3abfcfbcd8799b581314adf765034281d7ea9a03f97d2bda9**, served management HTML SHA-256
+**8e409097b4053a85f70410bc644bc6e3e5c82281b7d0fbd5dc980ecc4d65afc0**. Installed and running binaries, local/gateway/public
+version headers and management bytes match. No other host was accessed.
+
+All effective configuration bytes remain SHA-256
+**2e46c12ef897a66f73345eed6c0d863f0076378f9f87e5a2ddc8333bc51016e3**. The user-approved **session-affinity=true**,
+**session-affinity-ttl=1h**, **round-robin** and enabled account-pool isolation are
+preserved. The single Claude credential still has **cloak_mode=always** and
+**disabled=true**; it was not re-enabled. Credential files, unit/drop-in bytes,
+semantic process environment and new-api/nginx/s-ui identities remain unchanged.
+Resource limits remain MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax
+**256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB**. Commercial/file logging and
+usage statistics remain enabled; detailed request logging/debug remain disabled
+and log retention is **128 MiB**. No configuration or credential migration.
+
+Source/test/build inputs exactly match the November5 validated **1759-file**
+manifest **e25d2ade0568d8fd04a100b0837bddbebe428dbe5d751ff36a51c7baefd2a9f3**. Reused evidence covers **4113 full
+tests / 68 packages** and **1974 race tests / 6 packages**, with the two documented
+macOS loopback exclusions. No Linux unit-test run is claimed. A fresh Go 1.27.1
+static cross-build used CGO_ENABLED=0, mod=readonly, trimpath, buildvcs=false and
+explicit version/commit/date. Linux compiler/test/embed audit found **1151 inputs /
+92 packages**, all within the manifest. Source archive, build metadata and
+sha256sum-format manifest **d9b805ca1295c5e52dee39c31dd56ec3684ec1f72a4b623df23bca118db323bb** are retained.
+Upload/archive/member checksums and isolated `--config /dev/null --help` passed.
+The exact source SHA has no Actions run; local evidence is not a CI pass.
+
+Ten local/gateway checks and five workstation public HTTPS checks passed with
+normal public TLS validation; the established loopback origin-certificate
+exception stayed local. A server-origin/Python public probe received an existing
+Cloudflare 403; baseline curl and final workstation curl gates passed. The first
+log verifier incorrectly treated access-logger 401 probe warnings as application
+warnings. Its original failure and four-event classification were retained;
+the correction matches logger, GET method, status401 and exact models/config
+paths while keeping all other gates. Final error/fatal/panic and unclassified
+warning counts are zero. No failed assertion was silently discarded.
+
+**25 healthy samples over 120.02 seconds** recorded zero unplanned restarts,
+memory-high/max/OOM events and swap use; final cgroup memory was approximately
+**27.5 MiB**. This is a short operational observation, not loaded-capacity proof.
+An existing assigned Codex client key stayed server-side and was used only for
+read-only models: **200 / 8 models**. Management readback is unavailable because
+only its key hash is configured. No live inference or deliberate token refresh.
+
+Protected recovery directory:
+**/opt/codex-stack/codexproxy/releases/20261105-a095b1f9-dmit2**. It retains previous executable/config/unit/receipt backups,
+exact source and build evidence, initial and final verification, observation and
+**ROLLBACK.sh** with syntax-checked Python recovery. Rollback restores the previous
+binary and only restarts CodexProxy while retaining current affinity, account data,
+Claude disable/cloak and resource/logging settings. Latest deployment receipts
+were atomically updated/read back, preserving resource, logging and routing
+history. This local ledger addition preserves earlier user edits; no Git commit,
+push, tag or Release was created for this deployment.
+
+## Enabled dmit2 session affinity — 2026-11-05
+
+At **2026-11-05 21:25:56 Asia/Shanghai**, the user's explicit request changed only
+`routing.session-affinity` from `false` to `true` in dmit2's effective native
+configuration `/opt/codex-stack/codexproxy/config/config.systemd.yaml`. Existing
+`round-robin`, `session-affinity-ttl: 1h`, enabled account-pool isolation, retry,
+resource and logging settings remain. The source stays **44341db1b61aa93c4127bb3843956ef3b785112e**
+(`codexproxy-20261026-44341db1`); no source deployment was performed.
+
+The existing watcher logged successful configuration reload and completed client
+reload. PID **2127281** and restart count remained unchanged. Local health 200,
+hello 204 and unauthenticated models 401 passed; workstation public HTTPS health
+returned 200 with normal TLS validation. A server-origin public probe returned the
+same preexisting Cloudflare 403 before/after, separately classified. New application
+error/fatal/panic count in the captured reload log interval was zero. Credential
+file hashes, executable, service files and neighboring new-api/nginx/s-ui process
+identities were preserved. The sole Claude credential remains disabled; no real
+inference, token refresh or multi-account failover experiment was initiated.
+
+Configuration SHA-256 changed from
+`95c1b048e9ec9640827494570ccf7bfa088e51cc8fe316349e18b2c56fc02e48` to
+`2e46c12ef897a66f73345eed6c0d863f0076378f9f87e5a2ddc8333bc51016e3`.
+Protected backups, PREPARED/VERIFICATION/configuration receipts and a syntax-checked
+`ROLLBACK.py` are under
+`/opt/codex-stack/codexproxy/releases/20261105-132514-session-affinity`.
+Rollback changes only this flag back to false while preserving other settings;
+verify hot reload and reconcile the latest routing receipt after rollback.
+`LATEST_ROUTING_TUNING.json` and the existing `LATEST_DEPLOYMENT.json` were updated
+atomically and read back, retaining resource/logging tuning history. This local
+ledger addition preserves all earlier uncommitted deployment records and does not
+advance the upstream checkpoint or create a Git commit/push.
+
+## Redeployed replacement light host — 2026-10-27
+
+The user replaced the machine behind SSH alias **light** and authorized a fresh deployment at **https://cpavn.hoperouter.com**. Inspection found a clean Debian 12 x86_64 host with **2 CPUs, approximately 4 GiB RAM, no swap and no previous CodexProxy/Caddy installation**. This entry supersedes the October26 light machine's live-status and resource statements; its records below remain historical. No other host was accessed or modified.
+
+Published main **[`7ce52cce`](https://github.com/vpromise/CodexProxy/commit/7ce52cceec8c2730eb7af845afdc9b40ec6573b9)** (`7ce52cceec8c2730eb7af845afdc9b40ec6573b9`) was activated at **2026-10-27 23:00:11 Asia/Shanghai** and verified at **2026-10-27 23:05:53 Asia/Shanghai**. This includes the October27 bootstrap-cancellation, reasoning-usage and CORS-header repairs (`d36a90e2`) plus the existing account-isolation, native-session and memory-retention fixes. Remote main was rechecked immediately before activation.
+
+| Identity | Verified value |
+| --- | --- |
+| Version / tree | `codexproxy-20261027-7ce52cce` / `a14d108a6c3882b8b10dc7985362b243d7b82699` |
+| Static Linux/amd64 binary SHA-256 | `47f9c6040b05541eee96a24a2b7ab5e397ed33c4c07b654d6fbe286c068b60e2` |
+| Management HTML SHA-256 | `737ae541672aaf0ae143e7e832cb663d1fb356677bb9f50830c3284680ca432d` |
+| Source manifest (sha256sum format) | `e97ad4fd7cd8ac131a0b49f08d607ce3b7490bfd64bf2e8e30df907a9e6facdd`; 1719 files |
+| Validated source manifest (sorted JSON format) | `cb870a0e6382bb72e8ec5dbcbaaecfacf349c057cc9b9e12f54d53743d87b235`; identical source/test/build inputs |
+| Effective configuration SHA-256 | `fa6139f8a4edc3dffa6fae35a76c3415b0819a1347e188e5f0ba9ae0aee2607f` |
+| Runtime / configuration | `codexproxy.service`; `/opt/codexproxy/config/config.systemd.yaml` |
+| Binary / account data | `/opt/codexproxy/codexproxy`; `/opt/codexproxy/auths` |
+| Gateway / management | Caddy; https://cpavn.hoperouter.com/management.html |
+| Protected release and recovery | `/opt/codexproxy/releases/20261027-7ce52cce-replacement` |
+
+**The user's in-flight resource correction is applied:** CodexProxy **MemoryMax 3 GiB**, **MemorySwapMax 256 MiB**. MemoryHigh is **2.5 GiB**, GOMEMLIMIT **2 GiB**, GOMAXPROCS **2**, and CPUQuota **150%**. systemd and kernel readbacks agree (`memory.max=3221225472`, `memory.high=2684354560`, `memory.swap.max=268435456`, `cpu.max=150000 100000`); the process environment was checked. The host has a separate **1 GiB swapfile**, persisted by appending to the original fstab. Service restart protection remains 15 seconds and three starts per 300 seconds. Both CodexProxy and Caddy are enabled at boot. The existing SSH service identity was preserved.
+
+The independent instance has **zero upstream accounts**, two empty Codex/Claude pools, and a newly generated client key for each pool. Account isolation is enabled. The independently generated management key is hashed in the application configuration; the delivery values remain only in root's mode-0600 **`/root/codexproxy-light-credentials.json`**. No old-server key or account was imported. No secret value is included in this ledger. Claude `always` remains a per-credential setting to apply on import; there is no global always default and no current Claude credential to modify. `ACCESS.md` records that limitation.
+
+The application runs as an unprivileged system user and listens only on **127.0.0.1:8317**. File logging and usage statistics are enabled; detailed request logging and debug are disabled; log retention is capped at 128 MiB. Caddy exposes the domain over HTTPS with a valid Let's Encrypt certificate and automatic renewal. Origin and public TLS validation passed without an insecure exception. The domain resolved directly to the replacement host during inspection; no Cloudflare account setting was changed.
+
+Build validation reused the exact source-matched **4019 full tests / 68 packages**, **2274 race tests / 10 packages**, and host-build evidence recorded in published main. The full-suite exclusions are exactly the two documented macOS loopback-binding tests; no Linux unit-test run is claimed. The isolated build used Go 1.27.1, CGO_ENABLED=0, mod=readonly, trimpath, buildvcs=false and explicit version/commit/date metadata. Source hashes matched before/after the build; there were no ignored compiler inputs. The compressed upload, extracted binary, source archive and manifest hashes were verified before activation.
+
+Fifteen local/origin/public HTTP gates and five independent workstation checks passed, including health, hello, unauthenticated rejection, exact version/commit and management bytes. Read-only authenticated checks confirmed management access, two correctly bound client keys/pools, zero accounts and empty model lists. **24 healthy samples span 224.8 seconds**, with zero automatic restarts, memory-high/max/OOM events or swap usage. Final service memory was approximately 22.4 MiB; this empty-instance observation does not establish loaded capacity. Application and post-readiness gateway logs contained zero errors and no unexplained warnings. No real-account inference, credential refresh, rotation or management write was used as a smoke test.
+
+Release-local and `LATEST_DEPLOYMENT.json` completion receipts were written atomically and read back. The release retains source/build metadata, package gateway/fstab baselines and a syntax-checked **`ROLLBACK.sh`**. For this initially empty host, rollback stops/disables the new application and gateway, preserves credentials/accounts/packages/swap, and records the inactive state; it does not restore data from the replaced machine. Only task-owned local build inputs/caches were removed after retaining evidence. No new Git commit, push, tag or Release was created. This entry preserves all existing uncommitted ledger content and does not advance the upstream review boundary.
+
+## Deployed independent light instance — 2026-10-26
+
+At **2026-10-26 16:25:55 Asia/Shanghai**, the user-authorized independent **light** instance started published main **[`44341db1`](https://github.com/vpromise/CodexProxy/commit/44341db1b61aa93c4127bb3843956ef3b785112e)** (`44341db1b61aa93c4127bb3843956ef3b785112e`). Verification completed at **2026-10-26 16:34:13 Asia/Shanghai**. The source and static Linux/amd64 artifact are identical to the preceding verified dmit2 deployment. No dmit, dmit2 or bawg server was accessed or modified during this rollout. No account or configuration was migrated from another host.
+
+| Item | Verified value |
+| --- | --- |
+| Management page | https://cpavn.hoperouter.com/management.html |
+| API base | https://cpavn.hoperouter.com/v1 |
+| Version / source tree | `codexproxy-20261026-44341db1` / `902958f53e73d77c0a2c79ae7570596253f49e30` |
+| Binary SHA-256 | `ea0b585882279e5aafe7679b85f4cf21a40309a8a775a0b22dd3c3af7d6da51f` |
+| Served management HTML SHA-256 | `e22ffa35c11e3ebfee185a4620e484a83175e814de8a1dd1fa26d9b36544625c` |
+| Source manifest | `df1d484eaf387b20b4bbdaa6da254ae2c15c8a99b9e24cbab8f7b278efc06dbb`; 1717 files |
+| Runtime / executable | Native systemd / `/opt/codexproxy/codexproxy` |
+| Effective configuration | `/opt/codexproxy/config/config.systemd.yaml` |
+| Configuration SHA-256 | `20bcf0b975907cb43358f13b6cf13ebf0acd0447a43749c8eeb2e8144322905b` |
+| Accounts / logs | `/opt/codexproxy/auths` / `/opt/codexproxy/logs` |
+| Gateway | Caddy; `/etc/caddy/Caddyfile`; valid Let's Encrypt certificate and automatic renewal |
+| Private credential delivery | `/root/codexproxy-light-credentials.json`, root-only mode 0600; no values copied to this ledger |
+| Release and recovery | `/opt/codexproxy/releases/20261026-44341db1-initial` |
+
+The fresh Debian 12 host has one CPU and approximately 2 GiB RAM. CodexProxy runs as its own unprivileged system user, bound only to **127.0.0.1:8317**, with **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 80%, GOMEMLIMIT 512 MiB**, restart delay 15 seconds and a three-starts-per-300-seconds limit. A dedicated **1 GiB host swapfile** was created and persisted without replacing existing fstab entries. File logging and usage statistics are enabled, detailed request logging/debug are disabled, and the log retention cap is 128 MiB. Both CodexProxy and Caddy are enabled at boot. Existing s-ui and SSH service identities were preserved.
+
+**Account isolation is enabled.** Two independently generated client keys bind to separate, empty Codex and Claude pools. The management key is independent and stored hashed in the application YAML; its initial delivery copy remains in the protected root file. Read-only authenticated checks confirmed management access, two pools, two keys, no accounts, and an empty model list for each client key. No real-account inference, refresh or rotation was initiated.
+
+**Claude always scope:** this source has per-credential `cloak_mode: always` for OAuth JSON and per-key `cloak.mode: always`, but no global always default. The independent instance has zero Claude accounts, so no credential could be changed. Future imports do not inherit always automatically: set the field when importing each Claude account or configuring its API key. This limitation was explained during deployment and is retained in `ACCESS.md`; the release is not represented as a globally forced-always installation.
+
+The clean detached source matched the already-validated manifest before and after the off-host Go 1.27.1 static build. Explicit build flags and version/commit/date reproduced the exact dmit2 binary hash. Reused source-matched evidence covers 4007 full tests in 68 packages and 2301 race tests in eight packages, with only the documented two macOS loopback-binding exclusions. No Linux unit-test execution is claimed. Frozen model catalogs and embedded management assets were retained. The compressed upload and all extracted artifact/source hashes were verified before application activation.
+
+Fifteen local/origin/public HTTP checks and five independent workstation checks passed. Both origin and public HTTPS use normal certificate validation; no insecure TLS exception was needed. The installed/running binary, version/commit headers and management response hash match the release. **24 healthy samples span 406.2 seconds**, with zero automatic restarts, memory-high/max events or OOM events; final service memory was approximately 22.8 MiB and service swap was zero. This empty-instance observation is not a production-load capacity measurement.
+
+Application startup/recent logs and post-readiness gateway logs contain zero errors. The initially unclassified warnings were investigated and retained as HTTP 404 responses to public requests for nonexistent paths, alongside deliberate unauthenticated probes; no failed assertion was silently dropped. Temporary gateway connection-refused records occurred while the new backend was still uploading, before its activation/readiness boundary. The original classification and bounded raw evidence remain protected on the server.
+
+Release-local and `LATEST_DEPLOYMENT.json` receipts were written and read back. The syntax-checked **`ROLLBACK.sh`** stops/disables the newly installed application and its new gateway, preserves credentials/account data/packages/swap, and records the inactive recovery state. The release retains the original package gateway config, fstab baseline, source archive, checksums, build metadata and verification evidence. This task creates no Git source commit, push, tag or Release; the local ledger entry preserves all earlier uncommitted content and does not advance the upstream review boundary.
+
+## Deployed to dmit2 with Claude always mode — 2026-10-26
+
+At **2026-10-26 15:29:18 Asia/Shanghai**, dmit2 alone was upgraded from main `a20079c2d233f0a6e7040e76fad6effa2e7407cf` to the latest verified published main **[`44341db1`](https://github.com/vpromise/CodexProxy/commit/44341db1b61aa93c4127bb3843956ef3b785112e)** (`44341db1b61aa93c4127bb3843956ef3b785112e`). Final verification completed at **2026-10-26 15:32:46 Asia/Shanghai**. This deployment supersedes older dmit2 running-version statements below. It includes native Claude session isolation repair `6e1d5b7f`, October 25 fixes `38a7713f`, and October 26 cancellation repair `154cf9fc`. dmit and bawg were outside scope.
+
+The existing single Claude credential now has **`cloak_mode: always`**. Its **`disabled: true`** state and all other credential fields were preserved; no credential was re-enabled. This is a per-credential setting, not a new default for future credentials. Global YAML, strict mode, sensitive-word settings, account pools, API keys, resource limits and logging remain unchanged. No inference, credential refresh, account rotation or authenticated account probe was initiated.
+
+| Identity | Verified value |
+| --- | --- |
+| Version / source tree | `codexproxy-20261026-44341db1` / `902958f53e73d77c0a2c79ae7570596253f49e30` |
+| Static Linux/amd64 artifact SHA-256 | `ea0b585882279e5aafe7679b85f4cf21a40309a8a775a0b22dd3c3af7d6da51f` |
+| Management HTML SHA-256 | `e22ffa35c11e3ebfee185a4620e484a83175e814de8a1dd1fa26d9b36544625c` |
+| Unchanged effective YAML SHA-256 | `95c1b048e9ec9640827494570ccf7bfa088e51cc8fe316349e18b2c56fc02e48` |
+| Source manifest (sha256sum format) | `df1d484eaf387b20b4bbdaa6da254ae2c15c8a99b9e24cbab8f7b278efc06dbb`; 1717 files |
+| Source validation manifest (sorted JSON format) | `5ee8c0409bc397d856540f6d35b55c5328e0da4ad2352afa7427ade36c4dfbbf`; identical file hashes |
+| Build | go version go1.27.1 darwin/arm64; CGO_ENABLED=0; mod=readonly; trimpath; buildvcs=false; explicit version/commit/date |
+| Recovery directory | `/opt/codex-stack/codexproxy/releases/20261026-072754-44341db1-always` |
+
+Reused source-matched validation covers **4007 full tests in 68 packages** and **2301 race tests in 8 packages**, with exactly the documented two macOS 127.0.0.2 binding exclusions. No Linux unit-test execution is claimed. The clean isolated build has no ignored source inputs; frozen model catalogs and embedded management assets were retained. The source manifest matched before and after the successful static build. The initially compared manifest digests used different serializations; recomputing the existing validation's sorted JSON format matched exactly before reusing test evidence.
+
+Installed and running executable hashes, version/commit headers and served management HTML match the artifact. All 15 loopback/gateway/public HTTP gates passed before and after activation, plus five independent public checks from the workstation with normal TLS verification. The established local origin-certificate exception remained limited to the loopback gateway. No authenticated management credential was available, so mode validation uses the saved credential metadata, full service restart and verified source behavior rather than a live provider request.
+
+The **24 healthy samples span 151.7 seconds**, with zero automatic restarts and no memory-high/max/OOM events. Final service cgroup memory was approximately 23.5 MiB; this low-load observation is not a production-load memory benchmark. Startup/recent logs had zero error/fatal/panic records; warnings examined were deliberate unauthenticated probes. **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB**, restart protection, process environment, unit/drop-ins and neighboring new-api/nginx/s-ui identities/settings were preserved. Docker remained inactive.
+
+Protected release-local verification and deployment receipts and `LATEST_DEPLOYMENT.json` were written atomically and read back, preserving resource/logging tuning history. The release contains the previous binary/config/unit/credential backups, exact source archive and a syntax-checked **`ROLLBACK.sh`**. Binary rollback restores the previous executable and restarts only CodexProxy while preserving current credentials, the authorized always setting, config and resource protections; credential backup is evidence, not an automatic token restore.
+
+This run uses already-published main and creates no new source commit, push, tag or GitHub Release. This local deployment entry was inserted without replacing earlier uncommitted ledger content or advancing the upstream review boundary.
 
 ## Publication verification - 2026-11-10
 
@@ -323,6 +508,30 @@ The installed file and `/proc/<pid>/exe` both matched the static Go 1.27.1 Linux
 - Recovery: run that release's syntax-checked `ROLLBACK.sh`; it restores the old executable and the **stopped/disabled incident baseline**, removes only the owned protection drop-in, and does not overwrite account data or restart the former OOM-prone binary.
 
 Production configurations and raw logs remain in the mode-0700 release directory. The first preparation extraction raced an unfinished upload and failed before activation; after transfer completion all payload hashes and the safe isolated help smoke passed. No bypass of a failed runtime gate was used. Next validation is observation of user-initiated real traffic; no unbounded background load or profiling listener remains.
+
+### Resource adjustment — 2026-10-23
+
+At **2026-10-23 09:48:30 Asia/Shanghai**, only dmit2's existing CodexProxy resource settings were relaxed: **CPUQuota 100% → 125%**, **MemoryMax 768 MiB → 832 MiB**. `MemorySwapMax=128M`, live `GOMEMLIMIT=512MiB`, restart protection, application configuration and source `baabdc29` were preserved. PID `2097291` was unchanged; no service restart, source deployment, real inference test or credential refresh was performed. Kernel readback confirmed `cpu.max=125000 100000` and `memory.max=872415232`, with the dedicated `90-memory-protection.conf` as the only persistent drop-in. Its SHA-256 is `4c1e09c845e74a2a95e7e6cc3303fa6932a6aae286a4aa8286e5e87ab5ddb147`.
+
+The initial daemon-reload-only attempt did not apply the live cgroup values and was restored before using the online `systemctl set-property` interface. The successful protected record and syntax-checked resource rollback are in `/opt/codex-stack/codexproxy/releases/20261023-resource-tuning-014439`; `LATEST_RESOURCE_TUNING.json` and the existing deployment record's `resource_tuning` field were written and read back. A complete 180-second low-load observation had no inference completions, no restarts/OOM/memory-cap events, all local health probes passed, service memory approximately 106.7 MiB, and host available memory at least 1328.9 MiB. Final local/public health checks passed and binary/config/environment hashes plus neighboring service identities were preserved. This confirms applied limits and low-load stability; higher-concurrency performance is not yet measured. Detailed evidence is in `docs/memory-resource-tuning-2026-10-23.md`.
+
+### Expanded resource headroom — 2026-10-23
+
+At **2026-10-23 10:02:48 Asia/Shanghai**, the user-authorized dmit2 adjustment superseded the earlier settings: **MemoryMax=1G**, **MemorySwapMax=256M**, **CPUQuota=150%**, with **MemoryHigh=896M** added to apply reclaim/throttling before the hard cap. The user reduced the proposed swap allowance from 512 MiB to 256 MiB before activation; 512 MiB was never applied. Live `GOMEMLIMIT=512MiB`, source `baabdc29`, PID `2097291`, restart protection, application configuration and neighboring service identities were preserved. Persistent drop-in SHA-256: `785c69cf19ddf30a092453490e4d66976d72faf96c2612ed6ce04341d7a06b33`.
+
+The settings were applied online without a restart and verified against all four kernel cgroup files. A complete 180-second low-load observation recorded zero inference completions, no memory-high/max/OOM events or restarts, approximately 106.7 MiB service memory, zero service swap, and sampled host available memory of at least 1333.7 MiB. Local and public health checks passed. This establishes configuration and low-load stability; higher-concurrency behavior remains unmeasured. The 896 MiB pressure threshold can slow the service under sustained growth, and uncapped neighboring services can still pressure the host.
+
+Protected recovery material is retained at `/opt/codex-stack/codexproxy/releases/20261023-resources-1g-015819`; run `python3 /opt/codex-stack/codexproxy/releases/20261023-resources-1g-015819/change.py rollback` to restore the preceding 832 MiB / 128 MiB / 125% settings subject to its live-usage guards. `LATEST_RESOURCE_TUNING.json` and the deployment record's `resource_tuning` entry were written and read back. Detailed evidence: `docs/memory-resource-tuning-1g-2026-10-23.md`.
+
+### Logging overhead adjustment — 2026-10-23
+
+At **2026-10-23 10:51–10:55 Asia/Shanghai**, dmit2's native services received the user-authorized logging changes and were restarted serially. New-api now uses `StandardOutput=null`, retaining its file output and `StandardError=journal`. A unique read-only status probe appeared in the file and zero times in the journal. CodexProxy now has `commercial-mode: true` and `logs-max-total-size-mb: 128`, with ordinary file logging and usage statistics enabled and detailed request-body diagnostics disabled. Existing log files and all **37,850** new-api usage rows were preserved. Full request/response error-diagnostic files are intentionally no longer captured.
+
+Running CodexProxy source remains `baabdc29ad44cf7e30286cfc8078dc7cf84a09d7`, artifact `4f0940277006ac4c5128205c21f7803e3ff291058d6ef30af6b526a6a9808365`, now PID `2104021`; new-api remains `v1.0.0-rc.46` with unchanged artifact, now PID `2103960`. Only the two CodexProxy YAML values changed; config SHA-256 is `753bead53cd5c3cef742c22d1dec60c0538fdb0d0a13999ac1511026e9c08dcd`. MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB and restart protection remain unchanged. nginx and s-ui retained fresh-baseline identities and settings.
+
+Local readiness/access-control contracts, public HTTPS, loopback gateway and exact management HTML passed. A complete 120-second low-load observation recorded no inference accesses, automatic restarts, OOM/memory-limit events or application error/panic tags. No real inference or credential refresh was initiated. No plaintext management credential was available, so authenticated management log-query/UI interaction is a coverage limit; file writes and the retained logging flag were verified. Post-restart memory is not evidence of equal-load savings.
+
+Protected recovery and verified receipts: `/opt/codex-stack/codexproxy/releases/20261023-logging-024936`. Run `python3 /opt/codex-stack/codexproxy/releases/20261023-logging-024936/change.py rollback-codexproxy` and/or `rollback-newapi` for the respective service; these restore only owned logging changes and restart the corresponding service. Root `LATEST_LOGGING_TUNING.json` and the existing deployment record were updated and read back, preserving source and resource history. Detailed report: `docs/memory-logging-tuning-2026-10-23.md`. No source/binary deployment, Git commit or push occurred.
 
 ## November7 selective review — 2026-11-07
 
@@ -2296,6 +2505,30 @@ Fresh loopback probe: 127.0.0.1 works; 127.0.0.2 returns errno 49. Only command-
 
 The skill requires discussion before changing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics; other new architectural/configuration extensions require their concrete scope choices. This run does not infer authorization from the user's unrelated isolation feature branch. Deployment history below is unchanged; no server was contacted.
 
+## Historical checkpoint — 2026-10-23
+
+The newer dated records above supersede this checkpoint. The latest recorded dmit2 deployment is the November 5 upgrade to `a095b1f9`; this section retains the October state and review boundaries.
+
+**Recorded dmit2 status on October 23:** active/running and enabled at `baabdc29`; recovery was verified on October 22; October 23 adjustments set CPUQuota 150%, MemoryMax 1 GiB, MemoryHigh 896 MiB and MemorySwapMax 256 MiB, then enabled commercial mode and a 128 MiB log-retention cap while removing duplicate new-api stdout journal output as recorded above. The incident stop at 20:42–20:44 was superseded by the recovery record above. Earlier rows retain release history.
+
+| Item | Recorded state |
+| --- | --- |
+| Latest upstream check | 2026-10-13 05:05:59 (Asia/Shanghai): 35 newly reviewed commits after f1d4a94e; all 48 commits from the prior released boundary accounted for, including 13 previously reviewed commits now released; no main-only remainder |
+| Last reviewed upstream main | [bf934162](https://github.com/router-for-me/CLIProxyAPI/commit/bf9341629ef2300ac9d846a2e80fe2756f63a671) (`bf9341629ef2300ac9d846a2e80fe2756f63a671`); selective dispositions below, not a full merge |
+| Released selection boundary | v8.0.27 / `bf9341629ef2300ac9d846a2e80fe2756f63a671`; all four releases v8.0.24–v8.0.27 inspected and their actual tag SHAs resolved |
+| Release at that review | [v8.0.27](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.27), published 2026-10-12 16:37:20 UTC; actual tag resolves to `bf9341629ef2300ac9d846a2e80fe2756f63a671` |
+| Latest verified published implementation | [02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd76ffc424f81eb35383dd41b703ef51aec43) (`02ffd76ffc424f81eb35383dd41b703ef51aec43`) on `main`: selected Claude cache presence and bounded Chat-to-Codex call IDs |
+| Published source tree | `4547dcc0ecf3b704e005a251bebcb6ccfb89fd1c` (October 13 implementation commit) |
+| Latest publication | October 13 implementation [02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd76ffc424f81eb35383dd41b703ef51aec43) (`02ffd76ffc424f81eb35383dd41b703ef51aec43`), verified on SSH remote main and GitHub API; documentation follow-up records this exact publication |
+| Unpublished selected fixes | None. Both independently validated October 13 repairs are committed and normally pushed. All undecided scopes remain outside the published selection |
+| Pending candidate | No ordinary release-pending repair or earlier authorized unpublished implementation remains. 91 discussion items (80 historical + 11 new) remain unimplemented in their undecided scope |
+| Deployment | dmit runs the account-isolation fixes at `7fef3e38932fe029c5207c164cc29e27868eea06`, deployed and verified October 22 at 17:25 Asia/Shanghai; see the deployment record below. On October 22, dmit2 migrated its existing `10f500fe2540d055ed1e79e7bbf239bddcaf1963` binary from Docker Compose to systemd alongside newapi; CodexKeeper and the unused container runtime were stopped and disabled. A read-only October 22 inspection found the identical CodexProxy binary on bawg; bawg was not changed. See the migration record below. |
+| Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
+| Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
+| Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
+
+The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released selection and review boundaries have advanced to v8.0.27 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; later publication/deployment records supersede earlier status labels. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
+
 ## Published on 2026-10-13 — Claude cache marks and Codex call IDs
 
 Implementation **[02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd76ffc424f81eb35383dd41b703ef51aec43)** (`02ffd76ffc424f81eb35383dd41b703ef51aec43`), source tree **`4547dcc0ecf3b704e005a251bebcb6ccfb89fd1c`**, was normally pushed to the verified fork `main`. At **2026-10-13 05:11:15 Asia/Shanghai**, SSH `refs/heads/main` and the GitHub commit API returned the exact SHA. The clean main checkout was fast-forwarded only to the task-owned candidate commit based on `69cd76f0`; no upstream ancestry was merged. Its five changed files are the ledger, the two production paths and their two regression files. Main's **1629-file** manifest equals the final full/race/build candidate **`c7949b193918c9180352db7daf744f33a5e1c132efdc37ed744811d67fbf675b`**; every audited compiler/test/embed input and the preexisting ignored flatted source were compared byte-for-byte after integration. Index and tracked/nonignored working tree were clean.
@@ -2693,6 +2926,22 @@ The source-only patch against `dafabede` is **`f77815d368b7da6909a93b592b37035ac
 Before integration, main HEAD, the original source manifest, empty index and clean tracked/untracked state were rechecked. Applying only this candidate leaves **12 unstaged/untracked paths including this ledger**, an empty main index and unchanged HEAD. The resulting source matches the final **1619-file** tested manifest; the ignored extra package is unchanged. The detached worktree, binary, logs and dedicated caches were removed after recording evidence. No selected repair remains outside the checkout. CodexKeeper remains clean and unchanged.
 
 Claude Code **2.1.280**, Codex runtime **0.154.0** and catalog-fetch **0.155.0** remain unchanged; this range provides no fingerprint/catalog upgrade. Publication and deployment remain the October 8 states recorded below. The October 9 selection is **local only**.
+
+## Migrated dmit2 to systemd on 2026-10-22
+
+At the user's request, migrated **CodexProxy and newapi** from Docker Compose to native systemd services, and retired **CodexKeeper**. Reused the exact existing static Linux/amd64 binaries: CodexProxy commit **`10f500fe2540d055ed1e79e7bbf239bddcaf1963`**, implementation **`f9133d2c214bb17d8b88bed3a49ece0bb48c76d7`**, binary SHA-256 **`33db63d7e61789932723bfa8a379b03bb4e10ec8865b100a675376b3e205ddee`**; newapi **v1.0.0-rc.46**, binary SHA-256 **`e6993914433ab30b2caeffd2c3e6860ad05417cd44ac51f20708c176504db27c`**. No application source or version changed, and no build or provider inference test was performed. Existing unrelated local edits were preserved; no Git publication was requested.
+
+Cutover started at **16:53:07 Asia/Shanghai**. After draining newapi, stopped all three containers and created a **4,580,239,360-byte** archive of all three services' persistent directories, including historical logs. Created and checked separate consistent SQLite snapshots for newapi and CodexKeeper. Native CodexProxy and newapi started at **16:54:14–16:54:16**; local verification completed at **16:54:20**, followed by successful public HTTPS and origin checks. The original data directories remain under `/opt/codex-stack`; binaries and protected environment files are under `/opt/codex-stack/native`. CodexProxy now uses `/opt/codex-stack/codexproxy/config/config.systemd.yaml`, changing only its listener to loopback and its auth-directory path to the existing host directory. Original configuration and Compose files remain available for recovery.
+
+All three newapi channel base URLs now use **`http://127.0.0.1:8317`**. Original session and encryption secrets were compared with the native processes and preserved. Database integrity checks passed; all table row counts were preserved at activation, with exact credential comparisons for **2 users, 5 tokens and 3 channels**, and all **38 settings** unchanged. The retired CodexKeeper's data and image/container recovery material were retained. Its nginx `/keeper` and `/keeper/` routes now return **410**. Other nginx routes, TLS configuration and s-ui process identity were preserved; nginx was gracefully reloaded.
+
+The previous **384 MiB Docker hard limits** were removed. Native units use Go soft runtime budgets of **512 MiB for CodexProxy** and **384 MiB for newapi**, with no systemd hard memory limit. The unchanged newapi binary listens on all host addresses; an enabled dependency unit, `codex-stack-local-only.service`, installs a dedicated nftables rule rejecting non-loopback traffic to TCP **3000**, preserving the prior host-local access boundary. CodexProxy itself listens on **127.0.0.1:8317**. Both application services and the firewall dependency are enabled at boot. Docker, docker.socket and containerd were stopped and disabled after confirming that no other containers existed; the three retained old containers have automatic restart disabled.
+
+Validation: exact installed/running binary hashes, active units with **0 restarts**, original environment/secret preservation, database integrity and credential comparisons, all channel URLs, local health and unauthenticated model rejection, exact frontend and management-page hashes, and normal public HTTPS responses passed. Public newapi root/status and CodexProxy management/health returned **200**; retired keeper returned **410**. Origin checks matched; only the existing loopback origin-certificate checks used insecure TLS. No live inference, quota, credential-refresh or management-write smoke test was sent. These checks establish operational readiness, not load-test or full protocol correctness.
+
+Final receipts were read back at **16:58:46 Asia/Shanghai**. Passive observation of existing traffic recorded **96 newapi POST requests** and **106 CodexProxy HTTP 200 responses**, with **0 automatic restarts, OOM kills, `do request failed` or `unexpected EOF`** since activation. CodexProxy retained its current model catalog after a background remote-catalog validation warning; no catalog source or update policy was changed. Memory continued to vary with existing concurrent requests, and Go runtime budgets are soft rather than hard limits.
+
+Protected recovery and verification are under **`/opt/codex-stack/migrations/20261022-systemd`**, including full persistent-data archive, SQLite snapshots, private runtime baseline, original configuration/Compose/nginx/latest records, binary copies, staged units, checksums and a syntax-checked **`ROLLBACK.sh`**. Archive SHA-256: **`2894bb46ea13ee10ed832bb097d23ba03bb5db39fe50ac5e5ef65ea1a2a7bc39`**. Rollback stops native services, restores the internal Docker channel addresses and old nginx routes, and starts the retained containers; it preserves database writes received after migration instead of restoring an older database. The root `LATEST_DEPLOYMENT.json` and `LATEST_SYSTEMD_MIGRATION.json` were updated separately from source publication. Upstream review and selection boundaries are unchanged.
 
 ## Deployed to dmit on 2026-10-22 — isolation fixes
 
