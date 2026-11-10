@@ -28,6 +28,10 @@ func newClientAccessPolicy(cfg *config.Config) *clientAccessPolicy {
 		p.Isolation.Pools = slices.Clone(cfg.AccessIsolation.Pools)
 		for i := range p.Isolation.Pools {
 			p.Isolation.Pools[i].Accounts = slices.Clone(p.Isolation.Pools[i].Accounts)
+			if egress := p.Isolation.Pools[i].Egress; egress != nil {
+				copy := *egress
+				p.Isolation.Pools[i].Egress = &copy
+			}
 		}
 	}
 	data, _ := json.Marshal(p)

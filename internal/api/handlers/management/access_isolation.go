@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"sort"
 	"strings"
@@ -23,6 +25,45 @@ type poolAccount struct {
 	APIKeyPreview string `json:"api_key_preview,omitempty"`
 	AuthIndex     string `json:"auth_index,omitempty"`
 	Prefix        string `json:"prefix,omitempty"`
+}
+
+type poolEgressAddress struct {
+	IP        string `json:"ip"`
+	Interface string `json:"interface"`
+}
+
+func localPoolEgressAddresses() []poolEgressAddress {
+	result := []poolEgressAddress{}
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return result
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addresses, errAddrs := iface.Addrs()
+		if errAddrs != nil {
+			continue
+		}
+		for _, address := range addresses {
+			prefix, errParse := netip.ParsePrefix(address.String())
+			if errParse != nil {
+				continue
+			}
+			ip := prefix.Addr()
+			if ip.Is4() && !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsMulticast() {
+				result = append(result, poolEgressAddress{IP: ip.String(), Interface: iface.Name})
+			}
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].IP == result[j].IP {
+			return result[i].Interface < result[j].Interface
+		}
+		return result[i].IP < result[j].IP
+	})
+	return result
 }
 
 func (h *Handler) poolAccounts() []poolAccount {
@@ -88,7 +129,7 @@ func (h *Handler) GetAccessIsolation(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot read configuration"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"revision": revision, "settings": h.cfg.AccessIsolation, "accounts": h.poolAccounts(), "api-keys": h.cfg.APIKeys})
+	c.JSON(http.StatusOK, gin.H{"revision": revision, "settings": h.cfg.AccessIsolation, "accounts": h.poolAccounts(), "api-keys": h.cfg.APIKeys, "egress-addresses": localPoolEgressAddresses()})
 }
 
 func (h *Handler) validatePoolAccounts(next *config.Config) error {

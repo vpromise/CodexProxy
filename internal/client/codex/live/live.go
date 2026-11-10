@@ -23,6 +23,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	"github.com/router-for-me/CLIProxyAPI/v7/sdk/proxyutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -210,6 +211,10 @@ func (h *Handler) Handle(c *gin.Context) {
 		writeLiveError(c, http.StatusServiceUnavailable, mediaRelayErr.Error())
 		return
 	}
+	if proxyutil.EgressFromContext(c.Request.Context()).SourceIP != "" && mediaRelay == nil {
+		writeLiveError(c, http.StatusServiceUnavailable, "Pool IPv4 egress requires the WebRTC media relay")
+		return
+	}
 	var mediaSession mediaRelaySession
 	mediaRetained := false
 
@@ -262,6 +267,7 @@ func (h *Handler) Handle(c *gin.Context) {
 			proxyURL:   proxyURLForAuth(runtimeConfig, selected),
 			credential: mediaCredentialName(selected, selectedIndex),
 			authIndex:  selectedIndex,
+			authorize:  func() error { return h.authManager.CheckCurrentAccount(ctx, selected) },
 		})
 		if errSDP != nil {
 			writeLiveError(c, clienterror.HTTPStatusFromErrorOr(errSDP, http.StatusBadGateway), errSDP.Error())

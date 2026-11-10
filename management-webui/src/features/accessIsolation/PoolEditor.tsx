@@ -8,13 +8,14 @@ import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { IconAlertTriangle, IconSearch, IconTrash2 } from '@/components/ui/icons';
 import { useNotificationStore } from '@/stores';
 import type { AccountPool, IsolationSettings, PoolAccount, Provider } from './types';
-import { providerName } from './types';
+import { providerName, validPoolEgress } from './types';
 import styles from '@/pages/AccessIsolationPage.module.scss';
 
 interface PoolEditorProps {
   pool: AccountPool;
   settings: IsolationSettings;
   accounts: PoolAccount[];
+  egressAddresses?: Array<{ ip: string; interface: string }>;
   disabled: boolean;
   onChange: (patch: Partial<AccountPool>) => void;
   onDelete: () => void;
@@ -24,6 +25,7 @@ export function PoolEditor({
   pool,
   settings,
   accounts,
+  egressAddresses = [],
   disabled,
   onChange,
   onDelete,
@@ -126,6 +128,48 @@ export function PoolEditor({
           />
         </div>
       </div>
+      <div className={styles.poolFields}>
+        <div className="form-group">
+          <label htmlFor={`egress-${pool.id}`}>{t('isolation.egress')}</label>
+          <Select
+            id={`egress-${pool.id}`}
+            value={pool.egress?.mode ?? 'inherit'}
+            disabled={disabled}
+            options={[
+              { value: 'inherit', label: t('isolation.egressInherit') },
+              { value: 'direct-ip', label: t('isolation.egressDirect') },
+            ]}
+            onChange={(mode) =>
+              onChange({ egress: mode === 'direct-ip' ? { mode, 'source-ip': '' } : undefined })
+            }
+          />
+        </div>
+        {pool.egress?.mode === 'direct-ip' && (
+          <>
+            <Input
+              label={t('isolation.egressIP')}
+              value={pool.egress['source-ip'] ?? ''}
+              disabled={disabled}
+              placeholder="203.0.113.10"
+              list={`egress-addresses-${pool.id}`}
+              error={!validPoolEgress(pool) ? t('isolation.egressInvalid') : undefined}
+              onChange={(event) =>
+                onChange({ egress: { mode: 'direct-ip', 'source-ip': event.target.value.trim() } })
+              }
+            />
+            <datalist id={`egress-addresses-${pool.id}`}>
+              {egressAddresses.map((address) => (
+                <option key={`${address.interface}-${address.ip}`} value={address.ip}>
+                  {address.interface}
+                </option>
+              ))}
+            </datalist>
+          </>
+        )}
+      </div>
+      {pool.egress?.mode === 'direct-ip' && (
+        <p className={styles.inlineNotice}>{t('isolation.egressHint')}</p>
+      )}
       {referenced && <p className={styles.hint}>{t('isolation.referenced')}</p>}
       <div className={styles.memberHeader}>
         <h4>{t('isolation.members')}</h4>

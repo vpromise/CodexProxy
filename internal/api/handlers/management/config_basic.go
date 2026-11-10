@@ -160,19 +160,22 @@ func (h *Handler) PutConfigYAML(c *gin.Context) {
 	defer func() {
 		_ = os.Remove(tempFile)
 	}()
-	_, err = config.LoadConfigOptional(tempFile, false)
+	validated, err := config.LoadConfigOptional(tempFile, false)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid_config", "message": err.Error()})
 		return
 	}
+	// Reconcile the same native records that the runtime loader will retain.
+	// Keep other raw fields intact when preserving the submitted YAML.
+	cfg.CodexKey, cfg.ClaudeKey = validated.CodexKey, validated.ClaudeKey
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	preservedPoolIDs := cfg.PreservePoolAccountIDs(h.cfg)
+	nativePoolPolicyChanged := reconcileNativePoolAccounts(&cfg, h.cfg)
 	if errValidate := h.validatePoolAccounts(&cfg); errValidate != nil {
 		c.JSON(422, gin.H{"error": "invalid_config", "message": errValidate.Error()})
 		return
 	}
-	if preservedPoolIDs {
+	if nativePoolPolicyChanged {
 		if errSave := config.SaveConfigPreserveComments(tempFile, &cfg); errSave != nil {
 			c.JSON(500, gin.H{"error": "write_failed"})
 			return

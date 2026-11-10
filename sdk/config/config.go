@@ -11,6 +11,7 @@ type SDKConfig = internalconfig.SDKConfig
 type Config = internalconfig.Config
 type AccessIsolation = internalconfig.AccessIsolation
 type AccountPool = internalconfig.AccountPool
+type PoolEgress = internalconfig.PoolEgress
 type ClientKeyBinding = internalconfig.ClientKeyBinding
 
 type StreamingConfig = internalconfig.StreamingConfig

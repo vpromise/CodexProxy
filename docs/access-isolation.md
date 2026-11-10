@@ -127,6 +127,55 @@ Disabling isolation restores legacy client access. Previously issued scoped
 Realtime credentials remain constrained and must be reissued when changing
 modes. Pool definitions and key labels remain available for later activation.
 
+## Pool IPv4 egress
+
+A pool can optionally bind its inference connections to a local IPv4 address:
+
+```yaml
+egress:
+  mode: direct-ip
+  source-ip: 203.0.113.10
+```
+
+The pool editor suggests addresses on the running server's active interfaces.
+Omitting `egress`, or using `mode: inherit` without a source address, preserves
+existing account/global network settings. A `direct-ip` pool explicitly bypasses
+account, global and environment proxies, including an account's Claude bind-IP
+setting. This is a local source-address selection, not an HTTP/SOCKS proxy.
+
+The source address must be available in the process's network namespace, with a
+working route to the upstream. A container must have access to that address.
+An upstream NAT can rewrite the public address; selecting an unassigned public
+address cannot configure the gateway's NAT. Check the observed public exit when
+provisioning the host. The application does not change interfaces, routes or NAT.
+
+HTTP, SSE, count/compact, images, search and native WebSockets retain the captured
+pool route across credential failover. A bind/dial failure returns an egress
+error without falling back to another source, proxy or IPv6. Connection and TLS
+caches are partitioned by pool and source address. Changing the pool's exit
+applies to new operations after a successful save; an active generation may
+finish through its captured exit. Responses sockets reconnect for full requests
+and require replay when an incremental continuation cannot reuse its connection.
+Existing Live/Realtime sockets reject new operations after an exit change and
+must reconnect. The WebRTC relay checks outgoing data-channel messages and audio
+packets against the current grant and exit, closing a stale session before
+forwarding new input. Existing upstream output can finish until that session is
+closed.
+
+WebRTC requires the media relay for a `direct-ip` pool. Its upstream media uses
+only the selected IPv4, with direct host/STUN candidates; TURN relay candidates
+and global advertised-IP overrides are excluded for that upstream leg. When the
+media relay is disabled, WebRTC calls from such a pool are rejected rather than
+forwarding media outside the selected server route.
+
+Pool egress applies to inference traffic. OAuth login/renewal, account profile
+maintenance, management quota checks and global background downloads retain their
+existing account/global network settings. Shared accounts can serve pools with
+different inference exits; they still share account quota and cooldowns. Do not
+interpret this setting as giving a shared account one fixed IP for every type of
+network activity. Isolation decision logs include `egress_mode` and
+`egress_source_ip` for explicitly routed operations.
+
 ## Verification
 
 Automated acceptance uses synthetic keys and OAuth records, temporary storage,

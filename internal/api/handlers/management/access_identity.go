@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher/synthesizer"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
@@ -108,24 +111,39 @@ func poolAccountPath(cfg *config.Config, account *coreauth.Auth) string {
 }
 
 func (h *Handler) persistedPoolIdentity(account *coreauth.Auth) string {
+	if coreauth.AccountSubject(account) == "" {
+		return ""
+	}
 	account = account.Clone()
 	key := account.Attributes["api_key"]
 	if key != "" {
-		if account.Attributes == nil {
-			account.Attributes = map[string]string{}
+		configured, err := synthesizer.NewConfigSynthesizer().Synthesize(&synthesizer.SynthesisContext{
+			Config: h.cfg, IDGenerator: synthesizer.NewStableIDGenerator(),
+		})
+		if err != nil {
+			return ""
 		}
-		for _, entry := range h.cfg.CodexKey {
-			if account.Provider == "codex" && entry.APIKey == key && (account.Attributes["base_url"] == entry.BaseURL || len(h.cfg.CodexKey) == 1) {
-				account.Attributes["pool_account_id"] = entry.PoolAccountID
-				break
+		instance := account.Attributes["pool_account_id"]
+		var unique *coreauth.Auth
+		matches := 0
+		for _, current := range configured {
+			if current.Provider != account.Provider || current.Attributes["api_key"] != key {
+				continue
 			}
-		}
-		for _, entry := range h.cfg.ClaudeKey {
-			if account.Provider == "claude" && entry.APIKey == key && (account.Attributes["base_url"] == entry.BaseURL || len(h.cfg.ClaudeKey) == 1) {
-				account.Attributes["pool_account_id"] = entry.PoolAccountID
-				break
+			// A persisted record ID survives reordering and routing edits. Never
+			// remap a removed record to another entry with the same upstream key.
+			if instance != "" && current.Attributes["pool_account_id"] == instance {
+				return coreauth.AccountIdentity(current)
 			}
+			if instance == "" && current.ID == account.ID {
+				return coreauth.AccountIdentity(current)
+			}
+			unique, matches = current, matches+1
 		}
+		if instance == "" && matches == 1 {
+			return coreauth.AccountIdentity(unique)
+		}
+		return ""
 	} else if path := poolAccountPath(h.cfg, account); path != "" {
 		if data, err := os.ReadFile(path); err == nil {
 			var metadata map[string]any
@@ -135,6 +153,61 @@ func (h *Handler) persistedPoolIdentity(account *coreauth.Auth) string {
 		}
 	}
 	return coreauth.AccountIdentity(account)
+}
+
+// reconcileNativePoolAccounts preserves same-key identities and revokes removed
+// native records in the saved policy before asynchronous executor reloads run.
+func reconcileNativePoolAccounts(next, previous *config.Config) bool {
+	changed := next.PreservePoolAccountIDs(previous)
+	before, after := nativeKeyPoolIdentities(previous), nativeKeyPoolIdentities(next)
+	for i := range next.AccessIsolation.Pools {
+		members := next.AccessIsolation.Pools[i].Accounts
+		kept := make([]string, 0, len(members))
+		for _, id := range members {
+			if before[id] && !after[id] {
+				changed = true
+				continue
+			}
+			kept = append(kept, id)
+		}
+		if len(kept) != len(members) {
+			next.AccessIsolation.Pools[i].Accounts = kept
+		}
+	}
+	return changed
+}
+
+func nativeKeyPoolIdentities(cfg *config.Config) map[string]bool {
+	ids := map[string]bool{}
+	if cfg == nil {
+		return ids
+	}
+	add := func(provider, key, instance string) {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return
+		}
+		account := &coreauth.Auth{Provider: provider, Attributes: map[string]string{"api_key": key, "pool_account_id": instance}}
+		ids[coreauth.AccountIdentity(account)] = true
+	}
+	for _, entry := range cfg.CodexKey {
+		add("codex", entry.APIKey, entry.PoolAccountID)
+	}
+	for _, entry := range cfg.ClaudeKey {
+		add("claude", entry.APIKey, entry.PoolAccountID)
+	}
+	return ids
+}
+
+// persistNativeKeysLocked commits native credential edits and their pool
+// revocations together. Callers must hold h.mu and supply the pre-edit snapshot.
+func (h *Handler) persistNativeKeysLocked(c *gin.Context, previous *config.Config) bool {
+	reconcileNativePoolAccounts(h.cfg, previous)
+	if !h.persistLocked(c) {
+		h.cfg = previous
+		return false
+	}
+	return true
 }
 
 // prepareUploadedPoolIdentity preserves only a verified same-account lifecycle.

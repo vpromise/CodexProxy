@@ -1260,6 +1260,12 @@
     }
   },
   "isolation": {
+    "egress": "上游出口",
+    "egressInherit": "继承现有网络设置",
+    "egressDirect": "指定本机 IPv4 直连",
+    "egressIP": "本机源 IPv4",
+    "egressInvalid": "请输入一个明确的 IPv4 地址。",
+    "egressHint": "本池通过指定 IPv4 直连，覆盖账号、全局和环境代理；连接失败不会切换出口。OAuth 续期和管理检查仍使用账号原有网络设置。WebRTC 需要启用媒体中继，并使用直连或 STUN 候选。",
     "title": "账号隔离",
     "reload": "重新加载",
     "save": "保存更改",

@@ -28,8 +28,8 @@ func TestAccountPoolInventoryMatchesProviderCredentialMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.CodexKey = []config.CodexKey{
-		{APIKey: "synthetic-codex-account-one", Prefix: "codex-one", PoolAccountID: "record-codex-one"},
-		{APIKey: "synthetic-codex-account-two", Prefix: "codex-two", PoolAccountID: "record-codex-two"},
+		{APIKey: "synthetic-codex-account-one", BaseURL: "https://synthetic.invalid", Prefix: "codex-one", PoolAccountID: "record-codex-one"},
+		{APIKey: "synthetic-codex-account-two", BaseURL: "https://synthetic.invalid", Prefix: "codex-two", PoolAccountID: "record-codex-two"},
 	}
 	cfg.ClaudeKey = []config.ClaudeKey{
 		{APIKey: "synthetic-claude-account-three", Prefix: "claude-three", PoolAccountID: "record-claude-three"},

@@ -460,6 +460,17 @@ func TestHandlerRelaysWebRTCMediaSDP(t *testing.T) {
 	if mediaSession.closeHandler == nil {
 		t.Fatal("media session close handler was not installed")
 	}
+	if mediaRelay.route.authorize == nil {
+		t.Fatal("media policy check was not installed")
+	}
+	if errAccess := mediaRelay.route.authorize(); errAccess != nil {
+		t.Fatalf("initial media authorization: %v", errAccess)
+	}
+	manager.PublishAccessPolicy(&config.Config{AccessIsolation: config.AccessIsolation{Enabled: true}})
+	if errAccess := mediaRelay.route.authorize(); errAccess == nil {
+		t.Fatal("media authorization ignored policy change after bootstrap")
+	}
+
 	mediaSession.closeHandler("test_closed")
 	if !mediaSession.closed.Load() {
 		t.Fatal("completed media session was not closed")

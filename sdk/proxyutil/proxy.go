@@ -150,10 +150,10 @@ func applyHTTPTransportBaseDialer(transport *http.Transport, dialer proxy.Dialer
 	if transport == nil || dialer == nil {
 		return
 	}
-	// DialTLSContext bypasses DialContext for direct TLS connections. Clear an
-	// inherited hook so an explicit base dialer cannot lose source-IP or proxy
-	// routing guarantees.
+	// Both TLS dial hooks bypass DialContext for direct TLS connections. Clear
+	// inherited hooks so an explicit base dialer retains source-IP and proxy routing.
 	transport.DialTLSContext = nil
+	transport.DialTLS = nil
 	if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
 		transport.DialContext = contextDialer.DialContext
 		return

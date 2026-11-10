@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"strconv"
 	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
@@ -61,24 +60,31 @@ func AccountSubject(a *Auth) string {
 // syncPoolAccountIdentities updates access-only metadata without replacing an
 // executor or interrupting its active sessions.
 func (m *Manager) syncPoolAccountIdentities(cfg *config.Config) {
+	instances := map[string]string{}
+	add := func(provider, key, instance string) {
+		key = provider + "\x00" + strings.TrimSpace(key)
+		if _, exists := instances[key]; exists {
+			instances[key] = ""
+		} else {
+			instances[key] = instance
+		}
+	}
+	for _, entry := range cfg.CodexKey {
+		add("codex", entry.APIKey, entry.PoolAccountID)
+	}
+	for _, entry := range cfg.ClaudeKey {
+		add("claude", entry.APIKey, entry.PoolAccountID)
+	}
 	changed := []*Auth{}
 	m.mu.Lock()
 	for id, account := range m.auths {
-		if !IsConfigAPIKeyAuth(account) || IsPluginVirtualAuth(account) {
+		// Existing IDs belong to the runtime record. Reordering config entries
+		// must not retag an old credential before its replacement is synthesized.
+		if !IsConfigAPIKeyAuth(account) || IsPluginVirtualAuth(account) || account.Attributes["pool_account_id"] != "" {
 			continue
 		}
-		index, err := strconv.Atoi(account.Attributes["config_index"])
-		if err != nil || index < 0 {
-			continue
-		}
-		instance := ""
-		if account.Provider == "codex" && index < len(cfg.CodexKey) && account.Attributes["api_key"] == cfg.CodexKey[index].APIKey {
-			instance = cfg.CodexKey[index].PoolAccountID
-		}
-		if account.Provider == "claude" && index < len(cfg.ClaudeKey) && account.Attributes["api_key"] == cfg.ClaudeKey[index].APIKey {
-			instance = cfg.ClaudeKey[index].PoolAccountID
-		}
-		if instance == "" || account.Attributes["pool_account_id"] == instance {
+		instance := instances[account.Provider+"\x00"+account.Attributes["api_key"]]
+		if instance == "" {
 			continue
 		}
 		updated := account.Clone()
