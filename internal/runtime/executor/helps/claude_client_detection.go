@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -106,7 +107,7 @@ func DetectClaudeCodeRequest(headers http.Header, payload []byte, countTokens bo
 	userAgent, validUserAgent := parseClaudeCodeUserAgent(headerValue(headers, "User-Agent"))
 	entrypoint := userAgent.entrypoint
 	detection := ClaudeCodeRequestDetection{
-		XAppCLI:         headerValue(headers, "X-App") == "cli",
+		XAppCLI:         isNativeClaudeXApp(headerValue(headers, "X-App")),
 		UserAgent:       validUserAgent && plausibleClaudeCodeVersion(userAgent.version, cfg),
 		BetasPresent:    headerContainsClaudeCodeBeta(headers),
 		Entrypoint:      entrypoint,
@@ -284,9 +285,16 @@ func measuredClaudeCodeHelperHeadersMatch(headers http.Header, cfg *config.Confi
 		// The previously measured helper tuple remains valid independently of
 		// the generated fingerprint. Keep the exact SDK/runtime checks.
 		previousProfile := profile
-		previousProfile.UserAgent = "claude-cli/2.1.258 (external, cli)"
-		previousProfile.version = claudeCLIVersion{major: 2, minor: 1, patch: 258}
-		matchesSoftware = meetsClaudeDeviceProfileBaseline(candidate, previousProfile)
+		previousProfile.PackageVersion = "0.112.1"
+		previousProfile.RuntimeVersion = "v26.3.0"
+		for _, patch := range []int{258, 280} {
+			previousProfile.version = claudeCLIVersion{major: 2, minor: 1, patch: patch}
+			previousProfile.UserAgent = "claude-cli/2.1." + strconv.Itoa(patch) + " (external, cli)"
+			if meetsClaudeDeviceProfileBaseline(candidate, previousProfile) {
+				matchesSoftware = true
+				break
+			}
+		}
 	}
 	if !matchesSoftware {
 		return false
@@ -527,4 +535,9 @@ func headerContainsClaudeCodeBeta(headers http.Header) bool {
 		}
 	}
 	return false
+}
+
+// isNativeClaudeXApp recognizes only the measured interactive and background CLI values.
+func isNativeClaudeXApp(value string) bool {
+	return value == "cli" || value == "cli-bg"
 }

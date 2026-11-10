@@ -140,12 +140,12 @@ func TestClaudeDeviceProfileUserAgentFieldsStayRequestScoped(t *testing.T) {
 			client := newFakeClaudeDeviceProfileKVClient()
 			useFakeClaudeDeviceProfileKVClient(t, client, homeMode, nil)
 			auth := &cliproxyauth.Auth{ID: "request-fields-" + name}
-			baseUA := "claude-cli/2.1.280 (external, cli, agent-sdk/0.2.133)"
-			cronUA := "claude-cli/2.1.280 (external, cli, workload/cron, agent-sdk/0.2.133, future-feature/value)"
+			baseUA := "claude-cli/2.1.321 (external, cli, agent-sdk/0.2.133)"
+			cronUA := "claude-cli/2.1.321 (external, cli, workload/cron, agent-sdk/0.2.133, future-feature/value)"
 			for _, testCase := range []struct{ userAgent, want string }{
-				{userAgent: cronUA, want: "claude-cli/2.1.280 (external, cli, agent-sdk/0.2.133, workload/cron, future-feature/value)"},
+				{userAgent: cronUA, want: "claude-cli/2.1.321 (external, cli, agent-sdk/0.2.133, workload/cron, future-feature/value)"},
 				{userAgent: baseUA, want: baseUA},
-				{userAgent: "claude-cli/2.1.280 (external, cli, future-feature/next)", want: "claude-cli/2.1.280 (external, cli, agent-sdk/0.2.133, future-feature/next)"},
+				{userAgent: "claude-cli/2.1.321 (external, cli, future-feature/next)", want: "claude-cli/2.1.321 (external, cli, agent-sdk/0.2.133, future-feature/next)"},
 				{want: baseUA},
 			} {
 				headers := claudeDeviceHeaders(testCase.userAgent)
@@ -171,12 +171,12 @@ func TestClaudeDeviceProfileUserAgentFieldsStayRequestScoped(t *testing.T) {
 
 func TestApplyClaudeDeviceProfileHeadersKeepsCurrentUserAgentFields(t *testing.T) {
 	profile := defaultClaudeDeviceProfile(nil)
-	profile.UserAgent = "claude-cli/2.1.280 (external, cli, agent-sdk/0.3.220)"
+	profile.UserAgent = "claude-cli/2.1.321 (external, cli, agent-sdk/0.3.220)"
 	for _, testCase := range []struct {
 		name, userAgent, want string
 	}{
-		{name: "current fields", userAgent: "claude-cli/2.1.312 (external, cli, workload/cron, agent-sdk/0.2.133, future-feature/value)", want: "claude-cli/2.1.280 (external, cli, agent-sdk/0.3.220, workload/cron, future-feature/value)"},
-		{name: "next request fields", userAgent: "claude-cli/2.1.312 (external, cli, future-feature/next)", want: "claude-cli/2.1.280 (external, cli, agent-sdk/0.3.220, future-feature/next)"},
+		{name: "current fields", userAgent: "claude-cli/2.1.312 (external, cli, workload/cron, agent-sdk/0.2.133, future-feature/value)", want: "claude-cli/2.1.321 (external, cli, agent-sdk/0.3.220, workload/cron, future-feature/value)"},
+		{name: "next request fields", userAgent: "claude-cli/2.1.312 (external, cli, future-feature/next)", want: "claude-cli/2.1.321 (external, cli, agent-sdk/0.3.220, future-feature/next)"},
 		{name: "ordinary request", userAgent: "claude-cli/2.1.312 (external, cli)", want: profile.UserAgent},
 		{name: "malformed request", userAgent: "claude-cli/2.1.312 (external, cli, foo)", want: profile.UserAgent},
 		{name: "no request", want: profile.UserAgent},

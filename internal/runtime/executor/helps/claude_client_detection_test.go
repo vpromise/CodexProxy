@@ -25,10 +25,10 @@ func confirmedClaudeCodeHeaders() http.Header {
 }
 
 func TestClaudeNativeRecognitionKeepsMeasuredVersionsAfterFingerprintUpgrade(t *testing.T) {
-	if got := DefaultClaudeVersion(nil); got != "2.1.280" {
+	if got := DefaultClaudeVersion(nil); got != "2.1.321" {
 		t.Fatalf("generated version = %q", got)
 	}
-	for _, version := range []string{"2.1.257", "2.1.258", "2.1.263", "2.1.280", "2.1.281", "2.2.0"} {
+	for _, version := range []string{"2.1.257", "2.1.258", "2.1.263", "2.1.280", "2.1.281", "2.1.321", "2.2.0"} {
 		t.Run(version, func(t *testing.T) {
 			headers := confirmedClaudeCodeHeaders()
 			headers.Set("User-Agent", "claude-cli/"+version+" (external, cli)")
@@ -38,12 +38,16 @@ func TestClaudeNativeRecognitionKeepsMeasuredVersionsAfterFingerprintUpgrade(t *
 			}
 			helperHeaders := measuredClaudeCodeHelperHeaders(claudeCode258HelperBetaProfile(true, false))
 			helperHeaders.Set("User-Agent", headers.Get("User-Agent"))
-			wantHelper := version == "2.1.258" || version == "2.1.280"
+			if version != "2.1.321" {
+				helperHeaders.Set("X-Stainless-Package-Version", "0.112.1")
+				helperHeaders.Set("X-Stainless-Runtime-Version", "v26.3.0")
+			}
+			wantHelper := version == "2.1.258" || version == "2.1.280" || version == "2.1.321"
 			if got := DetectClaudeCodeRequest(helperHeaders, measuredClaudeCodeTitleHelperPayload(), false); got.HelperProfile != wantHelper {
 				t.Fatalf("helper=%v, want exact measured software=%v", got.HelperProfile, wantHelper)
 			}
 			cfg := &config.Config{ClaudeHeaderDefaults: config.ClaudeHeaderDefaults{UserAgent: "claude-cli/2.1.280 (external, cli)"}}
-			wantConfigured := version == "2.1.280" || version == "2.1.281"
+			wantConfigured := version == "2.1.280" || version == "2.1.281" || version == "2.1.321"
 			if got := DetectClaudeCodeRequest(headers, claudeCodeDetectionPayload(validClaudeCodeMetadataUserID), false, cfg); got.Confirmed != wantConfigured {
 				t.Fatalf("explicit profile native=%v, want %v", got.Confirmed, wantConfigured)
 			}

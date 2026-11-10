@@ -45,14 +45,15 @@ func testClaudeExecutorUserAgentFields(t *testing.T, stabilize bool) {
 			}
 			var nativeSystem string
 			for _, testCase := range []struct {
-				userAgent, stabilizedUserAgent string
+				userAgent, stabilizedUserAgent, xApp string
 			}{
 				{userAgent: "claude-cli/2.1.312 (external, cli)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli)"},
+				{userAgent: "claude-cli/2.1.312 (external, cli)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli)", xApp: "cli-bg"},
 				{userAgent: "claude-cli/2.1.312 (external, cli, workload/cron)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, workload/cron)"},
 				{userAgent: "claude-cli/2.1.312 (external, cli, future-feature/value, agent-sdk/0.2.133)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, agent-sdk/0.2.133, future-feature/value)"},
 				{userAgent: "claude-cli/2.1.312 (external, cli, request-phase/background, agent-sdk/0.2.133, workload/cron)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, agent-sdk/0.2.133, request-phase/background, workload/cron)"},
 			} {
-				t.Run(testCase.userAgent, func(t *testing.T) {
+				t.Run(testCase.userAgent+"/"+testCase.xApp, func(t *testing.T) {
 					var upstreamBody []byte
 					var upstreamHeaders http.Header
 					transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
@@ -74,7 +75,11 @@ func testClaudeExecutorUserAgentFields(t *testing.T, stabilize bool) {
 					ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
 					headers := http.Header{}
 					headers.Set("User-Agent", testCase.userAgent)
-					headers.Set("X-App", "cli")
+					xApp := testCase.xApp
+					if xApp == "" {
+						xApp = "cli"
+					}
+					headers.Set("X-App", xApp)
 					headers.Set("Anthropic-Beta", "claude-code-20250219,oauth-2025-04-20,extended-cache-ttl-2025-04-11")
 					auth := &cliproxyauth.Auth{ID: "ua-fields-" + t.Name(), Metadata: claudeOAuthTestMetadata(), Attributes: map[string]string{"api_key": "sk-ant-oat-ua-fields"}}
 					executor := NewClaudeExecutor(&config.Config{ClaudeHeaderDefaults: config.ClaudeHeaderDefaults{
@@ -127,6 +132,9 @@ func testClaudeExecutorUserAgentFields(t *testing.T, stabilize bool) {
 					wantUserAgent := testCase.userAgent
 					if stabilize {
 						wantUserAgent = testCase.stabilizedUserAgent
+					}
+					if got := claudeNativeHelperHeaderValue(upstreamHeaders, "X-App"); got != xApp {
+						t.Fatalf("upstream X-App = %q, want %q", got, xApp)
 					}
 					if got := upstreamHeaders.Get("User-Agent"); got != wantUserAgent {
 						t.Fatalf("upstream UA = %q, want %q", got, wantUserAgent)

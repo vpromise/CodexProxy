@@ -789,7 +789,7 @@ func TestApplyClaudeHeaders_EmptyAPIKey_OmitsAuthHeaders(t *testing.T) {
 	}
 }
 
-func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode280CLIFingerprint(t *testing.T) {
+func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode321CLIFingerprint(t *testing.T) {
 	var seenBody []byte
 	var seenHeaders http.Header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -816,7 +816,7 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode280CLIFingerprint(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.280 (external, cli)", "0.112.1", "v26.3.0", "MacOS", "arm64")
+	assertClaudeFingerprint(t, seenHeaders, "claude-cli/2.1.321 (external, cli)", "0.128.0", "v26.12.1", "MacOS", "arm64")
 	if got := seenHeaders.Get("X-App"); got != "cli" {
 		t.Fatalf("X-App = %q, want cli", got)
 	}
@@ -828,8 +828,8 @@ func TestClaudeExecutor_NonClaudeRequestUsesClaudeCode280CLIFingerprint(t *testi
 	if len(system) != 2 {
 		t.Fatalf("system block count = %d, want 2: %s", len(system), seenBody)
 	}
-	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.280.d7b; cc_entrypoint=cli;" {
-		t.Fatalf("billing header = %q, want 2.1.280 CLI fingerprint", got)
+	if got := system[0].Get("text").String(); got != "x-anthropic-billing-header: cc_version=2.1.321.cf7; cc_entrypoint=cli;" {
+		t.Fatalf("billing header = %q, want 2.1.321 CLI fingerprint", got)
 	}
 	if got := system[1].Get("text").String(); got != claudeCodeCLIIdentity {
 		t.Fatalf("system[1].text = %q, want official CLI identity", got)
@@ -1176,7 +1176,7 @@ func TestClaudeExecutor_CopiedVSCodeAgentSDKHeadersWithoutMetadataAreCloaked(t *
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.321 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.#").Int(); got != 3 {
@@ -1230,7 +1230,7 @@ func TestClaudeExecutor_AgentSDKEntrypointWithStrongSignalsUsesCLICloak(t *testi
 		t.Fatalf("Execute() error = %v", errExecute)
 	}
 
-	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
+	if got := seenHeaders.Get("User-Agent"); got != "claude-cli/2.1.321 (external, cli)" {
 		t.Fatalf("User-Agent = %q, want CLI cloak", got)
 	}
 	if got := gjson.GetBytes(seenBody, "system.0.text").String(); !strings.Contains(got, "cc_entrypoint=cli;") {
@@ -7924,7 +7924,7 @@ func TestClaudeExecutor_ExecuteOAuthCustomToolMCPAliasRoundTrip(t *testing.T) {
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.321 (external, cli)" {
 		t.Fatalf("Messages User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)
@@ -8004,7 +8004,7 @@ func TestClaudeExecutor_ExecuteStreamOAuthCustomToolMCPAliasRoundTrip(t *testing
 	if _, ok := claudeBillingCCHDigitsOffset(upstreamBody); !ok {
 		t.Fatalf("streaming Claude OAuth custom BaseURL body is missing CCH: %s", upstreamBody)
 	}
-	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.280 (external, cli)" {
+	if got := upstreamHeaders.Get("User-Agent"); got != "claude-cli/2.1.321 (external, cli)" {
 		t.Fatalf("streaming User-Agent = %q, want CLI identity", got)
 	}
 	wantBetas := claudeCodeCLIBetas(payload, nil, true)

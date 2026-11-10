@@ -76,7 +76,7 @@ func TestClaudeExecutor_OAuthNativePatchPreservesCallerSystem(t *testing.T) {
 				t.Fatalf("Execute() error = %v", errExecute)
 			}
 			seen := <-requests
-			wantUA := "claude-cli/2.1.280 (external, cli)"
+			wantUA := "claude-cli/2.1.321 (external, cli)"
 			if tt.wantNative {
 				wantUA = userAgent
 			}
