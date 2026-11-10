@@ -49,6 +49,7 @@ type mediaSessionRoute struct {
 	proxyURL   string
 	credential string
 	authIndex  string
+	authorize  func() error
 }
 
 type pionMediaRelay struct {
@@ -56,6 +57,7 @@ type pionMediaRelay struct {
 	upstreamAPI      *webrtc.API
 	proxyUpstreamAPI *webrtc.API
 	configuration    webrtc.Configuration
+	relayConfig      config.CodexLiveMediaRelayConfig
 	limiter          *mediaSessionLimiter
 }
 
@@ -107,6 +109,7 @@ type dataChannelPipe struct {
 	destination *webrtc.DataChannel
 	mu          sync.RWMutex
 	onError     func(error)
+	authorize   func() error
 }
 
 type dataChannelBridge struct {
@@ -162,6 +165,7 @@ func newPionMediaRelayWithLimiter(relayConfig config.CodexLiveMediaRelayConfig, 
 		upstreamAPI:      upstreamAPI,
 		proxyUpstreamAPI: proxyUpstreamAPI,
 		configuration:    webrtc.Configuration{ICEServers: iceServers},
+		relayConfig:      relayConfig,
 		limiter:          limiter,
 	}, nil
 }
@@ -207,7 +211,28 @@ func newPionProxyAPI(relayConfig config.CodexLiveMediaRelayConfig) (*webrtc.API,
 	return newPionAPIWithOptions(relayConfig, false, true)
 }
 
-func newPionAPIWithOptions(relayConfig config.CodexLiveMediaRelayConfig, filterPrivateRemoteIPs, loopbackOnly bool) (*webrtc.API, error) {
+func newPionAPIWithOptions(relayConfig config.CodexLiveMediaRelayConfig, filterPrivateRemoteIPs, loopbackOnly bool, sources ...string) (*webrtc.API, error) {
+	var sourceIP net.IP
+	if len(sources) > 0 && sources[0] != "" {
+		if _, err := proxyutil.NewSourceIPDialer(sources[0]); err != nil {
+			return nil, err
+		}
+		sourceIP = net.ParseIP(sources[0])
+		addresses, errLocal := net.InterfaceAddrs()
+		if errLocal != nil {
+			return nil, &proxyutil.EgressError{Err: errLocal}
+		}
+		local := false
+		for _, address := range addresses {
+			if ip, _, errParse := net.ParseCIDR(address.String()); errParse == nil && ip.Equal(sourceIP) {
+				local = true
+				break
+			}
+		}
+		if !local {
+			return nil, &proxyutil.EgressError{Err: fmt.Errorf("source address %s is not configured locally", sources[0])}
+		}
+	}
 	mediaEngine := &webrtc.MediaEngine{}
 	if errRegister := mediaEngine.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: opusCodec,
@@ -226,7 +251,7 @@ func newPionAPIWithOptions(relayConfig config.CodexLiveMediaRelayConfig, filterP
 				return nil, fmt.Errorf("configure WebRTC UDP port range: %w", errPorts)
 			}
 		}
-		if publicIP := strings.TrimSpace(relayConfig.PublicIP); publicIP != "" {
+		if publicIP := strings.TrimSpace(relayConfig.PublicIP); publicIP != "" && sourceIP == nil {
 			settingEngine.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
 		}
 	}
@@ -244,6 +269,11 @@ func newPionAPIWithOptions(relayConfig config.CodexLiveMediaRelayConfig, filterP
 		settingEngine.SetIPFilter(func(ip net.IP) bool {
 			return ip != nil && ip.IsLoopback()
 		})
+	}
+	if sourceIP != nil {
+		settingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeUDP4})
+		settingEngine.SetIncludeLoopbackCandidate(sourceIP.IsLoopback())
+		settingEngine.SetIPFilter(func(ip net.IP) bool { return ip.Equal(sourceIP) })
 	}
 	return webrtc.NewAPI(
 		webrtc.WithMediaEngine(mediaEngine),
@@ -263,6 +293,10 @@ func (r *pionMediaRelay) NewSession(ctx context.Context, clientOffer string, rou
 	}
 	if errContext := ctx.Err(); errContext != nil {
 		return nil, "", errContext
+	}
+	egress := proxyutil.EgressFromContext(ctx)
+	if egress.SourceIP != "" {
+		route.proxyURL = "direct"
 	}
 	builtProxyDialer, proxyMode, errProxy := proxyutil.BuildDialer(route.proxyURL)
 	if errProxy != nil {
@@ -292,6 +326,32 @@ func (r *pionMediaRelay) NewSession(ctx context.Context, clientOffer string, rou
 		upstreamAPI = r.proxyUpstreamAPI
 		upstreamConfiguration.ICEServers = nil
 	}
+	if egress.SourceIP != "" {
+		var errBound error
+		upstreamAPI, errBound = newPionAPIWithOptions(r.relayConfig, false, false, egress.SourceIP)
+		if errBound != nil {
+			releaseSlot()
+			if errClose := downstream.Close(); errClose != nil {
+				log.WithError(errClose).Debug("close failed bound media session")
+			}
+			return nil, "", errBound
+		}
+		// TURN would replace the selected public egress with the relay's address.
+		// Direct pools gather host/STUN candidates on the selected local IPv4.
+		upstreamConfiguration.ICEServers = nil
+		for _, server := range r.configuration.ICEServers {
+			filtered := server
+			filtered.URLs = nil
+			for _, raw := range server.URLs {
+				if strings.HasPrefix(strings.ToLower(raw), "stun:") {
+					filtered.URLs = append(filtered.URLs, raw)
+				}
+			}
+			if len(filtered.URLs) > 0 {
+				upstreamConfiguration.ICEServers = append(upstreamConfiguration.ICEServers, filtered)
+			}
+		}
+	}
 	upstream, errUpstream := upstreamAPI.NewPeerConnection(upstreamConfiguration)
 	if errUpstream != nil {
 		releaseSlot()
@@ -314,7 +374,7 @@ func (r *pionMediaRelay) NewSession(ctx context.Context, clientOffer string, rou
 	}
 	session.bridge = newDataChannelBridge(session.done, func(err error) {
 		session.fail("data_channel_failed", err)
-	})
+	}, route.authorize)
 	session.installStateHandlers()
 	log.WithFields(session.logFields("session")).Info("codex live WebRTC media session created")
 
@@ -354,13 +414,21 @@ func (r *pionMediaRelay) NewSession(ctx context.Context, clientOffer string, rou
 		if !strings.EqualFold(track.Codec().MimeType, webrtc.MimeTypeOpus) {
 			return
 		}
-		go relayRTP("downstream-to-upstream", track, toOpenAI, session.done)
+		go relayRTP("downstream-to-upstream", track, toOpenAI, session.done, func() error {
+			if route.authorize != nil {
+				if errAccess := route.authorize(); errAccess != nil {
+					session.fail("access_denied", errAccess)
+					return errAccess
+				}
+			}
+			return nil
+		})
 	})
 	upstream.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		if !strings.EqualFold(track.Codec().MimeType, webrtc.MimeTypeOpus) {
 			return
 		}
-		go relayRTP("upstream-to-downstream", track, toDesktop, session.done)
+		go relayRTP("upstream-to-downstream", track, toDesktop, session.done, nil)
 	})
 	downstream.OnDataChannel(func(channel *webrtc.DataChannel) {
 		if channel.Label() != realtimeDataChannelLabel {
@@ -667,7 +735,7 @@ func (s *pionMediaSession) fail(reason string, err error) {
 	})
 }
 
-func relayRTP(name string, source *webrtc.TrackRemote, destination *webrtc.TrackLocalStaticRTP, done <-chan struct{}) {
+func relayRTP(name string, source *webrtc.TrackRemote, destination *webrtc.TrackLocalStaticRTP, done <-chan struct{}, authorize func() error) {
 	for {
 		packet, _, errRead := source.ReadRTP()
 		if errRead != nil {
@@ -675,6 +743,11 @@ func relayRTP(name string, source *webrtc.TrackRemote, destination *webrtc.Track
 				log.WithError(errRead).Debugf("codex live media: %s RTP read stopped", name)
 			}
 			return
+		}
+		if authorize != nil {
+			if errAccess := authorize(); errAccess != nil {
+				return
+			}
 		}
 		normalizeRTPPacket(packet)
 		if errWrite := destination.WriteRTP(packet); errWrite != nil {
@@ -715,21 +788,22 @@ func isClosedMediaError(err error, done <-chan struct{}) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)
 }
 
-func newDataChannelBridge(done <-chan struct{}, onError func(error)) *dataChannelBridge {
+func newDataChannelBridge(done <-chan struct{}, onError func(error), authorize func() error) *dataChannelBridge {
 	bridge := &dataChannelBridge{done: done}
-	bridge.downToUp = newDataChannelPipe("downstream-to-upstream", done, onError)
-	bridge.upToDown = newDataChannelPipe("upstream-to-downstream", done, onError)
+	bridge.downToUp = newDataChannelPipe("downstream-to-upstream", done, onError, authorize)
+	bridge.upToDown = newDataChannelPipe("upstream-to-downstream", done, onError, nil)
 	return bridge
 }
 
-func newDataChannelPipe(name string, done <-chan struct{}, onError func(error)) *dataChannelPipe {
+func newDataChannelPipe(name string, done <-chan struct{}, onError func(error), authorize func() error) *dataChannelPipe {
 	pipe := &dataChannelPipe{
-		name:     name,
-		done:     done,
-		queue:    make(chan dataChannelMessage, mediaDataQueueSize),
-		ready:    make(chan struct{}),
-		writable: make(chan struct{}, 1),
-		onError:  onError,
+		name:      name,
+		done:      done,
+		queue:     make(chan dataChannelMessage, mediaDataQueueSize),
+		ready:     make(chan struct{}),
+		writable:  make(chan struct{}, 1),
+		onError:   onError,
+		authorize: authorize,
 	}
 	go pipe.run()
 	return pipe
@@ -852,6 +926,12 @@ func (p *dataChannelPipe) run() {
 			}
 			if !p.waitWritable(destination, len(message.data)) {
 				return
+			}
+			if p.authorize != nil {
+				if errAccess := p.authorize(); errAccess != nil {
+					p.reportError(fmt.Errorf("authorize %s DataChannel message: %w", p.name, errAccess))
+					return
+				}
 			}
 			var errSend error
 			if message.isString {

@@ -105,7 +105,7 @@ func (h *Handler) HandleDirectWebsocket(c *gin.Context) {
 			AuthType:  authType,
 			AuthValue: authValue,
 		})
-		dialer := newProxyAwareSidebandDialer(helpersConfig, current)
+		dialer := newProxyAwareSidebandDialer(helpersConfig, current, ctx)
 		dialer.Subprotocols = websocket.Subprotocols(c.Request)
 		return dialer.DialContext(ctx, upstreamURL, request.Header)
 	}

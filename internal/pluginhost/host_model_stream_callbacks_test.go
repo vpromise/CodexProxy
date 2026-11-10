@@ -74,3 +74,23 @@ func TestHostModelExecuteStreamDetachesFromCallbackParentCancel(t *testing.T) {
 		t.Fatal("stream context was not canceled after callback scope closed")
 	}
 }
+
+func TestHostModelExecuteStreamUnavailableBridgeCancelsContext(t *testing.T) {
+	host := New()
+	host.modelStreams = nil
+	var streamCtx context.Context
+	host.SetModelExecutor(&fakeHostModelExecutor{executeModelStream: func(ctx context.Context, _ handlers.ModelExecutionRequest) (handlers.ModelExecutionStream, *interfaces.ErrorMessage) {
+		streamCtx = ctx
+		return handlers.ModelExecutionStream{StatusCode: http.StatusOK, Chunks: make(chan handlers.ModelExecutionChunk)}, nil
+	}})
+	request, errMarshal := json.Marshal(pluginapi.HostModelExecutionRequest{Stream: true, Model: "synthetic"})
+	if errMarshal != nil {
+		t.Fatal(errMarshal)
+	}
+	if _, errCall := host.callHostModelExecuteStream(context.Background(), request); errCall == nil {
+		t.Fatal("unavailable stream bridge accepted")
+	}
+	if streamCtx == nil || streamCtx.Err() != context.Canceled {
+		t.Fatal("failed registration retained stream context")
+	}
+}

@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	"github.com/router-for-me/CLIProxyAPI/v7/sdk/proxyutil"
 )
 
 type clientIdentityKey struct{}
@@ -28,6 +30,7 @@ type AccessScope struct {
 	caller    string
 	revision  string
 	operation uint64
+	egress    config.PoolEgress
 }
 
 // WithClientIdentity must only be called after successful client authentication.
@@ -105,6 +108,9 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 							continue
 						}
 						scope.provider, scope.pool, scope.denied = pool.Provider, pool.ID, false
+						if pool.Egress != nil {
+							scope.egress = *pool.Egress
+						}
 						scope.members = make(map[string]bool, len(pool.Accounts))
 						for _, id := range pool.Accounts {
 							scope.members[id] = true
@@ -126,6 +132,11 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 		}
 	}
 	ctx = context.WithValue(ctx, accessScopeKey{}, scope)
+	route := proxyutil.Egress{}
+	if scope.enabled && !scope.denied && scope.egress.Mode == "direct-ip" {
+		route = proxyutil.Egress{Scope: scope.pool, SourceIP: scope.egress.SourceIP}
+	}
+	ctx = proxyutil.WithEgress(ctx, route)
 	if scope.denied {
 		auditAccessDecision(ctx, nil, "denied", "client_grant_unavailable")
 	}
@@ -179,6 +190,7 @@ func WithAccessCeiling(ctx context.Context, scope *AccessScope) context.Context 
 
 // CheckCurrentAccount authorizes a new operation on an existing native session.
 func (m *Manager) CheckCurrentAccount(ctx context.Context, selected *Auth) (errAccess error) {
+	previousEgress := proxyutil.EgressFromContext(ctx).Key()
 	ctx = m.NewAccessRequest(ctx)
 	defer func() {
 		if errAccess != nil {
@@ -190,6 +202,9 @@ func (m *Manager) CheckCurrentAccount(ctx context.Context, selected *Auth) (errA
 	scope := AccessScopeFromContext(ctx)
 	if err := scope.Error(); err != nil {
 		return err
+	}
+	if previousEgress != proxyutil.EgressFromContext(ctx).Key() {
+		return &Error{Code: "egress_changed", Message: "Pool egress changed; reconnect the session", HTTPStatus: http.StatusConflict}
 	}
 	if !scope.Enabled() {
 		return nil

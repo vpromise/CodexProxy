@@ -18,6 +18,7 @@ import { PoolEditor } from '@/features/accessIsolation/PoolEditor';
 import { KeyBindings } from '@/features/accessIsolation/KeyBindings';
 import {
   providerName,
+  validPoolEgress,
   type AccountPool,
   type IsolationSettings,
   type IsolationView,
@@ -56,7 +57,7 @@ export function AccessIsolationPage() {
   const dirty = view !== null && JSON.stringify(view.settings) !== JSON.stringify(settings);
   const busy = loading || saving;
   const disabled = busy || needsReload;
-  const invalid = settings.pools.some((pool) => !pool.name.trim());
+  const invalid = settings.pools.some((pool) => !pool.name.trim() || !validPoolEgress(pool));
   const canSave = view !== null && dirty && !disabled && !invalid;
   const selectedPool = settings.pools.find((pool) => pool.id === selectedId) ?? settings.pools[0];
 
@@ -394,6 +395,7 @@ export function AccessIsolationPage() {
                     pool={selectedPool}
                     settings={settings}
                     accounts={view.accounts}
+                    egressAddresses={view['egress-addresses']}
                     disabled={disabled}
                     onChange={(patch) => updatePool(selectedPool.id, patch)}
                     onDelete={() =>

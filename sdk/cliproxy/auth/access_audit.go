@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"sync/atomic"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/sdk/proxyutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,6 +38,9 @@ func auditAccessDecision(ctx context.Context, account *Auth, decision, reason st
 	}
 	if account != nil {
 		fields["account_ref"] = AccountIdentity(account)
+	}
+	if route := proxyutil.EgressFromContext(ctx); route.SourceIP != "" {
+		fields["egress_mode"], fields["egress_source_ip"] = "direct-ip", route.SourceIP
 	}
 	entry := logEntryWithRequestID(ctx).WithFields(fields)
 	if decision == "denied" {

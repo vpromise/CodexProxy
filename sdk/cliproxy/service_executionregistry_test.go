@@ -2853,6 +2853,7 @@ func TestServiceSerializesHomeAndWatcherConfigRuntimeApply(t *testing.T) {
 		return true
 	}
 	client, _ := newHomePluginTaskTestClient(t, nil, 0)
+	t.Cleanup(func() { home.ClearCurrentIf(client) })
 	queue := newHomeConfigWorkQueue()
 	queue.enqueue([]byte("routing:\n  strategy: fill-first\n"))
 	ready := make(chan struct{})

@@ -419,7 +419,7 @@ func (h *Handler) HandleSideband(c *gin.Context) {
 			AuthType:  authType,
 			AuthValue: authValue,
 		})
-		dialer := newProxyAwareSidebandDialer(runtimeConfig, current)
+		dialer := newProxyAwareSidebandDialer(runtimeConfig, current, ctx)
 		dialer.Subprotocols = websocket.Subprotocols(c.Request)
 		return dialer.DialContext(ctx, upstreamURL, req.Header)
 	}
@@ -644,7 +644,12 @@ func copyWebsocketFrames(destination, source *websocket.Conn, authorize func() e
 					return errDrain
 				}
 				replyLock.Lock()
-				errReply := source.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "permission_error", "code": "access_denied", "message": errAccess.Error()}})
+				code := "access_denied"
+				var grantError *auth.Error
+				if errors.As(errAccess, &grantError) && grantError.Code == "egress_changed" {
+					code = grantError.Code
+				}
+				errReply := source.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "permission_error", "code": code, "message": errAccess.Error()}})
 				replyLock.Unlock()
 				if errReply != nil {
 					return errReply
@@ -699,7 +704,13 @@ func isNormalWebsocketClose(err error) bool {
 	return websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived)
 }
 
-func newProxyAwareSidebandDialer(cfg *config.Config, selected *auth.Auth) *websocket.Dialer {
+func newProxyAwareSidebandDialer(cfg *config.Config, selected *auth.Auth, contexts ...context.Context) *websocket.Dialer {
+	if len(contexts) > 0 {
+		dialer := &websocket.Dialer{}
+		if helps.ApplyPoolWebsocketEgress(contexts[0], dialer) {
+			return dialer
+		}
+	}
 	return newSidebandDialer(proxyURLForAuth(cfg, selected))
 }
 

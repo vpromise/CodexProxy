@@ -30,6 +30,10 @@ func NewProxyAwareHTTPClient(ctx context.Context, cfg *config.Config, auth *clip
 	if timeout > 0 {
 		httpClient.Timeout = timeout
 	}
+	if transport, bound := poolHTTPTransport(ctx); bound {
+		httpClient.Transport = transport
+		return httpClient
+	}
 
 	// Priority 1: Use auth.ProxyURL if configured
 	var proxyURL string

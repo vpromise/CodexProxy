@@ -1260,6 +1260,12 @@
     }
   },
   "isolation": {
+    "egress": "Upstream egress",
+    "egressInherit": "Inherit existing network settings",
+    "egressDirect": "Direct through a local IPv4",
+    "egressIP": "Local source IPv4",
+    "egressInvalid": "Enter a specific IPv4 address.",
+    "egressHint": "This pool connects directly through the selected IPv4, overriding account, global and environment proxies. Failed connections never use another exit. OAuth renewal and management checks keep their account network settings. WebRTC requires the media relay and uses direct host/STUN candidates.",
     "title": "Account isolation",
     "reload": "Reload",
     "save": "Save changes",

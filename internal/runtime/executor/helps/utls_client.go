@@ -376,9 +376,6 @@ func cachedClaudeStandardRoundTripper(owner, proxyURL, bindIP, origin string, lo
 }
 
 func newClaudeCodeRoundTripper(proxyURL string, localIP net.IP) http.RoundTripper {
-	// The cache is scoped to this credential/proxy/bind/origin tuple, so neither
-	// idle connections nor TLS sessions cross credential or egress boundaries.
-	sessionCache := tls.NewLRUClientSessionCache(claudeCodeSessionCacheCapacity)
 	var dialer proxy.Dialer = proxy.Direct
 	if localIP != nil {
 		dialer = &net.Dialer{LocalAddr: &net.TCPAddr{IP: append(net.IP(nil), localIP...)}}
@@ -392,6 +389,12 @@ func newClaudeCodeRoundTripper(proxyURL string, localIP net.IP) http.RoundTrippe
 		}
 	}
 
+	return newClaudeCodeRoundTripperWithDialer(dialer)
+}
+
+func newClaudeCodeRoundTripperWithDialer(dialer proxy.Dialer) http.RoundTripper {
+	// Each cached route owns its connection pool and TLS session cache.
+	sessionCache := tls.NewLRUClientSessionCache(claudeCodeSessionCacheCapacity)
 	transport := &http.Transport{
 		ForceAttemptHTTP2: false,
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -571,6 +574,9 @@ func (f *fallbackRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 // for Anthropic and a Chrome profile for ChatGPT, with a standard-transport
 // fallback for other hosts.
 func NewUtlsHTTPClient(ctx context.Context, cfg *config.Config, auth *cliproxyauth.Auth, timeout time.Duration) *http.Client {
+	if client, bound := newPoolUtlsHTTPClient(ctx, auth, timeout); bound {
+		return client
+	}
 	var proxyURL string
 	if auth != nil {
 		proxyURL = strings.TrimSpace(auth.ProxyURL)

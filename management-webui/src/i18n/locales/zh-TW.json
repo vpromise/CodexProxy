@@ -1269,6 +1269,12 @@
     }
   },
   "isolation": {
+    "egress": "上游出口",
+    "egressInherit": "繼承現有網路設定",
+    "egressDirect": "指定本機 IPv4 直連",
+    "egressIP": "本機來源 IPv4",
+    "egressInvalid": "請輸入一個明確的 IPv4 位址。",
+    "egressHint": "本池透過指定 IPv4 直連，覆蓋帳號、全域及環境代理；連線失敗不會切換出口。OAuth 續期與管理檢查仍使用帳號原有網路設定。WebRTC 需要啟用媒體中繼，並使用直連或 STUN 候選。",
     "title": "帳號隔離",
     "reload": "重新載入",
     "save": "儲存變更",

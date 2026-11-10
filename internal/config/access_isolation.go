@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 )
 
@@ -13,10 +14,35 @@ type AccessIsolation struct {
 }
 
 type AccountPool struct {
-	ID       string   `yaml:"id" json:"id"`
-	Name     string   `yaml:"name" json:"name"`
-	Provider string   `yaml:"provider" json:"provider"`
-	Accounts []string `yaml:"accounts" json:"accounts"`
+	ID       string      `yaml:"id" json:"id"`
+	Name     string      `yaml:"name" json:"name"`
+	Provider string      `yaml:"provider" json:"provider"`
+	Accounts []string    `yaml:"accounts" json:"accounts"`
+	Egress   *PoolEgress `yaml:"egress,omitempty" json:"egress,omitempty"`
+}
+
+// PoolEgress selects a local IPv4 for direct upstream connections.
+// A nil policy inherits the existing credential/global proxy behavior.
+type PoolEgress struct {
+	Mode     string `yaml:"mode" json:"mode"`
+	SourceIP string `yaml:"source-ip,omitempty" json:"source-ip,omitempty"`
+}
+
+func (e *PoolEgress) Validate() error {
+	if e == nil {
+		return nil
+	}
+	if e.Mode == "inherit" && e.SourceIP == "" {
+		return nil
+	}
+	if e.Mode != "direct-ip" {
+		return fmt.Errorf("egress mode must be inherit or direct-ip")
+	}
+	ip, err := netip.ParseAddr(e.SourceIP)
+	if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() || ip == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
+		return fmt.Errorf("direct-ip egress requires a specific IPv4 source address")
+	}
+	return nil
 }
 
 type ClientKeyBinding struct {
@@ -34,6 +60,9 @@ func (c *Config) ValidateAccessIsolation() error {
 	}
 	pools := make(map[string]bool)
 	for _, pool := range c.AccessIsolation.Pools {
+		if err := pool.Egress.Validate(); err != nil {
+			return fmt.Errorf("account pool %q: %w", pool.ID, err)
+		}
 		if strings.TrimSpace(pool.ID) == "" || strings.TrimSpace(pool.Name) == "" || pools[pool.ID] {
 			return fmt.Errorf("account pools require unique IDs and nonempty names")
 		}
@@ -69,8 +98,15 @@ func (c *Config) PreservePoolAccountIDs(previous *Config) bool {
 	if previous == nil {
 		return false
 	}
+	codexCounts, claudeCounts := map[string]int{}, map[string]int{}
+	for _, entry := range c.CodexKey {
+		codexCounts[entry.APIKey]++
+	}
+	for _, entry := range c.ClaudeKey {
+		claudeCounts[entry.APIKey]++
+	}
 	for i := range c.CodexKey {
-		if c.CodexKey[i].PoolAccountID != "" {
+		if c.CodexKey[i].PoolAccountID != "" || codexCounts[c.CodexKey[i].APIKey] != 1 {
 			continue
 		}
 		matches, id := 0, ""
@@ -86,7 +122,7 @@ func (c *Config) PreservePoolAccountIDs(previous *Config) bool {
 		}
 	}
 	for i := range c.ClaudeKey {
-		if c.ClaudeKey[i].PoolAccountID != "" {
+		if c.ClaudeKey[i].PoolAccountID != "" || claudeCounts[c.ClaudeKey[i].APIKey] != 1 {
 			continue
 		}
 		matches, id := 0, ""

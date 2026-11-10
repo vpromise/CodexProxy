@@ -194,9 +194,10 @@ func (h *Handler) PutClaudeKeys(c *gin.Context) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	h.cfg.ClaudeKey = arr
 	h.cfg.SanitizeClaudeKeys()
-	h.persistLocked(c)
+	h.persistNativeKeysLocked(c, previous)
 }
 func (h *Handler) PatchClaudeKey(c *gin.Context) {
 	type claudeKeyPatch struct {
@@ -226,6 +227,7 @@ func (h *Handler) PatchClaudeKey(c *gin.Context) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	targetIndex := -1
 	if body.Index != nil && *body.Index >= 0 && *body.Index < len(h.cfg.ClaudeKey) {
 		targetIndex = *body.Index
@@ -295,12 +297,13 @@ func (h *Handler) PatchClaudeKey(c *gin.Context) {
 	normalizeClaudeKey(&entry)
 	h.cfg.ClaudeKey[targetIndex] = entry
 	h.cfg.SanitizeClaudeKeys()
-	h.persistLocked(c)
+	h.persistNativeKeysLocked(c, previous)
 }
 
 func (h *Handler) DeleteClaudeKey(c *gin.Context) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	if val := strings.TrimSpace(c.Query("api-key")); val != "" {
 		if baseRaw, okBase := c.GetQuery("base-url"); okBase {
 			base := strings.TrimSpace(baseRaw)
@@ -313,7 +316,7 @@ func (h *Handler) DeleteClaudeKey(c *gin.Context) {
 			}
 			h.cfg.ClaudeKey = out
 			h.cfg.SanitizeClaudeKeys()
-			h.persistLocked(c)
+			h.persistNativeKeysLocked(c, previous)
 			return
 		}
 
@@ -335,7 +338,7 @@ func (h *Handler) DeleteClaudeKey(c *gin.Context) {
 			h.cfg.ClaudeKey = append(h.cfg.ClaudeKey[:matchIndex], h.cfg.ClaudeKey[matchIndex+1:]...)
 		}
 		h.cfg.SanitizeClaudeKeys()
-		h.persistLocked(c)
+		h.persistNativeKeysLocked(c, previous)
 		return
 	}
 	if idxStr := c.Query("index"); idxStr != "" {
@@ -344,7 +347,7 @@ func (h *Handler) DeleteClaudeKey(c *gin.Context) {
 		if err == nil && idx >= 0 && idx < len(h.cfg.ClaudeKey) {
 			h.cfg.ClaudeKey = append(h.cfg.ClaudeKey[:idx], h.cfg.ClaudeKey[idx+1:]...)
 			h.cfg.SanitizeClaudeKeys()
-			h.persistLocked(c)
+			h.persistNativeKeysLocked(c, previous)
 			return
 		}
 	}
@@ -832,9 +835,10 @@ func (h *Handler) PutCodexKeys(c *gin.Context) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	h.cfg.CodexKey = filtered
 	h.cfg.SanitizeCodexKeys()
-	h.persistLocked(c)
+	h.persistNativeKeysLocked(c, previous)
 }
 func (h *Handler) PatchCodexKey(c *gin.Context) {
 	type codexKeyPatch struct {
@@ -863,6 +867,7 @@ func (h *Handler) PatchCodexKey(c *gin.Context) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	targetIndex := -1
 	if body.Index != nil && *body.Index >= 0 && *body.Index < len(h.cfg.CodexKey) {
 		targetIndex = *body.Index
@@ -901,7 +906,7 @@ func (h *Handler) PatchCodexKey(c *gin.Context) {
 		if trimmed == "" {
 			h.cfg.CodexKey = append(h.cfg.CodexKey[:targetIndex], h.cfg.CodexKey[targetIndex+1:]...)
 			h.cfg.SanitizeCodexKeys()
-			h.persistLocked(c)
+			h.persistNativeKeysLocked(c, previous)
 			return
 		}
 		entry.BaseURL = trimmed
@@ -933,12 +938,13 @@ func (h *Handler) PatchCodexKey(c *gin.Context) {
 	normalizeCodexKey(&entry)
 	h.cfg.CodexKey[targetIndex] = entry
 	h.cfg.SanitizeCodexKeys()
-	h.persistLocked(c)
+	h.persistNativeKeysLocked(c, previous)
 }
 
 func (h *Handler) DeleteCodexKey(c *gin.Context) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	if val := strings.TrimSpace(c.Query("api-key")); val != "" {
 		if baseRaw, okBase := c.GetQuery("base-url"); okBase {
 			base := strings.TrimSpace(baseRaw)
@@ -951,7 +957,7 @@ func (h *Handler) DeleteCodexKey(c *gin.Context) {
 			}
 			h.cfg.CodexKey = out
 			h.cfg.SanitizeCodexKeys()
-			h.persistLocked(c)
+			h.persistNativeKeysLocked(c, previous)
 			return
 		}
 
@@ -973,7 +979,7 @@ func (h *Handler) DeleteCodexKey(c *gin.Context) {
 			h.cfg.CodexKey = append(h.cfg.CodexKey[:matchIndex], h.cfg.CodexKey[matchIndex+1:]...)
 		}
 		h.cfg.SanitizeCodexKeys()
-		h.persistLocked(c)
+		h.persistNativeKeysLocked(c, previous)
 		return
 	}
 	if idxStr := c.Query("index"); idxStr != "" {
@@ -982,7 +988,7 @@ func (h *Handler) DeleteCodexKey(c *gin.Context) {
 		if err == nil && idx >= 0 && idx < len(h.cfg.CodexKey) {
 			h.cfg.CodexKey = append(h.cfg.CodexKey[:idx], h.cfg.CodexKey[idx+1:]...)
 			h.cfg.SanitizeCodexKeys()
-			h.persistLocked(c)
+			h.persistNativeKeysLocked(c, previous)
 			return
 		}
 	}
