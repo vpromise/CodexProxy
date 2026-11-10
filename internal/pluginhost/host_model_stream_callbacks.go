@@ -64,7 +64,7 @@ func (h *Host) callHostModelExecuteStream(ctx context.Context, request []byte) (
 		StreamID:   streamID,
 	})
 	if errMarshal != nil {
-		h.modelStreams.close(streamID)
+		h.modelStreams.close(callerPluginID, streamID)
 		return nil, errMarshal
 	}
 	transferred = true
