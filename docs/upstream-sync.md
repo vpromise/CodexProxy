@@ -4,6 +4,12 @@ Updated: 2026-11-11 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Publication verification - 2026-11-11
+
+Implementation [45448446e](https://github.com/vpromise/CodexProxy/commit/45448446ea5fdfe21d4660db9edf8cc8b54452fd) (`45448446ea5fdfe21d4660db9edf8cc8b54452fd`), tree `a587ca6518ab0df5568e6caa26654087ce10feec`, normally pushed to verified `vpromise/CodexProxy main`. SSH ls-remote and GitHub API SHA/tree readbacks agree at **2026-11-11T05:18:01.582826+08:00**. All 15 explicitly staged paths are committed, candidate clean, with the exact tested **1803-file** manifest preserved. The base already includes approved pool egress, credential fencing and stream ownership repairs. No original branch/ref/index or user file was changed.
+
+Exact implementation-SHA Actions runs, check-runs and statuses are **zero**. Actions is enabled; workflows still trigger only for PR/tag events, main is unprotected with no additional rules and the verified account has push permission. Push succeeded without CI execution, not CI passing. This follow-up changes only the ledger, records the mapping and preserves all tested code. It is normally pushed and independently verified as well; the final exact SHA/tree readback is retained in the external report. No server/deploy, Release, tag, Keeper, skill or CI-policy change.
+
 ## Current checkpoint - 2026-11-11
 
 Checked at **2026-11-11T05:06:06.129802+08:00**; completed source review at **2026-11-11T05:16:49.575663+08:00**. Base is verified fork main `31c4b2d5a320394f4c5f6dfbe9516d2d24478edc`. Since the previous complete November10 review (`4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7` / v8.0.62), official **v8.0.63** (published **2026-11-10T00:39:40Z**, lightweight tag `6db7d4b839d86c5b24e17bbe73bcd4db18ef1b1a`) and **v8.0.64** (published **2026-11-10T11:37:22Z**, lightweight tag `905637daa3f2fae4dcacf50164dac15ad43ed5c2`) were independently resolved through GitHub. Released range `4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7..905637daa3f2fae4dcacf50164dac15ad43ed5c2` contains **23 commits / 17 non-merges / six merges**: ten through v8.0.63 and thirteen more through v8.0.64. All six remerge diffs are independently empty. Main additionally contains **one** reviewed sponsor-only commit `d1ea84f4b338f553d2818091ec9425a4ff742c78`; it remains separate from the released selection. No wholesale upstream merge.
@@ -86,7 +92,7 @@ The register stays **14 themes**; **84 original closed IDs** and the two previou
 
 Protected items follow [the freshly read skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md): **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** This applies to runtime auth-dir, login routing persistence and new per-attempt error/cooling/recovery semantics. Schema relaxation, full beta/model profiles and local compaction also have explicit behavioral tradeoffs. Timer runs or no reply are not approval. Existing specific approvals remain valid.
 
-Publication prepared only for the three independently verified groups and this ledger. Implementation SHA/tree and actual remote/CI verification follow after normal push. No server access/deploy, Release, tag, Keeper, skill, workflow or branch-policy change.
+The three independently verified groups and ledger are committed as [45448446e](https://github.com/vpromise/CodexProxy/commit/45448446ea5fdfe21d4660db9edf8cc8b54452fd), normally pushed and independently read back by SSH/API SHA and local/API tree at 2026-11-11T05:18:01.582826+08:00. Exact-SHA runs/checks/statuses are zero; publication succeeded without CI execution, not CI passing. No server access/deploy, Release, tag, Keeper, skill, workflow or branch-policy change.
 
 ## Corrected toth branding and deployed merged main — 2026-11-10
 
