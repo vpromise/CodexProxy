@@ -398,3 +398,61 @@ regressions use synthetic fixtures. No real account was tested, production was
 not modified, and no disabled credential was re-enabled. This repair addresses a
 reproduced compatibility defect; it does not establish the reason for the
 reported account ban.
+
+
+## Main integration and PR validation — 2026-11-10
+
+The five isolation feature/runtime/deployment commits were rebased onto published
+main `474fdd1d1535a79bc2194f69d8c8f342bd83a396`. This incorporates main's branding,
+revoked-key cleanup, memory-retention repair, native Claude session preservation,
+and later selective upstream fixes. The previous feature tip is retained in a
+local recovery reference and bundle; the three fully merged remote branches were
+removed, preserving their local worktrees and all commits reachable from main.
+
+The embedded panel conflict was resolved by building the combined frontend with
+`VERSION=__CLI_PROXYAPI_VERSION__`; the generated file matches the Go embed exactly.
+The deployment ledger retains all 110 main sections and the additional historical
+operational records. Plugin stream cleanup now supplies main's caller ownership
+argument, preserving both cancellation cleanup and the newer ownership checks.
+The inherited main-to-dev PR automation is restricted to the upstream repository;
+this fork can continue targeting main without a dev branch.
+
+Fresh validation covers implementation `418bf06dba03b38bdc76ed4d55687070d201df3d`:
+
+- Complete `go test -race -shuffle=on -p 4 -count=1 -timeout=240s ./...` passed
+  across **68 test packages / 8443 test and subtest passes**, with exactly the
+  two previously documented macOS bind-test names excluded using `-skip`.
+  The event log also records seven intrinsic optional/platform/race-mode skips;
+  these were not converted into passes. The initial compile failure from the
+  changed plugin close signature is retained; the complete suite passed after
+  correcting the call.
+- `go vet ./...` passed without diagnostics. Required Darwin/arm64 and static
+  Linux/amd64 server builds passed with Go **1.27.3**.
+- **Seven Linux package suites / 4811 test and subtest passes** cover executor
+  helpers, native executors, authorization, service integration, Live/Realtime,
+  management and plugins. No macOS exclusions were applied. The two opt-in helper
+  tests (external public-IP and ClientHello capture) remain skipped. Previously
+  excluded binding tests and secondary-loopback subtests passed. Test binaries
+  ran as an unprivileged user with temporary storage and synthetic credentials.
+  The runner supplies the tracked source/JSON fixtures used by structural and
+  concurrency tests; the initial missing-fixture failure is preserved alongside
+  the corrected run. The unchanged successful helper run was reused by verified
+  binary hash. Production service/configuration/account identities were unchanged
+  and temporary test files were removed.
+- `VERSION=__CLI_PROXYAPI_VERSION__ bun run verify` passed **372 frontend tests /
+  1190 assertions**, ESLint, TypeScript and production build using Bun **1.4.4**.
+  Workflow YAML parsing, Go formatting, embed equality and `git diff --check`
+  passed. No new browser acceptance or live-provider inference is claimed.
+
+The tracked input manifest (excluding this validation document and the deployment
+ledger) covers **1799 files**, SHA-256
+`ce04a95a6d24ac9eaa78175dc7921e3b204b3932376a461f6ea14103c844bec9`.
+Darwin build SHA-256 is
+`53e3d6805501ce12173ea3c62233e7f682da85739532be9ad0a4e841716bf21b`;
+Linux build SHA-256 is
+`1153b91cc16f2baba8640c6ba13d0d33956e94531ac1cdcd8ee91ef1e9f0e121`.
+Linux receipts and original failures are retained under
+`/opt/codexproxy/releases/validation-rebase-20261110-drdpodf7` and its `-v2`
+sibling. Later documentation bookkeeping does not change tested inputs.
+The prior toth deployment remains source `2e045edb`; this PR integration does
+not deploy the new main source to any server.
