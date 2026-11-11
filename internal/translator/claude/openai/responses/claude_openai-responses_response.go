@@ -52,6 +52,7 @@ type claudeToResponsesState struct {
 	ToolMetadata       claudeResponsesToolMetadata
 	Seq                int
 	ResponseID         string
+	FallbackModel      string
 	CreatedAt          int64
 	NextOutputIndex    int
 	CurrentMsgID       string
@@ -100,6 +101,16 @@ type claudeResponsesWebSearchItem struct {
 	Results     []byte
 	Emitted     bool
 	Status      string
+}
+
+// fallbackModelEvent reports a model boundary without repeating output or usage.
+func (st *claudeToResponsesState) fallbackModelEvent(sequence int) []byte {
+	event := []byte(`{"type":"response.in_progress","sequence_number":0,"response":{"id":"","object":"response","created_at":0,"status":"in_progress","output":[]}}`)
+	event, _ = sjson.SetBytes(event, "sequence_number", sequence)
+	event, _ = sjson.SetBytes(event, "response.id", st.ResponseID)
+	event, _ = sjson.SetBytes(event, "response.created_at", st.CreatedAt)
+	event, _ = sjson.SetBytes(event, "response.model", st.FallbackModel)
+	return emitEvent("response.in_progress", event)
 }
 
 func (item *claudeResponsesWebSearchItem) render() []byte {
@@ -525,6 +536,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 	case "message_start":
 		if msg := root.Get("message"); msg.Exists() {
 			st.ResponseID = msg.Get("id").String()
+			st.FallbackModel = translatorcommon.ClaudeFallbackModel(root)
 			st.CreatedAt = time.Now().Unix()
 			// Reset per-message aggregation state
 			st.TextBuf.Reset()
@@ -565,6 +577,9 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 			requestModelName := translatorcommon.RequestModelName(originalRequestRawJSON, requestRawJSON)
 			if requestModelName == "" {
 				requestModelName = modelName
+			}
+			if st.FallbackModel != "" {
+				requestModelName = st.FallbackModel
 			}
 			if requestModelName != "" {
 				created, _ = sjson.SetBytes(created, "response.model", requestModelName)
@@ -607,6 +622,11 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 			if !item.Emitted && item.Results != nil {
 				out = append(out, st.finalizeWebSearchWithStatus(item, "completed", nextSeq)...)
 			}
+		}
+		if model := translatorcommon.ClaudeFallbackModel(root); model != "" {
+			st.FallbackModel = model
+			out = append(out, st.fallbackModelEvent(nextSeq()))
+			return out
 		}
 
 		if typ == "text" {
@@ -789,6 +809,10 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 		if stopReason := root.Get("delta.stop_reason"); stopReason.Exists() {
 			st.StopReason = stopReason.String()
 		}
+		if model := translatorcommon.ClaudeFallbackModel(root); model != "" && model != st.FallbackModel {
+			st.FallbackModel = model
+			return [][]byte{st.fallbackModelEvent(nextSeq())}
+		}
 		return [][]byte{}
 	case "message_stop":
 		toolStatus := claudeResponsesOutputStatus(st.StopReason)
@@ -884,6 +908,9 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 			}
 		}
 
+		if st.FallbackModel != "" {
+			completed, _ = sjson.SetBytes(completed, "response.model", st.FallbackModel)
+		}
 		// Build response.output from aggregated state
 		outputsWrapper := []byte(`{"arr":[]}`)
 		// reasoning items
@@ -1035,10 +1062,11 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 
 	// Aggregation state
 	var (
-		responseID  string
-		createdAt   int64
-		stopReason  string
-		usageTokens claudeResponsesUsageTokens
+		responseID    string
+		fallbackModel string
+		createdAt     int64
+		stopReason    string
+		usageTokens   claudeResponsesUsageTokens
 	)
 
 	type nonStreamOutputItem struct {
@@ -1081,6 +1109,9 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 	for _, ch := range chunks {
 		root := gjson.ParseBytes(ch)
 		ev := root.Get("type").String()
+		if model := translatorcommon.ClaudeFallbackModel(root); model != "" {
+			fallbackModel = model
+		}
 
 		switch ev {
 		case "message_start":
@@ -1289,6 +1320,9 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 	// Native Messages responses identify the authoritative upstream model.
 	if nativeModel != "" {
 		out, _ = sjson.SetBytes(out, "model", nativeModel)
+	}
+	if fallbackModel != "" {
+		out, _ = sjson.SetBytes(out, "model", fallbackModel)
 	}
 
 	// Build output array in the order of the original content blocks.

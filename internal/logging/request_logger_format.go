@@ -380,7 +380,7 @@ func writeResponseSection(w io.Writer, statusCode int, statusWritten bool, respo
 	if responseHeaders != nil {
 		for key, values := range responseHeaders {
 			for _, value := range values {
-				if _, errWrite := io.WriteString(w, fmt.Sprintf("%s: %s\n", key, value)); errWrite != nil {
+				if _, errWrite := io.WriteString(w, fmt.Sprintf("%s: %s\n", key, util.MaskSensitiveHeaderValue(key, value))); errWrite != nil {
 					return errWrite
 				}
 			}
@@ -530,7 +530,7 @@ func (l *FileRequestLogger) formatLogContent(url, method string, headers map[str
 	if responseHeaders != nil {
 		for key, values := range responseHeaders {
 			for _, value := range values {
-				content.WriteString(fmt.Sprintf("%s: %s\n", key, value))
+				content.WriteString(fmt.Sprintf("%s: %s\n", key, util.MaskSensitiveHeaderValue(key, value)))
 			}
 		}
 	}

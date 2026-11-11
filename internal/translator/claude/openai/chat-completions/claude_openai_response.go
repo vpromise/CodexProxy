@@ -26,6 +26,7 @@ var (
 type ConvertAnthropicResponseToOpenAIParams struct {
 	CreatedAt         int64
 	ResponseID        string
+	FallbackModel     string
 	FinishReason      string
 	Usage             claudeUsageTokens
 	TrailingUsageSent bool
@@ -127,6 +128,16 @@ func ConvertClaudeResponseToOpenAI(_ context.Context, modelName string, original
 
 	root := gjson.ParseBytes(rawJSON)
 	eventType := root.Get("type").String()
+	p := (*param).(*ConvertAnthropicResponseToOpenAIParams)
+	if eventType == "message_start" {
+		p.FallbackModel = ""
+	}
+	if model := translatorcommon.ClaudeFallbackModel(root); model != "" {
+		p.FallbackModel = model
+	}
+	if p.FallbackModel != "" {
+		modelName = p.FallbackModel
+	}
 
 	// Base OpenAI streaming response template
 	template := []byte(`{"id":"","object":"chat.completion.chunk","created":0,"model":"","choices":[{"index":0,"delta":{},"finish_reason":null}]}`)
@@ -171,6 +182,10 @@ func ConvertClaudeResponseToOpenAI(_ context.Context, modelName string, original
 		// Start of a content block (text, tool use, or reasoning)
 		if contentBlock := root.Get("content_block"); contentBlock.Exists() {
 			blockType := contentBlock.Get("type").String()
+			if blockType == "fallback" && translatorcommon.ClaudeFallbackModel(root) != "" {
+				// An empty delta exposes the model switch without replaying content.
+				return [][]byte{template}
+			}
 
 			if blockType == "tool_use" {
 				// Start of tool call - initialize accumulator to track arguments
@@ -378,6 +393,7 @@ func ConvertClaudeResponseToOpenAINonStream(_ context.Context, _ string, origina
 
 	var messageID string
 	var model string
+	var fallbackModel string
 	var createdAt int64
 	var stopReason string
 	var contentParts []string
@@ -388,6 +404,9 @@ func ConvertClaudeResponseToOpenAINonStream(_ context.Context, _ string, origina
 	for _, chunk := range chunks {
 		root := gjson.ParseBytes(chunk)
 		eventType := root.Get("type").String()
+		if value := translatorcommon.ClaudeFallbackModel(root); value != "" {
+			fallbackModel = value
+		}
 
 		switch eventType {
 		case "message_start":
@@ -478,6 +497,9 @@ func ConvertClaudeResponseToOpenAINonStream(_ context.Context, _ string, origina
 	// Set basic response fields including message ID, creation time, and model
 	out, _ = sjson.SetBytes(out, "id", messageID)
 	out, _ = sjson.SetBytes(out, "created", createdAt)
+	if fallbackModel != "" {
+		model = fallbackModel
+	}
 	out, _ = sjson.SetBytes(out, "model", model)
 
 	// Set message content by combining all text parts
