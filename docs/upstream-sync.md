@@ -49,7 +49,9 @@ All final full/race/build runs have identical before/after **1810-file** source/
 
 U4 now marks the selected software-coherence, beta/order/gate and model-mode repairs above as completed locally. Remaining U4 items include the live profile evidence, frozen catalog and hosted-image policy. The historical **14-theme K1-K6/U1-U8 register** below remains the decision register, with its prior closed IDs and approved repairs retained. This task adds no cooldown, disable, scheduling, refresh-lifecycle or migration change. Its publication scope is the independent tested repair and ledger. Deployment status remains the historical recorded state.
 
-Implementation commit, remote readback and exact-SHA CI observations are recorded in the following publication receipt once verified.
+The selected repair and ledger are committed as **[bf4a1feae](https://github.com/vpromise/CodexProxy/commit/bf4a1feae49cf8f7dd45a5a184d48294f4328037)** (`bf4a1feae49cf8f7dd45a5a184d48294f4328037`), tree `a8429be2fb8b12a487f4c74a709b6abe39816611`. The normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch SHA, GitHub branch/commit SHA and API tree readbacks agree at **2026-11-11T17:47:38+08:00**. All 32 staged paths are committed and the tested manifest still matches.
+
+Exact implementation-SHA workflow runs, check-runs and status entries are **zero**. The status API aggregate reports pending with no status entries. Inspected workflows trigger on PR/tag events, so this direct main push has no CI run to assess. Local full/race/build verification and GitHub publication have completed. This publication receipt is a documentation-only follow-up, published with its own exact-SHA readback and CI observation retained in the validation evidence. Server deployment remains unperformed for this repair.
 
 
 ## Publication verification - 2026-11-11
