@@ -76,7 +76,9 @@ The register remains **14 themes K1-K6/U1-U8**. The **84 previously closed IDs**
 
 Protected behavior follows the current [codexproxy-upstream-sync skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md). Its instruction is **“Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.”** This applies to the K3 rejected-snapshot/fairness/force-state proposals and prior K1/K2/U1 lifecycle proposals. Independent log/model-response/diagnostic repairs are published under the standing authorization. Future timer runs and unanswered questions grant no new protected scope.
 
-The independent selection and ledger are validated and prepared for normal publication to verified main. Exact implementation and publication receipts follow after remote readback. Existing deployment records remain historical.
+The selection and ledger are committed as **[44146945d](https://github.com/vpromise/CodexProxy/commit/44146945d313475f09c7cfd3ad7ad54205aae21b)** (`44146945d313475f09c7cfd3ad7ad54205aae21b`), tree `3335ec99349d29ac66a19fd032eba7a05d8c1e71`. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch readback and GitHub branch/commit tree agree at **2026-11-12T05:25:06+08:00**. The tested source manifest still matches and all fourteen staged paths are committed.
+
+Exact implementation-SHA workflow runs, check-runs and status entries are **zero**. The status aggregate is pending with an empty status list. Inspected workflows trigger on PR/tag events, so this direct main push has no CI execution to assess. Local final full/race/build results passed and GitHub publication is verified. This follow-up changes only the ledger. Historical deployment receipts remain the server record, and this run performed no deployment.
 
 
 ## User-authorized Claude 2.1.321 compatibility repair - 2026-11-11
