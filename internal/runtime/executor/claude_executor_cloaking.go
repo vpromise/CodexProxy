@@ -1016,7 +1016,7 @@ func reconcileClaudeCodeFableModelAfterPayload(
 		} else if fableState.injectedDisplay && !payloadTouchedDisplay {
 			body, _ = sjson.DeleteBytes(body, "thinking.display")
 		}
-		if !hasFableReportingBlock(body) {
+		if !hasFableReportingBlock(body) && !helps.ClaudeThreadContinues(body) {
 			system := gjson.GetBytes(body, "system")
 			if system.IsArray() {
 				blocks := make([]string, 0, len(system.Array())+1)
@@ -1403,6 +1403,14 @@ func applyCloakingInternal(
 	policy, settings := resolveClaudeWirePolicy(cfg, auth, apiKey, confirmedClaudeCode)
 	if !policy.Cloak {
 		return payload, false, nil
+	}
+	// A continuation inherits its system and tools from the stored thread.
+	// Rebuilding the prefix here makes an otherwise valid request invalid.
+	if helps.ClaudeThreadContinues(payload) {
+		if obfuscateSensitiveWords && len(settings.sensitiveWords) > 0 {
+			payload = helps.ObfuscateSensitiveWords(payload, helps.BuildSensitiveWordMatcher(settings.sensitiveWords))
+		}
+		return payload, true, nil
 	}
 	// Strict mode drops caller system prompts entirely, so nothing needs a
 	// destination and an unusable block cannot lose information.

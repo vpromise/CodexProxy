@@ -7,8 +7,11 @@ func TestClaudeBetaFeaturesProtocolFields(t *testing.T) {
 		name, body string
 		want       ClaudeBetaFeatures
 	}{
-		{"top timing", `{"model":"claude-opus-5-5","output_config":{"timing":{}}}`, ClaudeBetaFeatures{MidConversationTools: true, PerTurnControl: true, Timing: true}},
+		{"top timing", `{"model":"claude-opus-5-5","output_config":{"timing":{}}}`, ClaudeBetaFeatures{MidConversationTools: true, PerTurnControl: true, Timing: true, ClearAt: true}},
 		{"mythos timing", `{"model":"claude-mythos-5-1","messages":[{"output_config":{"timing":{}}}]}`, ClaudeBetaFeatures{MidConversationTools: true, Timing: true}},
+		{"fable 5.2 timing", `{"model":"vendor/CLAUDE-FABLE-5.2","messages":[{"output_config":{"timing":{}}}]}`, ClaudeBetaFeatures{MidConversationTools: true, PerTurnControl: true, Timing: true, ClearAt: true}},
+		{"haiku 5.5 excludes timing", `{"model":"claude-haiku-5-5","output_config":{"timing":{}}}`, ClaudeBetaFeatures{MidConversationTools: true, PerTurnControl: true, ClearAt: true}},
+		{"sonnet 5 inline fields", `{"model":"claude-sonnet-5","messages":[{"role":"system","content":[{"type":"tool_addition","tool":{"definition":{}}}]}]}`, ClaudeBetaFeatures{InlineTools: true, ClearAt: true}},
 		{"unsupported timing", `{"model":"claude-sonnet-4-6","output_config":{"timing":{}}}`, ClaudeBetaFeatures{}},
 		{"inline control", `{"messages":[{"role":"system","clear_at":"next_user_message","content":[{"type":"tool_addition","tool":{"definition":{"name":"Read"}}}]}]}`, ClaudeBetaFeatures{MidConversationTools: true, InlineTools: true, ClearAt: true}},
 		{"top cache", `{"cache_control":{"type":"ephemeral","evict_on_complete":true}}`, ClaudeBetaFeatures{MidConversationTools: true, CacheEviction: true}},

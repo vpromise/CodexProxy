@@ -52,9 +52,11 @@ func TestClaudeExecutor_OAuthNativePatchPreservesCallerSystem(t *testing.T) {
 			payload := []byte(`{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"caller-system","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"hi"}],"metadata":{"user_id":` + fmt.Sprintf("%q", userID) + `}}`)
 			userAgent := "claude-cli/" + tt.version + " (external, cli)"
 			headers := http.Header{
-				"User-Agent":     {userAgent},
-				"X-App":          {"cli"},
-				"Anthropic-Beta": {"claude-code-20250219,interleaved-thinking-2025-05-14"},
+				"User-Agent":                  {userAgent},
+				"X-Stainless-Package-Version": {"0.112.1"},
+				"X-Stainless-Runtime-Version": {"v26.3.0"},
+				"X-App":                       {"cli"},
+				"Anthropic-Beta":              {"claude-code-20250219,interleaved-thinking-2025-05-14"},
 			}
 			auth := &cliproxyauth.Auth{
 				ID:       "oauth-native-patch-" + tt.name,

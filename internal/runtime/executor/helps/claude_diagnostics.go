@@ -372,6 +372,24 @@ func isClaudeProbeRequest(body []byte) bool {
 	return false
 }
 
+// IsClaudeQuotaProbeRequest identifies the captured one-token quota request.
+// Other probes and title helpers keep their own Claude Code beta profile.
+func IsClaudeQuotaProbeRequest(body []byte) bool {
+	if !isClaudeProbeRequest(body) {
+		return false
+	}
+	content := gjson.GetBytes(body, "messages.0.content")
+	if content.Type == gjson.String {
+		return strings.TrimSpace(content.String()) == "quota"
+	}
+	for _, part := range content.Array() {
+		if part.Get("type").String() == "text" && strings.TrimSpace(part.Get("text").String()) == "quota" {
+			return true
+		}
+	}
+	return false
+}
+
 func isClaudeTitleHelperInstruction(body []byte) bool {
 	matchesTitlePrompt := func(t string) bool {
 		return strings.Contains(t, "Return a short title") ||

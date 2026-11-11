@@ -49,10 +49,10 @@ func TestClaude280RequestedBetasSurviveHeaderProfiles(t *testing.T) {
 	}
 }
 
-func TestClaude280FeatureBetaOrder(t *testing.T) {
+func TestClaude2321FeatureBetaOrder(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-5-5","safeguards":[{}],"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"omit"}},"messages":[{"role":"system","clear_at":"next_user_message","content":[{"type":"tool_addition","tool":{"definition":{"name":"bash"}}}]},{"role":"user","content":"x","output_config":{"timing":{"now":"2026-09-23T00:00:00Z"}}}],"cache_control":{"type":"ephemeral","evict_on_complete":true}}`)
 	got := claudeCodeCLIBetas(body, map[string]bool{"thinking-resumption-2026-07-17": true}, false)
-	want := "mid-conversation-system-2026-04-07,per-turn-control-2026-07-01,timing-2026-09-09,mid-conversation-tool-changes-2026-07-01,inline-tools-2026-09-15,mid-conversation-system-clear-at-2026-08-21,dangerous-tool-use-2026-09-03,effort-2025-11-24,thinking-binding-controls-2026-08-01,thinking-resumption-2026-07-17,prompt-caching-evict-2026-05-12"
+	want := "per-turn-control-2026-07-01,timing-2026-09-09,mid-conversation-tool-changes-2026-07-01,inline-tools-2026-09-15,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21,effort-2025-11-24,dangerous-tool-use-2026-09-03,thinking-binding-controls-2026-08-01,thinking-resumption-2026-07-17,prompt-caching-evict-2026-05-12"
 	if !strings.HasSuffix(got, want) {
 		t.Fatalf("feature beta order = %q, want suffix %q", got, want)
 	}
@@ -63,17 +63,20 @@ func TestClaude280OptionalBetasRemainGated(t *testing.T) {
 		t.Run(model, func(t *testing.T) {
 			body := []byte(`{"model":"` + model + `","messages":[{"role":"user","content":"evict_on_complete"}],"tools":[{"name":"schema","input_schema":{"properties":{"evict_on_complete":{"type":"boolean"}}}}]}`)
 			got := claudeCodeCLIBetas(body, nil, false)
-			for _, beta := range []string{"timing-2026-09-09", "inline-tools-2026-09-15", "mid-conversation-system-clear-at-2026-08-21", "dangerous-tool-use-2026-09-03", "thinking-binding-controls-2026-08-01", "thinking-resumption-2026-07-17", "prompt-caching-evict-2026-05-12"} {
+			for _, beta := range []string{"timing-2026-09-09", "inline-tools-2026-09-15", "dangerous-tool-use-2026-09-03", "thinking-binding-controls-2026-08-01", "thinking-resumption-2026-07-17", "prompt-caching-evict-2026-05-12"} {
 				if strings.Contains(got, beta) {
 					t.Errorf("unrequested beta %q in %q", beta, got)
 				}
 			}
 			wantPerTurn := model != "claude-sonnet-4-6"
+			if strings.Contains(got, claudeMidConvSystemClearAtBeta) != wantPerTurn {
+				t.Errorf("unexpected 2.1.321 progress-display clear-at capability: %q", got)
+			}
 			if strings.Contains(got, "per-turn-control-2026-07-01") != wantPerTurn {
 				t.Errorf("per-turn gate: %q", got)
 			}
 			if strings.Contains(got, "mid-conversation-tool-changes-2026-07-01") != wantPerTurn {
-				t.Errorf("unexpected 2.1.280 model beta policy: %q", got)
+				t.Errorf("unexpected 2.1.321 model beta policy: %q", got)
 			}
 		})
 	}

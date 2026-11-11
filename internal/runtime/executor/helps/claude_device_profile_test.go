@@ -410,3 +410,75 @@ func TestResolveClaudeDeviceProfileRequiredNonHomeKeepsLocalCache(t *testing.T) 
 		t.Fatalf("KV calls = get %d set %d setnx %d, want all zero", client.getCount, client.setCount, client.setNXCount)
 	}
 }
+
+func TestClaudeNativeDeviceProfileKeepsCompleteSoftwareTuple(t *testing.T) {
+	for _, tc := range []struct {
+		name, ua, sdk, runtime, wantSDK, wantRuntime string
+		want                                         bool
+	}{
+		{name: "legacy measured", ua: "claude-cli/2.1.280 (external, cli)", sdk: "0.112.1", runtime: "v26.3.0", wantSDK: "0.112.1", wantRuntime: "v26.3.0", want: true},
+		{name: "known version repairs mixed pair", ua: "claude-cli/2.1.321 (external, cli)", sdk: "0.112.1", runtime: "v26.3.0", wantSDK: "0.128.0", wantRuntime: "v26.12.1", want: true},
+		{name: "known version fills absent companions", ua: "claude-cli/2.1.280 (external, cli)", wantSDK: "0.112.1", wantRuntime: "v26.3.0", want: true},
+		{name: "synthetic newer tuple", ua: "claude-cli/2.1.322 (external, cli, workload/cron, agent-sdk/0.3.0)", sdk: "0.129.0", runtime: "v26.13.0", wantSDK: "0.129.0", wantRuntime: "v26.13.0", want: true},
+		{name: "newer missing runtime", ua: "claude-cli/2.1.322 (external, cli)", sdk: "0.129.0"},
+		{name: "newer malformed SDK", ua: "claude-cli/2.1.322 (external, cli)", sdk: "bad", runtime: "v26.13.0"},
+		{name: "invalid major", ua: "claude-cli/999.0.0 (external, cli)", sdk: "999.0.0", runtime: "v999.0.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := http.Header{}
+			headers.Set("User-Agent", tc.ua)
+			headers.Set("X-Stainless-Package-Version", tc.sdk)
+			headers.Set("X-Stainless-Runtime-Version", tc.runtime)
+			headers.Set("X-Stainless-OS", "Linux")
+			headers.Set("X-Stainless-Arch", "x64")
+			for _, stabilize := range []bool{false, true} {
+				profile, ok := ClaudeNativeDeviceProfile(headers, nil, stabilize)
+				if ok != tc.want {
+					t.Fatalf("accepted=%t, want %t", ok, tc.want)
+				}
+				if !ok {
+					continue
+				}
+				if profile.UserAgent != tc.ua || profile.PackageVersion != tc.wantSDK || profile.RuntimeVersion != tc.wantRuntime {
+					t.Fatalf("profile=%+v", profile)
+				}
+				wantOS, wantArch := "Linux", "x64"
+				if stabilize {
+					wantOS, wantArch = "MacOS", "arm64"
+				}
+				if profile.OS != wantOS || profile.Arch != wantArch {
+					t.Fatalf("platform=%s/%s, want %s/%s", profile.OS, profile.Arch, wantOS, wantArch)
+				}
+			}
+		})
+	}
+}
+
+func TestClaudeKnownUserAgentDefaultsAndExplicitOverrides(t *testing.T) {
+	cfg := &config.Config{ClaudeHeaderDefaults: config.ClaudeHeaderDefaults{UserAgent: "claude-cli/2.1.280 (external, cli)"}}
+	profile := defaultClaudeDeviceProfile(cfg)
+	if profile.PackageVersion != "0.112.1" || profile.RuntimeVersion != "v26.3.0" {
+		t.Fatalf("known companions=%+v", profile)
+	}
+	cfg.ClaudeHeaderDefaults.PackageVersion = "0.123.4"
+	cfg.ClaudeHeaderDefaults.RuntimeVersion = "v27.1.0"
+	profile = defaultClaudeDeviceProfile(cfg)
+	if profile.PackageVersion != "0.123.4" || profile.RuntimeVersion != "v27.1.0" {
+		t.Fatalf("explicit tuple lost=%+v", profile)
+	}
+	request, _ := http.NewRequest(http.MethodPost, "https://gateway.example/v1/messages", nil)
+	request.Header.Set("User-Agent", "claude-cli/2.1.280 (external, cli)")
+	request.Header.Set("X-Stainless-Package-Version", "0.123.4")
+	request.Header.Set("X-Stainless-Runtime-Version", "v27.1.0")
+	attrs := map[string]string{"header:User-Agent": "claude-cli/2.1.280 (external, cli)", "header:X-Stainless-Package-Version": "0.123.4", "header:X-Stainless-Runtime-Version": "v27.1.0"}
+	AlignClaudeCustomSoftwareHeaders(request, attrs, nil, nil)
+	if request.Header.Get("X-Stainless-Package-Version") != "0.123.4" || request.Header.Get("X-Stainless-Runtime-Version") != "v27.1.0" {
+		t.Fatal("explicit credential tuple changed")
+	}
+	attrs["header:X-Stainless-Package-Version"] = "$Missing"
+	attrs["header:X-Stainless-Runtime-Version"] = ""
+	AlignClaudeCustomSoftwareHeaders(request, attrs, nil, nil)
+	if request.Header.Get("X-Stainless-Package-Version") != "0.112.1" || request.Header.Get("X-Stainless-Runtime-Version") != "v26.3.0" {
+		t.Fatal("omitted overrides must use known UA companions")
+	}
+}

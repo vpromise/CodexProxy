@@ -607,7 +607,8 @@ func TestApplyClaudeHeaders_DisableDeviceProfileStabilization(t *testing.T) {
 		"X-Stainless-Arch":            []string{"x64"},
 	})
 	applyClaudeHeaders(firstReq, auth, "key-disable-stability", false, nil, nil, cfg, nil, true)
-	assertClaudeFingerprint(t, firstReq.Header, "claude-cli/2.1.62 (external, cli)", "0.70.0", "v22.0.0", "Linux", "x64")
+	// Explicit software defaults stay together even when device stabilization is disabled.
+	assertClaudeFingerprint(t, firstReq.Header, "claude-cli/2.1.60 (external, cli)", "0.70.0", "v22.0.0", "Linux", "x64")
 
 	thirdPartyReq := newClaudeHeaderTestRequest(t, http.Header{
 		"User-Agent":                  []string{"lobe-chat/1.0"},
@@ -8142,10 +8143,10 @@ func TestInsertClaudeMidConversationSystemMessages_IsIdempotent(t *testing.T) {
 	assertClaudeMidConversationSystemMessage(t, first, 2, texts[1], "")
 }
 
-// TestClaudeCodeCLIBetas_MatchesObservedClientMatrix covers the 2.1.280 dynamic
+// TestClaudeCodeCLIBetas_MatchesObservedClientMatrix covers the 2.1.321 dynamic
 // beta policy while retaining local context-window and tool-profile behavior.
 func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
-	const constants = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24"
+	const constants = "claude-code-20250219,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13,effort-2025-11-24"
 
 	tests := []struct {
 		name      string
@@ -8165,8 +8166,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			requested: map[string]bool{claudeContext1MBeta: true},
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8179,8 +8180,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			},
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24,server-side-fallback-2026-06-01," +
 				"fallback-credit-2026-06-01",
 		},
@@ -8189,9 +8190,9 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			body:      `{"model":"claude-opus-4-6"}`,
 			requested: map[string]bool{claudeStructuredOutputsBeta: true},
 			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
-				"redact-thinking-2026-02-12,thinking-token-count-2026-05-13," +
+				"redact-thinking-2026-02-12," +
 				"context-management-2025-06-27,prompt-caching-scope-2026-01-05," +
-				"mid-conversation-system-2026-04-07,effort-2025-11-24," +
+				"thinking-token-count-2026-05-13,effort-2025-11-24," +
 				"structured-outputs-2025-12-15",
 		},
 		{
@@ -8209,17 +8210,17 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 		{
 			name: "claude-sonnet-5 carries the constant baseline",
 			body: `{"model":"claude-sonnet-5"}`,
-			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
+			want: strings.Replace(constants, "thinking-token-count-2026-05-13", "thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21", 1),
 		},
 		{
 			name: "claude-opus-4-8 carries the constant baseline",
 			body: `{"model":"claude-opus-4-8"}`,
-			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
+			want: strings.Replace(constants, "thinking-token-count-2026-05-13", "mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13", 1),
 		},
 		{
 			name: "claude-fable-5 carries the constant baseline",
 			body: `{"model":"claude-fable-5"}`,
-			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
+			want: strings.Replace(constants, "thinking-token-count-2026-05-13", "mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13", 1),
 		},
 		{
 			name: "claude-opus-4-7 carries the constant baseline",
@@ -8232,8 +8233,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			oauth: true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24,extended-cache-ttl-2025-04-11",
 		},
 		{
@@ -8247,8 +8248,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			},
 			want: "claude-code-20250219,oauth-2025-04-20,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24,server-side-fallback-2026-06-01," +
 				"fallback-credit-2026-06-01,extended-cache-ttl-2025-04-11",
 		},
@@ -8267,8 +8268,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			body: `{"model":"claude-opus-5"}`,
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8276,8 +8277,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			body: `{"model":"claude-opus-5","tools":[{"name":"Read"}]}`,
 			want: "claude-code-20250219,context-1m-2025-08-07," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8288,22 +8289,22 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 		{
 			name: "unknown future model keeps the constant baseline",
 			body: `{"model":"claude-future-9"}`,
-			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01", 1),
+			want: strings.Replace(constants, "thinking-token-count-2026-05-13", "mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13", 1),
 		},
 		{
 			name: "thinking display summarized drops redact-thinking",
 			body: `{"model":"claude-opus-5","thinking":{"type":"adaptive","display":"summarized"}}`,
 			want: "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24",
 		},
 		{
 			name: "thinking display omitted drops redact-thinking as well",
 			body: `{"model":"claude-opus-4-6","thinking":{"type":"enabled","budget_tokens":2048,"display":"omitted"}}`,
 			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8320,14 +8321,14 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			name: "thinking display updates emits thinking-display-updates beta and drops redact-thinking",
 			body: `{"model":"claude-fable-5-1","thinking":{"type":"adaptive","display":"updates"}}`,
 			want: "claude-code-20250219,interleaved-thinking-2025-05-14," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01," +
-				"effort-2025-11-24,thinking-display-updates-2026-08-18",
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21," +
+				"effort-2025-11-24,thinking-binding-controls-2026-08-01,thinking-display-updates-2026-08-18",
 		},
 		{
 			name: "body with fallbacks automatically adds server-side-fallback beta",
 			body: `{"model":"claude-fable-5-1","fallbacks":[{"model":"claude-opus-5"}]}`,
-			want: strings.Replace(constants, "mid-conversation-system-2026-04-07", "mid-conversation-system-2026-04-07,per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01", 1) + ",server-side-fallback-2026-06-01",
+			want: strings.Replace(constants, "thinking-token-count-2026-05-13", "per-turn-control-2026-07-01,mid-conversation-tool-changes-2026-07-01,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21", 1) + ",server-side-fallback-2026-06-01",
 		},
 		{
 			name:  "subagent request omits extended-cache-ttl beta",
@@ -8335,8 +8336,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			oauth: true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21," +
 				"effort-2025-11-24",
 		},
 		{
@@ -8345,8 +8346,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			oauth: true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01",
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21",
 		},
 		{
 			name:      "haiku model omits effort beta even if requested",
@@ -8355,8 +8356,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			oauth:     true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13," +
 				"extended-cache-ttl-2025-04-11",
 		},
 		{
@@ -8366,8 +8367,8 @@ func TestClaudeCodeCLIBetas_MatchesObservedClientMatrix(t *testing.T) {
 			oauth:     true,
 			want: "claude-code-20250219,oauth-2025-04-20," +
 				"interleaved-thinking-2025-05-14,redact-thinking-2026-02-12," +
-				"thinking-token-count-2026-05-13,context-management-2025-06-27," +
-				"prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,mid-conversation-tool-changes-2026-07-01," +
+				"context-management-2025-06-27," +
+				"prompt-caching-scope-2026-01-05,thinking-token-count-2026-05-13,mid-conversation-system-clear-at-2026-08-21," +
 				"extended-cache-ttl-2025-04-11",
 		},
 	}
@@ -8797,9 +8798,10 @@ func TestClaudeExecutorPayloadOverrideDisabledThinking(t *testing.T) {
 }
 
 func TestClaudeExecutorPayloadOverrideReenablesThinking(t *testing.T) {
-	const model = "claude-opus-5"
+	// Manual thinking is supported on Opus 4.6; Opus 5 is adaptive-only.
+	const model = "claude-opus-4-6"
 	modelRules := []config.PayloadModelRule{{Name: model, Protocol: "claude"}}
-	basePayload := []byte(`{"model":"claude-opus-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"disabled"}}`)
+	basePayload := []byte(`{"model":"claude-opus-4-6","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"disabled"}}`)
 
 	for _, test := range []struct {
 		name         string
@@ -8812,11 +8814,19 @@ func TestClaudeExecutorPayloadOverrideReenablesThinking(t *testing.T) {
 		{name: "execute stream adaptive", thinkingType: "adaptive", stream: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			requestModel := model
+			if test.thinkingType == "adaptive" {
+				requestModel = "claude-opus-5"
+			}
+			payload, errPayload := sjson.SetBytes(basePayload, "model", requestModel)
+			if errPayload != nil {
+				t.Fatal(errPayload)
+			}
 			cfg := &config.Config{Payload: config.PayloadConfig{Override: []config.PayloadRule{{
-				Models: modelRules,
+				Models: []config.PayloadModelRule{{Name: requestModel, Protocol: "claude"}},
 				Params: map[string]any{"thinking.type": test.thinkingType},
 			}}}}
-			upstreamBody := executeClaudeContextManagementRequest(t, cfg, basePayload, test.stream)
+			upstreamBody := executeClaudeContextManagementRequest(t, cfg, payload, test.stream)
 			if got := gjson.GetBytes(upstreamBody, "thinking.type").String(); got != test.thinkingType {
 				t.Fatalf("final upstream thinking.type = %q, want %q; body=%s", got, test.thinkingType, upstreamBody)
 			}
@@ -8837,7 +8847,7 @@ func TestClaudeExecutorPayloadOverrideReenablesThinking(t *testing.T) {
 				Models: modelRules,
 				Params: map[string]any{"thinking.type": "enabled"},
 			}}}}
-			payload := []byte(`{"model":"claude-opus-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"disabled"},"context_management":{"edits":[{"type":"caller_owned"}]}}`)
+			payload := []byte(`{"model":"claude-opus-4-6","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"disabled"},"context_management":{"edits":[{"type":"caller_owned"}]}}`)
 			upstreamBody := executeClaudeContextManagementRequest(t, cfg, payload, stream)
 			if got := gjson.GetBytes(upstreamBody, "context_management.edits.0.type").String(); got != "caller_owned" {
 				t.Fatalf("caller context_management type = %q, want caller_owned; body=%s", got, upstreamBody)
@@ -8906,7 +8916,7 @@ func executeClaudeContextManagementRequest(t *testing.T, cfg *config.Config, pay
 	ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
 	executor := NewClaudeExecutor(cfg)
 	auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "key-payload-rule", "cloak_mode": "always"}}
-	request := cliproxyexecutor.Request{Model: "claude-opus-5", Payload: payload}
+	request := cliproxyexecutor.Request{Model: gjson.GetBytes(payload, "model").String(), Payload: payload}
 	options := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude}
 
 	if stream {

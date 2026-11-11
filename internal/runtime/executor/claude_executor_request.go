@@ -62,6 +62,8 @@ const (
 	claudeCacheDiagnosisBeta         = "cache-diagnosis-2026-04-07"
 	claudeThinkingDisplayUpdatesBeta = "thinking-display-updates-2026-08-18"
 	claudeRedactThinkingBeta         = "redact-thinking-2026-02-12"
+	claudeThinkingTokenCountBeta     = "thinking-token-count-2026-05-13"
+	claudeMessageThreadsBeta         = "message-threads-2026-08-12"
 )
 
 // applyClaudeRequestThinking always runs the canonical validation pipeline.
@@ -235,18 +237,22 @@ func validateClaudeResponseContentLength(resp *http.Response, limit int64, kind 
 var claudeCodeCLIConstantBetas = []string{
 	"interleaved-thinking-2025-05-14",
 	claudeRedactThinkingBeta,
-	"thinking-token-count-2026-05-13",
 	"context-management-2025-06-27",
 	"prompt-caching-scope-2026-01-05",
 }
 
-// claudeCodeCLIBetas applies the upstream Claude Code 2.1.280 per-request beta
+// claudeCodeCLIBetas applies the upstream Claude Code 2.1.321 per-request beta
 // policy. Preserve the local context-window detection and tool profile while
 // gating effort, fallbacks, thinking updates and cache TTL by the final body.
 func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool) string {
 	features := helps.DetectClaudeBetaFeatures(body)
+	isQuotaProbe := helps.IsClaudeQuotaProbeRequest(body)
+	model := gjson.GetBytes(body, "model").String()
+	claudeCodeAfterScope := helps.IsClaudeHaiku55Model(model)
 	betas := make([]string, 0, len(claudeCodeCLIConstantBetas)+24)
-	betas = append(betas, claudeCodeBeta)
+	if !isQuotaProbe && !claudeCodeAfterScope {
+		betas = append(betas, claudeCodeBeta)
+	}
 	if oauthToken {
 		betas = append(betas, claudeOAuthBeta)
 	}
@@ -260,7 +266,12 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		}
 		betas = append(betas, beta)
 	}
-	betas = append(betas, claudeMidConvSystemBeta)
+	if !isQuotaProbe && claudeCodeAfterScope {
+		betas = append(betas, claudeCodeBeta)
+	}
+	if requested[claudeMidConvSystemBeta] {
+		betas = append(betas, claudeMidConvSystemBeta)
+	}
 	if requested[claudePerTurnControlBeta] || features.PerTurnControl {
 		betas = append(betas, claudePerTurnControlBeta)
 	}
@@ -276,17 +287,20 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 	if requested[claudeAdvisorToolBeta] || claudeBodyHasAdvisorTool(body) {
 		betas = append(betas, claudeAdvisorToolBeta)
 	}
+	if !isQuotaProbe || requested[claudeThinkingTokenCountBeta] {
+		betas = append(betas, claudeThinkingTokenCountBeta)
+	}
 	if requested[claudeAdvancedToolUseBeta] || helps.ClaudeBodyUsesAdvancedToolUse(body) {
 		betas = append(betas, claudeAdvancedToolUseBeta)
 	}
 	if requested[claudeMidConvSystemClearAtBeta] || features.ClearAt {
 		betas = append(betas, claudeMidConvSystemClearAtBeta)
 	}
-	if requested[claudeDangerousToolUseBeta] || gjson.GetBytes(body, "safeguards").Exists() {
-		betas = append(betas, claudeDangerousToolUseBeta)
-	}
 	if claudeRequestSupportsEffort(body, requested) {
 		betas = append(betas, claudeEffortBeta)
+	}
+	if requested[claudeDangerousToolUseBeta] || gjson.GetBytes(body, "safeguards").Exists() {
+		betas = append(betas, claudeDangerousToolUseBeta)
 	}
 	isProbeOrHelper := helps.IsClaudeProbeOrHelperRequest(body)
 	if !isProbeOrHelper && (requested[claudeServerSideFallbackBeta] || gjson.GetBytes(body, "fallbacks").Exists()) {
@@ -302,7 +316,8 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 		betas = append(betas, claudeStructuredOutputsBeta)
 	}
 	thinkingType := gjson.GetBytes(body, "thinking.type").String()
-	if requested[claudeThinkingBindingBeta] || gjson.GetBytes(body, "thinking.block_binding").Exists() {
+	if requested[claudeThinkingBindingBeta] || gjson.GetBytes(body, "thinking.block_binding").Exists() ||
+		(thinkingType == "adaptive" && helps.ClaudeModelUsesProgressDisplay(model)) {
 		betas = append(betas, claudeThinkingBindingBeta)
 	}
 	if !isProbeOrHelper && thinkingType != "disabled" && (requested[claudeThinkingDisplayUpdatesBeta] || claudeThinkingDisplayUpdates(body)) {
@@ -330,6 +345,9 @@ func claudeCodeCLIBetas(body []byte, requested map[string]bool, oauthToken bool)
 	if diagnostics := gjson.GetBytes(body, "diagnostics"); diagnostics.IsObject() {
 		betas = append(betas, claudeCacheDiagnosisBeta)
 	}
+	if requested[claudeMessageThreadsBeta] || gjson.GetBytes(body, "thread").IsObject() {
+		betas = append(betas, claudeMessageThreadsBeta)
+	}
 	return strings.Join(betas, ",")
 }
 
@@ -343,7 +361,7 @@ func claudeRequestSupportsEffort(body []byte, requested map[string]bool) bool {
 			return false
 		}
 		model := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "model").String()))
-		if isClaudeHaikuModel(model) {
+		if isClaudeHaikuModel(model) && !helps.IsClaudeHaiku55Model(model) {
 			return false
 		}
 		thinkingType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "thinking.type").String()))
@@ -1063,7 +1081,9 @@ func applyClaudeHeadersWithNativeProfile(
 	}
 	stabilizeDeviceProfile := helps.ClaudeDeviceProfileStabilizationEnabled(cfg)
 	var deviceProfile helps.ClaudeDeviceProfile
-	if stabilizeDeviceProfile && confirmedClaudeCode {
+	nativeDeviceProfile, preserveNativeSoftware := helps.ClaudeNativeDeviceProfile(incomingHeaders, cfg, stabilizeDeviceProfile)
+	preserveNativeSoftware = preserveNativeSoftware && confirmedClaudeCode
+	if stabilizeDeviceProfile && confirmedClaudeCode && !preserveNativeSoftware {
 		var errDeviceProfile error
 		deviceProfile, errDeviceProfile = helps.ResolveClaudeDeviceProfileRequired(r.Context(), auth, apiKey, incomingHeaders, cfg)
 		if errDeviceProfile != nil {
@@ -1087,9 +1107,10 @@ func applyClaudeHeadersWithNativeProfile(
 	}
 	if confirmedClaudeCode && incomingBetas != "" {
 		baseBetas = incomingBetas
-		if advisorNeeded {
-			// Advisor is a schema capability, so repair its presence and position
-			// even on otherwise fingerprint-preserving native requests.
+		if advisorNeeded && !claudeRequestedBetas(incomingBetas, nil)[claudeAdvisorToolBeta] {
+			// Repair a missing schema capability without moving an existing
+			// native flag: 2.1.321 places advisor before thinking-token-count,
+			// while older native profiles use a different position.
 			baseBetas = withClaudeAdvisorToolBeta(baseBetas)
 		}
 		// Measured Haiku helper requests already carry the exact credential
@@ -1166,6 +1187,10 @@ func applyClaudeHeadersWithNativeProfile(
 				appendBeta(beta)
 			}
 		}
+	}
+	// Native preservation must still pair a thread body with its required schema.
+	if !countTokens && (gjson.GetBytes(body, "thread").IsObject() || requestedBetas[claudeMessageThreadsBeta]) {
+		appendBeta(claudeMessageThreadsBeta)
 	}
 	// Explicit binding controls require their schema beta in every profile.
 	// Keep body policy and the existing custom-header precedence unchanged.
@@ -1306,13 +1331,20 @@ func applyClaudeHeadersWithNativeProfile(
 	for _, hdr := range []string{
 		"X-Claude-Code-Agent-Id",
 		"X-Claude-Code-Parent-Agent-Id",
-		"X-Claude-Remote-Container-Id",
-		"X-Claude-Remote-Session-Id",
-		"X-Client-App",
 		"X-Anthropic-Additional-Protection",
 	} {
 		if val := helps.HeaderValueCaseInsensitive(incomingHeaders, hdr); val != "" {
 			r.Header.Set(hdr, val)
+		}
+	}
+	// Reconstructed first-party requests own their application/environment identity.
+	// Native callers and custom gateways retain these fields; explicit operator
+	// headers are applied below and remain authoritative.
+	if confirmedClaudeCode || !isAnthropicBase {
+		for _, hdr := range []string{"X-Claude-Remote-Container-Id", "X-Claude-Remote-Session-Id", "X-Client-App"} {
+			if val := helps.HeaderValueCaseInsensitive(incomingHeaders, hdr); val != "" {
+				r.Header.Set(hdr, val)
+			}
 		}
 	}
 	// Claude Code 2.1.280 attaches request IDs for the first-party base.
@@ -1345,7 +1377,9 @@ func applyClaudeHeadersWithNativeProfile(
 	// Confirmed Claude Code requests may contribute their real software profile.
 	// Unconfirmed clients always receive the CLI baseline instead of being
 	// allowed to populate or reuse another client's software profile.
-	if stabilizeDeviceProfile {
+	if preserveNativeSoftware {
+		helps.ApplyClaudeDeviceProfileHeaders(r, nativeDeviceProfile)
+	} else if stabilizeDeviceProfile {
 		if confirmedClaudeCode {
 			helps.ApplyClaudeDeviceProfileHeaders(r, deviceProfile, helps.HeaderValueCaseInsensitive(incomingHeaders, "User-Agent"))
 		} else {
@@ -1359,6 +1393,7 @@ func applyClaudeHeadersWithNativeProfile(
 		attrs = auth.Attributes
 	}
 	util.ApplyCustomHeadersFromAttrs(r, attrs, incomingHeaders)
+	helps.AlignClaudeCustomSoftwareHeaders(r, attrs, cfg, incomingHeaders)
 	// Custom credential headers are a configuration escape hatch for third-party
 	// gateways, so they keep the last word there. On api.anthropic.com they must
 	// not rewrite the reconstructed identity: an overridden Anthropic-Beta yields a

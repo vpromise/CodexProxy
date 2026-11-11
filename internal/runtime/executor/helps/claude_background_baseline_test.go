@@ -76,8 +76,10 @@ func TestClaudeMeasuredLegacyHelperTupleRemainsIndependent(t *testing.T) {
 		}
 		request = httptest.NewRequest("POST", "https://example.invalid/messages", nil)
 		ApplyClaudeLegacyDeviceHeaders(request, headers, nil, true)
-		if request.Header.Get("X-Stainless-Package-Version") != "0.128.0" || request.Header.Get("X-Stainless-Runtime-Version") != "v26.12.1" {
-			t.Fatal("did not pin unknown native SDK pair")
+		// Repair a malformed pair to the companions of the retained known UA.
+		// The helper detector above still rejects the original mixed tuple.
+		if request.Header.Get("User-Agent") != headers.Get("User-Agent") || request.Header.Get("X-Stainless-Package-Version") != "0.112.1" || request.Header.Get("X-Stainless-Runtime-Version") != "v26.3.0" {
+			t.Fatal("did not restore coherent known native software tuple")
 		}
 	}
 }

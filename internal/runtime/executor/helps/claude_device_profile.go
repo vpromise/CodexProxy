@@ -125,6 +125,107 @@ func MapStainlessArch() string {
 	return mapStainlessArch()
 }
 
+// claudeMeasuredSoftwareVersions keeps known generated software components together.
+// An unknown native version is preserved only when its caller supplies a full tuple.
+func claudeMeasuredSoftwareVersions(userAgent string) (string, string, bool) {
+	switch ClaudeVersionFromUserAgent(userAgent) {
+	case "2.1.258", "2.1.280":
+		return "0.112.1", "v26.3.0", true
+	case "2.1.321":
+		return "0.128.0", "v26.12.1", true
+	default:
+		return "", "", false
+	}
+}
+
+// ClaudeVersionFromUserAgent returns a parsed Claude CLI version or an empty string.
+func ClaudeVersionFromUserAgent(userAgent string) string {
+	version, ok := parseClaudeCLIVersion(userAgent)
+	if !ok {
+		return ""
+	}
+	return strconv.Itoa(version.major) + "." + strconv.Itoa(version.minor) + "." + strconv.Itoa(version.patch)
+}
+
+// ClaudeBillingIdentityFromUserAgent resolves only a complete, supported client
+// identity. Opaque operator gateway identifiers must not rewrite attribution.
+func ClaudeBillingIdentityFromUserAgent(userAgent string) (version, entrypoint string) {
+	parsed, ok := parseClaudeCodeUserAgent(userAgent)
+	if !ok || !nativeClaudeEntrypoints[parsed.entrypoint] {
+		return "", ""
+	}
+	version = strconv.Itoa(parsed.version.major) + "." + strconv.Itoa(parsed.version.minor) + "." + strconv.Itoa(parsed.version.patch)
+	return version, parsed.entrypoint
+}
+
+// ClaudeNativeDeviceProfile preserves a confirmed caller's software as a unit.
+// Stabilization may pin its platform, but must not relabel an otherwise native body.
+// Explicit operator software settings retain authority over this passthrough path.
+func ClaudeNativeDeviceProfile(headers http.Header, cfg *config.Config, stabilize bool) (ClaudeDeviceProfile, bool) {
+	if cfg != nil && (strings.TrimSpace(cfg.ClaudeHeaderDefaults.UserAgent) != "" ||
+		strings.TrimSpace(cfg.ClaudeHeaderDefaults.PackageVersion) != "" ||
+		strings.TrimSpace(cfg.ClaudeHeaderDefaults.RuntimeVersion) != "") {
+		return ClaudeDeviceProfile{}, false
+	}
+	userAgent := HeaderValueCaseInsensitive(headers, "User-Agent")
+	if !plausibleClaudeCodeUserAgent(userAgent, cfg) {
+		return ClaudeDeviceProfile{}, false
+	}
+	profile := defaultClaudeDeviceProfile(cfg)
+	profile.UserAgent = userAgent
+	packageVersion, runtimeVersion, known := claudeMeasuredSoftwareVersions(userAgent)
+	if !known {
+		packageVersion = HeaderValueCaseInsensitive(headers, "X-Stainless-Package-Version")
+		runtimeVersion = HeaderValueCaseInsensitive(headers, "X-Stainless-Runtime-Version")
+		if !claudePackageVersionPattern.MatchString(packageVersion) || !claudeRuntimeVersionPattern.MatchString(runtimeVersion) {
+			return ClaudeDeviceProfile{}, false
+		}
+	}
+	profile.PackageVersion, profile.RuntimeVersion = packageVersion, runtimeVersion
+	profile.version, profile.hasVersion = parseClaudeCLIVersion(userAgent)
+	if !stabilize {
+		profile.OS = firstNonEmptyHeader(headers, "X-Stainless-Os", mapStainlessOS())
+		profile.Arch = firstNonEmptyHeader(headers, "X-Stainless-Arch", mapStainlessArch())
+	}
+	return profile, true
+}
+
+// AlignClaudeCustomSoftwareHeaders fills the measured companions of an explicit
+// credential UA override. Explicit SDK/runtime overrides remain operator-owned.
+func AlignClaudeCustomSoftwareHeaders(r *http.Request, attrs map[string]string, cfg *config.Config, incoming http.Header) {
+	if r == nil {
+		return
+	}
+	explicit := make(map[string]bool)
+	for key, value := range attrs {
+		value = strings.TrimSpace(value)
+		if !strings.HasPrefix(key, "header:") || value == "" {
+			continue
+		}
+		if strings.HasPrefix(value, "$") && HeaderValueCaseInsensitive(incoming, strings.TrimSpace(value[1:])) == "" {
+			continue
+		}
+		explicit[strings.ToLower(strings.TrimSpace(key[len("header:"):]))] = true
+	}
+	if !explicit["user-agent"] {
+		return
+	}
+	packageVersion, runtimeVersion, known := claudeMeasuredSoftwareVersions(r.Header.Get("User-Agent"))
+	if !known {
+		return
+	}
+	var hd config.ClaudeHeaderDefaults
+	if cfg != nil {
+		hd = cfg.ClaudeHeaderDefaults
+	}
+	if !explicit["x-stainless-package-version"] && strings.TrimSpace(hd.PackageVersion) == "" {
+		r.Header.Set("X-Stainless-Package-Version", packageVersion)
+	}
+	if !explicit["x-stainless-runtime-version"] && strings.TrimSpace(hd.RuntimeVersion) == "" {
+		r.Header.Set("X-Stainless-Runtime-Version", runtimeVersion)
+	}
+}
+
 func defaultClaudeDeviceProfile(cfg *config.Config) ClaudeDeviceProfile {
 	hdrDefault := func(cfgVal, fallback string) string {
 		if strings.TrimSpace(cfgVal) != "" {
@@ -138,10 +239,15 @@ func defaultClaudeDeviceProfile(cfg *config.Config) ClaudeDeviceProfile {
 		hd = cfg.ClaudeHeaderDefaults
 	}
 
+	userAgent := hdrDefault(hd.UserAgent, defaultClaudeFingerprintUserAgent)
+	packageVersion, runtimeVersion, known := claudeMeasuredSoftwareVersions(userAgent)
+	if !known {
+		packageVersion, runtimeVersion = defaultClaudeFingerprintPackageVersion, defaultClaudeFingerprintRuntimeVersion
+	}
 	profile := ClaudeDeviceProfile{
-		UserAgent:      hdrDefault(hd.UserAgent, defaultClaudeFingerprintUserAgent),
-		PackageVersion: hdrDefault(hd.PackageVersion, defaultClaudeFingerprintPackageVersion),
-		RuntimeVersion: hdrDefault(hd.RuntimeVersion, defaultClaudeFingerprintRuntimeVersion),
+		UserAgent:      userAgent,
+		PackageVersion: hdrDefault(hd.PackageVersion, packageVersion),
+		RuntimeVersion: hdrDefault(hd.RuntimeVersion, runtimeVersion),
 		OS:             hdrDefault(hd.OS, defaultClaudeFingerprintOS),
 		Arch:           hdrDefault(hd.Arch, defaultClaudeFingerprintArch),
 	}
@@ -619,33 +725,20 @@ func ApplyClaudeLegacyDeviceHeaders(r *http.Request, ginHeaders http.Header, cfg
 		return
 	}
 	profile := defaultClaudeDeviceProfile(cfg)
-	miscEnsure := func(name, fallback string, valid func(string) bool) {
-		if current := strings.TrimSpace(r.Header.Get(name)); current != "" && (valid == nil || valid(current)) {
-			return
-		}
-		if incoming := strings.TrimSpace(ginHeaders.Get(name)); incoming != "" && (valid == nil || valid(incoming)) {
-			r.Header.Set(name, incoming)
-			return
-		}
-		r.Header.Set(name, fallback)
-	}
 
 	if confirmedClaudeCode {
-		// Retain the previously accepted native SDK/runtime pair when the caller
-		// provides both. The generated default must not rewrite measured helpers.
-		if (cfg == nil || (cfg.ClaudeHeaderDefaults.UserAgent == "" && cfg.ClaudeHeaderDefaults.PackageVersion == "" && cfg.ClaudeHeaderDefaults.RuntimeVersion == "")) &&
-			HeaderValueCaseInsensitive(ginHeaders, "X-Stainless-Package-Version") == "0.112.1" &&
-			HeaderValueCaseInsensitive(ginHeaders, "X-Stainless-Runtime-Version") == "v26.3.0" {
-			profile.PackageVersion = "0.112.1"
-			profile.RuntimeVersion = "v26.3.0"
-		}
-		miscEnsure("X-Stainless-Runtime-Version", profile.RuntimeVersion, func(value string) bool { return value == profile.RuntimeVersion })
-		miscEnsure("X-Stainless-Package-Version", profile.PackageVersion, func(value string) bool { return value == profile.PackageVersion })
-		miscEnsure("X-Stainless-Os", mapStainlessOS(), nil)
-		miscEnsure("X-Stainless-Arch", mapStainlessArch(), nil)
-		if clientUA := strings.TrimSpace(ginHeaders.Get("User-Agent")); plausibleClaudeCodeUserAgent(clientUA, cfg) {
-			r.Header.Set("User-Agent", clientUA)
+		if native, ok := ClaudeNativeDeviceProfile(ginHeaders, cfg, false); ok {
+			ApplyClaudeDeviceProfileHeaders(r, native)
 			return
+		}
+		// Keep the configured software tuple complete while retaining the legacy
+		// unstabilized platform policy for a recognized native caller.
+		if clientUA := strings.TrimSpace(ginHeaders.Get("User-Agent")); plausibleClaudeCodeUserAgent(clientUA, cfg) {
+			profile.OS = firstNonEmptyHeader(ginHeaders, "X-Stainless-Os", mapStainlessOS())
+			profile.Arch = firstNonEmptyHeader(ginHeaders, "X-Stainless-Arch", mapStainlessArch())
+			if ClaudeVersionFromUserAgent(clientUA) == ClaudeVersionFromUserAgent(profile.UserAgent) {
+				profile.UserAgent = clientUA
+			}
 		}
 	}
 

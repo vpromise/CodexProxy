@@ -31,6 +31,10 @@ const (
 	// ErrProviderMismatch indicates the provider does not match the model.
 	// Example: applying Claude format to an incompatible model
 	ErrProviderMismatch ErrorCode = "PROVIDER_MISMATCH"
+
+	// ErrInvalidThinkingConfig is a request-level conflict between thinking mode
+	// and the target model's documented protocol constraints.
+	ErrInvalidThinkingConfig ErrorCode = "INVALID_THINKING_CONFIG"
 )
 
 // ThinkingError represents an error that occurred during thinking configuration processing.
@@ -79,4 +83,10 @@ func NewThinkingErrorWithModel(code ErrorCode, message, model string) *ThinkingE
 // StatusCode implements a portable status code interface for HTTP handlers.
 func (e *ThinkingError) StatusCode() int {
 	return http.StatusBadRequest
+}
+
+// IsRequestScoped prevents a local thinking-mode validation error from rotating
+// or cooling the selected credential. Existing error classifications stay intact.
+func (e *ThinkingError) IsRequestScoped() bool {
+	return e != nil && e.Code == ErrInvalidThinkingConfig
 }

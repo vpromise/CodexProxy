@@ -2,6 +2,8 @@ package executor
 
 import (
 	"bytes"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -203,4 +205,77 @@ func claudeCCHFromBody(t *testing.T, body []byte) string {
 		t.Fatalf("billing CCH not found in body: %s", body)
 	}
 	return string(body[offset : offset+claudeCCHLength])
+}
+
+func TestFinalizeClaudeRequestFingerprintUsesFinalUserAgent(t *testing.T) {
+	body := []byte(`{"model":"claude-opus-5","max_tokens":1024,"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.321.20d; cc_entrypoint=sdk-cli; cch=00000; cc_prompt_id=keep-prompt;"}],"messages":[{"role":"user","content":"say ok"}]}`)
+	request, errRequest := http.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+	if errRequest != nil {
+		t.Fatal(errRequest)
+	}
+	request.Header.Set("User-Agent", "claude-cli/2.1.280 (external, sdk-cli)")
+	result, errFinalize := finalizeClaudeRequestFingerprint(request, body, true, false)
+	if errFinalize != nil {
+		t.Fatal(errFinalize)
+	}
+	billing := gjson.GetBytes(result, "system.0.text").String()
+	if !strings.Contains(billing, "cc_version=2.1.280."+computeFingerprint("say ok", "2.1.280")) || !strings.Contains(billing, "cc_entrypoint=sdk-cli;") || !strings.Contains(billing, "cc_prompt_id=keep-prompt;") {
+		t.Fatalf("billing=%s", billing)
+	}
+	wire, errRead := io.ReadAll(request.Body)
+	if errRead != nil {
+		t.Fatal(errRead)
+	}
+	replay, errReplay := request.GetBody()
+	if errReplay != nil {
+		t.Fatal(errReplay)
+	}
+	defer replay.Close()
+	replayBytes, errRead := io.ReadAll(replay)
+	if errRead != nil {
+		t.Fatal(errRead)
+	}
+	if !bytes.Equal(wire, result) || !bytes.Equal(replayBytes, result) || request.ContentLength != int64(len(result)) {
+		t.Fatal("request body and replay snapshot diverged")
+	}
+	signed, errSign := finalizeAnthropicMessagesBodyCCH(result, "")
+	if errSign != nil {
+		t.Fatal(errSign)
+	}
+	if !bytes.Equal(signed, result) {
+		t.Fatal("final CCH mismatch")
+	}
+	for _, ua := range []string{"", "gateway/1.0", "claude-cli/2.1.321-malformed (external, cli)", "claude-cli/2.1.321 (external, unverified-product)"} {
+		request.Header.Set("User-Agent", ua)
+		opaqueBody := bytes.Replace(body, []byte("cc_version=2.1.321.20d;"), []byte("cc_version=2.1.280.stale;"), 1)
+		got, errFinalize := finalizeClaudeRequestFingerprint(request, opaqueBody, true, true)
+		if errFinalize != nil {
+			t.Fatal(errFinalize)
+		}
+		if !bytes.Equal(got, opaqueBody) {
+			t.Fatal("opaque gateway identity changed billing")
+		}
+	}
+	request.Header.Set("User-Agent", "claude-cli/2.1.321 (external, cli)")
+	withoutSystem := []byte(`{"messages":[{"role":"user","content":"say ok"}]}`)
+	got, errFinalize := finalizeClaudeRequestFingerprint(request, withoutSystem, true, true)
+	if errFinalize != nil {
+		t.Fatal(errFinalize)
+	}
+	if !bytes.Equal(got, withoutSystem) {
+		t.Fatal("absent billing acquired system")
+	}
+}
+
+func TestFinalizeClaudeRequestFingerprintPreservesUnchangedNativeIdentity(t *testing.T) {
+	body := []byte(`{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.321.native; cc_entrypoint=sdk-cli; cch=00000;"}],"messages":[{"role":"user","content":"unchanged native text"}]}`)
+	request, _ := http.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+	request.Header.Set("User-Agent", "claude-cli/2.1.321 (external, sdk-cli)")
+	result, err := finalizeClaudeRequestFingerprint(request, body, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(result, body) {
+		t.Fatalf("unchanged native attribution must remain intact: %s", result)
+	}
 }

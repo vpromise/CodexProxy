@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"sort"
 	"strings"
 
 	xxHash64 "github.com/pierrec/xxHash/xxHash64"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -37,6 +40,66 @@ type claudeCCHJSONScanner struct {
 	body  []byte
 	pos   int
 	edits []claudeCCHNormalizationEdit
+}
+
+// finalizeClaudeRequestFingerprint aligns billing with the final header authority.
+// Native attribution remains intact unless identity or the sampled text changed.
+func finalizeClaudeRequestFingerprint(req *http.Request, body []byte, signCCH bool, refreshFingerprint bool) ([]byte, error) {
+	if req == nil {
+		return body, nil
+	}
+	version, entrypoint := helps.ClaudeBillingIdentityFromUserAgent(req.Header.Get("User-Agent"))
+	billing := gjson.GetBytes(body, "system.0.text")
+	if version == "" || billing.Type != gjson.String || !strings.HasPrefix(billing.String(), "x-anthropic-billing-header:") {
+		return body, nil
+	}
+	originalText := billing.String()
+	text := originalText
+	start, end, ok := claudeBillingFieldRange(text, "cc_version")
+	if !ok {
+		return body, nil
+	}
+	current := strings.TrimSpace(text[start:end])
+	sameVersion := current == version || strings.HasPrefix(current, version+".")
+	if refreshFingerprint || !sameVersion {
+		value := version + "." + computeFingerprint(claudeBillingFingerprintMessageText(body), version)
+		text = text[:start] + value + text[end:]
+	}
+	if start, end, ok = claudeBillingFieldRange(text, "cc_entrypoint"); ok {
+		if strings.TrimSpace(text[start:end]) != entrypoint {
+			text = text[:start] + entrypoint + text[end:]
+		}
+	}
+	if text == originalText {
+		return body, nil
+	}
+	updated, err := sjson.SetBytes(body, "system.0.text", text)
+	if err != nil {
+		return nil, fmt.Errorf("align Claude billing identity: %w", err)
+	}
+	if signCCH {
+		updated, err = finalizeAnthropicMessagesBodyCCH(updated, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+	req.Body = io.NopCloser(bytes.NewReader(updated))
+	req.ContentLength = int64(len(updated))
+	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(updated)), nil }
+	return updated, nil
+}
+
+func claudeBillingFieldRange(text, name string) (start, end int, ok bool) {
+	start = strings.Index(text, name+"=")
+	if start < 0 {
+		return 0, 0, false
+	}
+	start += len(name) + 1
+	end = strings.IndexByte(text[start:], ';')
+	if end < 0 {
+		return 0, 0, false
+	}
+	return start, start + end, true
 }
 
 func finalizeAnthropicMessagesBodyCCH(body []byte, fallbackBilling string) ([]byte, error) {

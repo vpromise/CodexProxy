@@ -167,8 +167,11 @@ func ValidateConfig(config ThinkingConfig, modelInfo *registry.ModelInfo, fromFo
 	}
 
 	if config.Mode == ModeNone && toFormat == "claude" {
-		// Claude supports explicit disable via thinking.type="disabled".
-		// Keep Budget=0 so applier can omit budget_tokens.
+		if _, errMode := ClaudeThinkingTypeForNone(modelInfo); errMode != nil {
+			return nil, errMode
+		}
+		// Keep canonical none intact; the Claude applier selects the supported
+		// wire mode and omits a manual budget.
 		config.Budget = 0
 		config.Level = ""
 	} else {

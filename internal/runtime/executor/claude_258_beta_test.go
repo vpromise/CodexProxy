@@ -25,11 +25,11 @@ func TestClaude258AdvancedToolBetaFollowsFeatures(t *testing.T) {
 			if got := strings.Contains(betas, claudeAdvancedToolUseBeta); got != tt.want {
 				t.Fatalf("advanced tool beta present = %v, want %v: %s", got, tt.want, betas)
 			}
-			if tt.want && !strings.Contains(betas, claudeAdvisorToolBeta+","+claudeAdvancedToolUseBeta+","+claudeEffortBeta) {
+			if tt.want && !strings.Contains(betas, claudeAdvisorToolBeta+","+claudeThinkingTokenCountBeta+","+claudeAdvancedToolUseBeta+","+claudeEffortBeta) {
 				t.Fatalf("unexpected capability order: %s", betas)
 			}
-			if !strings.Contains(betas, claudeContext1MBeta) || !strings.Contains(betas, claudeMidConvSystemBeta) {
-				t.Fatalf("local context/system policy lost: %s", betas)
+			if !strings.Contains(betas, claudeContext1MBeta) || strings.Contains(betas, claudeMidConvSystemBeta) {
+				t.Fatalf("expected local 1M capability and opt-in mid-conversation-system: %s", betas)
 			}
 		})
 	}

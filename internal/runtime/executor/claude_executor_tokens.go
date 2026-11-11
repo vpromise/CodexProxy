@@ -151,6 +151,9 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		return cliproxyexecutor.Response{}, errTranslate
 	}
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
+	if errThread := helps.ValidateClaudeThreadRequest(body, true); errThread != nil {
+		return cliproxyexecutor.Response{}, errThread
+	}
 	nativeThinkingWire := bytes.Clone(body)
 	body, errThinking := applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
 	if errThinking != nil {
@@ -224,6 +227,11 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// that is about to be sent.
 	if errMidSystem := validateClaudeMidSystemMessageModel(body, directAnthropic); errMidSystem != nil {
 		return cliproxyexecutor.Response{}, errMidSystem
+	}
+	if directAnthropic {
+		if errThinking := helps.ValidateFinalClaudeThinking(body, req); errThinking != nil {
+			return cliproxyexecutor.Response{}, errThinking
+		}
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {

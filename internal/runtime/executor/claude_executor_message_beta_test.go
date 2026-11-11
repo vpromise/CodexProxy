@@ -122,9 +122,11 @@ func TestClaudeExecutor_MessageFeatureBetasPreserveEffortControl(t *testing.T) {
 			payload := []byte(`{"model":"claude-fable-5-1","max_tokens":1024,"thinking":{"type":"adaptive"},"output_config":{"effort":"xhigh"},"messages":[{"role":"user","content":"hello"},` + control + `,{"role":"user","content":"continue"}],"betas":["` + toolChanges + `"]}`)
 			req := cliproxyexecutor.Request{Model: "claude-fable-5-1", Payload: payload}
 			opts := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude, Headers: http.Header{
-				"User-Agent":     {"claude-cli/2.1.267 (external, cli)"},
-				"X-App":          {"cli"},
-				"Anthropic-Beta": {claudeCodeBeta + "," + claudeMidConvSystemBeta + "," + perTurn},
+				"User-Agent":                  {"claude-cli/2.1.267 (external, cli)"},
+				"X-Stainless-Package-Version": {"0.112.1"},
+				"X-Stainless-Runtime-Version": {"v26.3.0"},
+				"X-App":                       {"cli"},
+				"Anthropic-Beta":              {claudeCodeBeta + "," + claudeMidConvSystemBeta + "," + perTurn},
 			}}
 			executor := NewClaudeExecutor(&config.Config{})
 			switch mode {

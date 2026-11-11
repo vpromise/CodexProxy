@@ -81,6 +81,11 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		return nil, errTranslate
 	}
 	body = helps.SetStringIfDifferent(body, "model", upstreamModel)
+	if isAnthropicUpstreamBase(baseURL) {
+		if errThread := helps.ValidateClaudeThreadRequest(body, false); errThread != nil {
+			return nil, errThread
+		}
+	}
 	nativeThinkingWire := bytes.Clone(body)
 
 	// Native recognition only restores a measured representation after the
@@ -277,8 +282,13 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		matcher := helps.BuildSensitiveWordMatcher(wireSettings.sensitiveWords)
 		bodyForUpstream = helps.ObfuscateSensitiveWords(bodyForUpstream, matcher)
 	}
+	if isAnthropicUpstreamBase(baseURL) {
+		if errThread := helps.ValidateClaudeThreadRequest(bodyForUpstream, false); errThread != nil {
+			return nil, errThread
+		}
+	}
 	cchBilling := ""
-	if cchSigning {
+	if cchSigning && !helps.ClaudeThreadContinues(bodyForUpstream) {
 		if !nativeHelperProfile || claudeBodyNeedsBillingFallback(bodyForUpstream) {
 			cchBilling = claudeCCHFallbackBillingHeader(ctx, e.cfg, bodyForUpstream, claudeCodeDetection.Entrypoint)
 		}
@@ -292,6 +302,11 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// that is about to be sent.
 	if errMidSystem := validateClaudeMidSystemMessageModel(bodyForUpstream, isAnthropicUpstreamBase(baseURL)); errMidSystem != nil {
 		return nil, errMidSystem
+	}
+	if isAnthropicUpstreamBase(baseURL) {
+		if errThinking := helps.ValidateFinalClaudeThinking(bodyForUpstream, req); errThinking != nil {
+			return nil, errThinking
+		}
 	}
 	reporter.SetTranslatedReasoningEffort(bodyForUpstream, to.String())
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyForUpstream))
@@ -312,6 +327,14 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		claudeSessionID,
 	); errHeaders != nil {
 		return nil, errHeaders
+	}
+	// Caller-owned API-key and delegated profiles retain their own attribution.
+	if fp.ProfileClaudeCodeCLI || cloaked {
+		refreshBilling := cloaked || claudeBillingFingerprintMessageText(nativeThinkingWire) != claudeBillingFingerprintMessageText(bodyForUpstream)
+		bodyForUpstream, err = finalizeClaudeRequestFingerprint(httpReq, bodyForUpstream, cchSigning, refreshBilling)
+		if err != nil {
+			return nil, err
+		}
 	}
 	fastRequest := isAnthropicUpstreamBase(baseURL) && claudeRequestIsFast(httpReq, bodyForUpstream)
 	authID, authLabel, authType, authValue := claudeAuthLogIdentity(auth)

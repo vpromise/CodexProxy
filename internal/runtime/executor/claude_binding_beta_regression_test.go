@@ -39,7 +39,7 @@ func TestClaudeExplicitBindingBetaAcrossProfiles(t *testing.T) {
 						}
 					}
 					want := 0
-					if binding {
+					if binding || (profile == "cloaked" && mode != "count_tokens") {
 						want = 1
 					}
 					if n != want {

@@ -223,6 +223,11 @@ func applyThinking(body, sourceBody []byte, model string, fromFormat string, toF
 	if !modelInfoResolved {
 		modelInfo = registry.LookupModelInfo(baseModel, providerKey)
 	}
+	if providerFormat == "claude" && !suffixResult.HasSuffix {
+		if errMode := validateClaudeThinkingMode(body, modelInfo); errMode != nil {
+			return body, errMode
+		}
+	}
 
 	if fromFormat == "claude" && providerFormat == "claude" && !suffixResult.HasSuffix && !gjson.GetBytes(body, "thinking").Exists() {
 		// Native Claude effort is independent of thinking activation. Preserve the
@@ -339,6 +344,11 @@ func applyThinking(body, sourceBody []byte, model string, fromFormat string, toF
 	applied, err := applier.Apply(body, *validated, modelInfo)
 	if err != nil {
 		return applied, err
+	}
+	if providerFormat == "claude" {
+		if errMode := validateClaudeThinkingMode(applied, modelInfo); errMode != nil {
+			return body, errMode
+		}
 	}
 	// A fully disabled amount takes precedence over visibility. Re-applying a
 	// summary-only field can recreate an otherwise removed provider config and

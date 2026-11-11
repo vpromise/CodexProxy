@@ -85,11 +85,25 @@ func (a *Applier) Apply(body []byte, config thinking.ThinkingConfig, modelInfo *
 
 	switch config.Mode {
 	case thinking.ModeNone:
-		result, _ := sjson.SetBytes(body, "thinking.type", "disabled")
+		mode, errMode := thinking.ClaudeThinkingTypeForNone(modelInfo)
+		if errMode != nil {
+			return body, errMode
+		}
+		result, _ := sjson.SetBytes(body, "thinking.type", mode)
+		if mode == "between_tools" {
+			// Sonnet 5.5 accepts only type in its lowest thinking mode.
+			result, _ = sjson.SetBytes(result, "thinking", map[string]string{"type": mode})
+		}
 		result, _ = sjson.DeleteBytes(result, "thinking.budget_tokens")
 		// Summary display only applies to an active thinking block.
 		result, _ = sjson.DeleteBytes(result, "thinking.display")
-		result, _ = sjson.DeleteBytes(result, "output_config.effort")
+		// These models retain effort while up-front thinking is off. Keeping a
+		// valid explicit level also preserves matching per-message effort values.
+		effort := gjson.GetBytes(result, "output_config.effort").String()
+		retainEffort := thinking.ClaudeThinkingNoneSupportsEffort(modelInfo) && (effort == "low" || effort == "medium" || effort == "high")
+		if !retainEffort {
+			result, _ = sjson.DeleteBytes(result, "output_config.effort")
+		}
 		if oc := gjson.GetBytes(result, "output_config"); oc.Exists() && oc.IsObject() && len(oc.Map()) == 0 {
 			result, _ = sjson.DeleteBytes(result, "output_config")
 		}
