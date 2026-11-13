@@ -107,11 +107,12 @@ func defaultPluginInstanceConfigNode() *yaml.Node {
 	}
 }
 
-// ClaudeHeaderDefaults configures the measured Claude Code software baseline.
-// Verified native requests preserve their entrypoint and software shape only when their
-// Claude Code, package, and runtime versions exactly match this baseline; unmeasured
-// versions use the configured values. Timeout remains a fallback. Stabilized profiles
-// also pin OS and Arch and never learn newer software versions automatically.
+// ClaudeHeaderDefaults configures software/platform defaults for custom gateways
+// and caller-owned requests. First-party Claude Code CLI fingerprints use the
+// measured 2.1.321 MacOS/arm64 tuple paired with the fixed TLS profile, including
+// when software/platform custom headers or legacy cached profiles are present.
+// Timeout and Timezone retain their configured behavior. Stabilization applies
+// to the configurable profiles and never learns newer software automatically.
 type ClaudeHeaderDefaults struct {
 	UserAgent              string `yaml:"user-agent" json:"user-agent"`
 	PackageVersion         string `yaml:"package-version" json:"package-version"`

@@ -150,7 +150,12 @@ func TestPionMediaRelayBridgesAudioAndDataChannel(t *testing.T) {
 		logger.ReplaceHooks(previousHooks)
 		logger.SetLevel(previousLevel)
 	}()
-	clientAPI := newTestWebRTCAPI(t)
+	// All four peers are local. Restrict candidates to loopback so the
+	// forwarding test does not create an interface-count-dependent ICE mesh.
+	clientAPI, errAPI := newPionAPIWithOptions(config.CodexLiveMediaRelayConfig{}, false, true, "")
+	if errAPI != nil {
+		t.Fatal(errAPI)
+	}
 	client, errClient := clientAPI.NewPeerConnection(webrtc.Configuration{})
 	if errClient != nil {
 		t.Fatalf("create client PeerConnection: %v", errClient)
@@ -195,6 +200,8 @@ func TestPionMediaRelayBridgesAudioAndDataChannel(t *testing.T) {
 	if errRelay != nil {
 		t.Fatalf("create media relay: %v", errRelay)
 	}
+	relay.downstreamAPI = clientAPI
+	relay.upstreamAPI = clientAPI
 	session, relayOffer, errSession := relay.NewSession(context.Background(), clientOffer, mediaSessionRoute{
 		credential: "Voice credential",
 		authIndex:  "auth-index",
@@ -216,7 +223,7 @@ func TestPionMediaRelayBridgesAudioAndDataChannel(t *testing.T) {
 		t.Fatal("reloaded media relay bypassed the shared session capacity")
 	}
 
-	upstreamAPI := newTestWebRTCAPI(t)
+	upstreamAPI := clientAPI
 	upstream, errUpstream := upstreamAPI.NewPeerConnection(webrtc.Configuration{})
 	if errUpstream != nil {
 		t.Fatalf("create upstream PeerConnection: %v", errUpstream)

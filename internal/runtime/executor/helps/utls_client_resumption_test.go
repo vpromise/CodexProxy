@@ -47,7 +47,7 @@ func newResumptionTestCertificate(t *testing.T) gotls.Certificate {
 }
 
 // TestClaudeCodeTLSSessionResumptionCompletesHandshake covers hybrid and
-// classical key exchange, a cold HelloRetryRequest, TLS 1.2, and real session tickets.
+// classical key exchange, resumed HelloRetryRequest, TLS 1.2, and real session tickets.
 func TestClaudeCodeTLSSessionResumptionCompletesHandshake(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -57,10 +57,8 @@ func TestClaudeCodeTLSSessionResumptionCompletesHandshake(t *testing.T) {
 	}{
 		{name: "TLS13_MLKEM", version: gotls.VersionTLS13, curve: gotls.X25519MLKEM768, rounds: 2},
 		{name: "TLS13_X25519", version: gotls.VersionTLS13, curve: gotls.X25519, rounds: 2},
-		// uTLS v1.8.2 cannot recompute PSK binders after HelloRetryRequest.
-		// Exercise the supported cold handshake here. The preexisting warm
-		// handshake failure is recorded separately in the sync ledger.
-		{name: "TLS13_P256_ColdHelloRetryRequest", version: gotls.VersionTLS13, curve: gotls.CurveP256, rounds: 1},
+		// Both handshakes require HRR. The resumed handshake recomputes its PSK binder.
+		{name: "TLS13_P256_HelloRetryRequest", version: gotls.VersionTLS13, curve: gotls.CurveP256, rounds: 2},
 		{name: "TLS12_X25519", version: gotls.VersionTLS12, curve: gotls.X25519, rounds: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

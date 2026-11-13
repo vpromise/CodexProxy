@@ -178,11 +178,6 @@ func TestClaudeExecutor_MessageFeatureBetasPreserveEffortControl(t *testing.T) {
 				t.Error("body betas were not lifted to the header")
 			}
 			wantUserAgent := "claude-cli/2.1.321 (external, cli)"
-			if mode == "count_tokens" {
-				// Count-token requests do not require metadata identity. Messages
-				// without that signal must still use the configured baseline.
-				wantUserAgent = "claude-cli/2.1.267 (external, cli)"
-			}
 			if got := upstreamHeaders.Get("User-Agent"); got != wantUserAgent {
 				t.Errorf("User-Agent = %q, want %q", got, wantUserAgent)
 			}

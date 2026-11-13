@@ -45,13 +45,13 @@ func testClaudeExecutorUserAgentFields(t *testing.T, stabilize bool) {
 			}
 			var nativeSystem string
 			for _, testCase := range []struct {
-				userAgent, stabilizedUserAgent, xApp string
+				userAgent, xApp string
 			}{
-				{userAgent: "claude-cli/2.1.312 (external, cli)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli)"},
-				{userAgent: "claude-cli/2.1.312 (external, cli)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli)", xApp: "cli-bg"},
-				{userAgent: "claude-cli/2.1.312 (external, cli, workload/cron)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, workload/cron)"},
-				{userAgent: "claude-cli/2.1.312 (external, cli, future-feature/value, agent-sdk/0.2.133)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, agent-sdk/0.2.133, future-feature/value)"},
-				{userAgent: "claude-cli/2.1.312 (external, cli, request-phase/background, agent-sdk/0.2.133, workload/cron)", stabilizedUserAgent: "claude-cli/2.1.312 (external, cli, agent-sdk/0.2.133, request-phase/background, workload/cron)"},
+				{userAgent: "claude-cli/2.1.312 (external, cli)"},
+				{userAgent: "claude-cli/2.1.312 (external, cli)", xApp: "cli-bg"},
+				{userAgent: "claude-cli/2.1.312 (external, cli, workload/cron)"},
+				{userAgent: "claude-cli/2.1.312 (external, cli, future-feature/value, agent-sdk/0.2.133)"},
+				{userAgent: "claude-cli/2.1.312 (external, cli, request-phase/background, agent-sdk/0.2.133, workload/cron)"},
 			} {
 				t.Run(testCase.userAgent+"/"+testCase.xApp, func(t *testing.T) {
 					var upstreamBody []byte
@@ -129,10 +129,7 @@ func testClaudeExecutorUserAgentFields(t *testing.T, stabilize bool) {
 					} else if system.Raw != nativeSystem {
 						t.Fatalf("extended UA changed the native prefix\n got: %s\nwant: %s", system.Raw, nativeSystem)
 					}
-					wantUserAgent := testCase.userAgent
-					if stabilize {
-						wantUserAgent = testCase.stabilizedUserAgent
-					}
+					wantUserAgent := strings.Replace(testCase.userAgent, "claude-cli/2.1.312", "claude-cli/2.1.321", 1)
 					if got := claudeNativeHelperHeaderValue(upstreamHeaders, "X-App"); got != xApp {
 						t.Fatalf("upstream X-App = %q, want %q", got, xApp)
 					}

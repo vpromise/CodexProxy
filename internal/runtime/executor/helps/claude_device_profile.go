@@ -716,6 +716,22 @@ func DefaultClaudeVersion(cfg *config.Config) string {
 	return "2.1.321"
 }
 
+// ApplyClaudeCodeDeviceProfileHeaders matches the fixed inference TLS profile.
+// Request-scoped UA fields and the native entrypoint remain attached to this call.
+func ApplyClaudeCodeDeviceProfileHeaders(r *http.Request) {
+	if r == nil {
+		return
+	}
+	requestUserAgent := r.Header.Get("User-Agent")
+	profile := defaultClaudeDeviceProfile(nil)
+	if parsed, ok := parseClaudeCodeUserAgent(requestUserAgent); ok && nativeClaudeEntrypoints[parsed.entrypoint] {
+		profile.UserAgent = claudeCLIVersionPattern.ReplaceAllString(requestUserAgent, "claude-cli/"+DefaultClaudeVersion(nil))
+	}
+	ApplyClaudeDeviceProfileHeaders(r, profile)
+	r.Header.Set("X-Stainless-Runtime", "node")
+	r.Header.Set("X-Stainless-Lang", "js")
+}
+
 func ApplyClaudeDefaultDeviceProfileHeaders(r *http.Request, cfg *config.Config) {
 	ApplyClaudeDeviceProfileHeaders(r, defaultClaudeDeviceProfile(cfg))
 }

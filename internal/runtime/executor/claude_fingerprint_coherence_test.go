@@ -28,14 +28,14 @@ func TestClaudeExecutorSoftwareIdentityRemainsCoherent(t *testing.T) {
 				wantVersion, wantSDK, wantRuntime           string
 				wantEntrypoint                              string
 			}{
-				{name: "native legacy stabilized", mode: "auto", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", stabilize: true, wantVersion: "2.1.280", wantSDK: "0.112.1", wantRuntime: "v26.3.0"},
-				{name: "native never stabilized", mode: "never", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", stabilize: true, wantVersion: "2.1.280", wantSDK: "0.112.1", wantRuntime: "v26.3.0"},
-				{name: "native fallback billing", mode: "auto", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", omitBilling: true, wantVersion: "2.1.280", wantSDK: "0.112.1", wantRuntime: "v26.3.0"},
+				{name: "native legacy stabilized", mode: "auto", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", stabilize: true, wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
+				{name: "native never stabilized", mode: "never", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", stabilize: true, wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
+				{name: "native fallback billing", mode: "auto", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", omitBilling: true, wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
 				{name: "native current with legacy pair", mode: "auto", version: "2.1.321", sdk: "0.112.1", runtime: "v26.3.0", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
 				{name: "unknown native incomplete tuple", mode: "auto", version: "2.1.322", sdk: "0.129.0", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
-				{name: "synthetic newer native full tuple", mode: "auto", version: "2.1.322", sdk: "0.129.0", runtime: "v26.13.0", wantVersion: "2.1.322", wantSDK: "0.129.0", wantRuntime: "v26.13.0"},
-				{name: "reconstructed credential UA", mode: "always", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", customUA: "claude-cli/2.1.280 (external, cli)", stabilize: true, wantVersion: "2.1.280", wantSDK: "0.112.1", wantRuntime: "v26.3.0"},
-				{name: "configured known UA defaults", mode: "always", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", configuredUA: "claude-cli/2.1.280 (external, cli)", wantVersion: "2.1.280", wantSDK: "0.112.1", wantRuntime: "v26.3.0"},
+				{name: "synthetic newer native full tuple", mode: "auto", version: "2.1.322", sdk: "0.129.0", runtime: "v26.13.0", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
+				{name: "reconstructed credential UA", mode: "always", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", customUA: "claude-cli/2.1.280 (external, cli)", stabilize: true, wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
+				{name: "configured known UA defaults", mode: "always", version: "2.1.280", sdk: "0.112.1", runtime: "v26.3.0", configuredUA: "claude-cli/2.1.280 (external, cli)", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
 				{name: "reconstructed SDK entrypoint", mode: "always", version: "2.1.321", sdk: "0.128.0", runtime: "v26.12.1", customUA: "claude-cli/2.1.321 (external, sdk-cli)", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1", wantEntrypoint: "sdk-cli"},
 				{name: "native explicit SDK entrypoint", mode: "auto", version: "2.1.321", sdk: "0.128.0", runtime: "v26.12.1", customUA: "claude-cli/2.1.321 (external, sdk-cli)", wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1", wantEntrypoint: "sdk-cli"},
 				{name: "native payload text override", mode: "never", version: "2.1.321", sdk: "0.128.0", runtime: "v26.12.1", rewriteMessage: true, wantVersion: "2.1.321", wantSDK: "0.128.0", wantRuntime: "v26.12.1"},
@@ -50,6 +50,8 @@ func TestClaudeExecutorSoftwareIdentityRemainsCoherent(t *testing.T) {
 					headers.Set("User-Agent", "claude-cli/"+tc.version+" (external, cli)")
 					headers.Set("X-Stainless-Package-Version", tc.sdk)
 					headers.Set("X-Stainless-Runtime-Version", tc.runtime)
+					headers.Set("X-Stainless-OS", "Linux")
+					headers.Set("X-Stainless-Arch", "x64")
 					cfg := &config.Config{ClaudeHeaderDefaults: config.ClaudeHeaderDefaults{StabilizeDeviceProfile: &tc.stabilize, UserAgent: tc.configuredUA}}
 					if tc.rewriteMessage {
 						cfg.Payload.Override = []config.PayloadRule{{Models: []config.PayloadModelRule{{Name: "claude-opus-5"}}, Params: map[string]any{"messages.0.content": "changed first user text with different samples"}}}
@@ -65,6 +67,11 @@ func TestClaudeExecutorSoftwareIdentityRemainsCoherent(t *testing.T) {
 							return nil, errRead
 						}
 						captured = body
+						for name, want := range map[string]string{"X-Stainless-OS": "MacOS", "X-Stainless-Arch": "arm64", "X-Stainless-Runtime": "node", "X-Stainless-Lang": "js"} {
+							if got := helps.HeaderValueCaseInsensitive(request.Header, name); got != want {
+								t.Errorf("%s=%q, want %q", name, got, want)
+							}
+						}
 						if got := helps.HeaderValueCaseInsensitive(request.Header, "User-Agent"); !strings.Contains(got, "claude-cli/"+tc.wantVersion+" ") {
 							t.Errorf("UA=%s, want version %s", got, tc.wantVersion)
 						}
@@ -226,5 +233,47 @@ func TestClaudeDefaultProfilePreservesCallerBilling(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// The native TLS profile is fixed at the first-party CLI send boundary.
+func TestClaudePinnedProfileScopeAndOverridePrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name, endpoint, token, fingerprint, mode string
+		pinned                                   bool
+	}{
+		{name: "OAuth", endpoint: "https://api.anthropic.com/v1/messages", token: "sk-ant-oat-scope", pinned: true},
+		{name: "API key CLI opt-in", endpoint: "https://api.anthropic.com/v1/messages", token: "key", fingerprint: "claude-code-cli", pinned: true},
+		{name: "explicit cloak", endpoint: "https://api.anthropic.com/v1/messages", token: "key", mode: "always", pinned: true},
+		{name: "caller-owned API key", endpoint: "https://api.anthropic.com/v1/messages", token: "key"},
+		{name: "custom gateway", endpoint: "https://gateway.example/v1/messages", token: "sk-ant-oat-scope"},
+		{name: "similarly named host", endpoint: "https://api.anthropic.com.example/v1/messages", token: "sk-ant-oat-scope"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, tc.endpoint, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			auth := &cliproxyauth.Auth{ID: uuid.NewString(), Attributes: map[string]string{
+				"api_key": tc.token, "fingerprint_profile": tc.fingerprint, "cloak_mode": tc.mode,
+				"header:User-Agent":                  "claude-cli/2.1.280 (external, sdk-cli, workload/cron)",
+				"header:X-Stainless-Package-Version": "9.9.9", "header:X-Stainless-Runtime-Version": "v1.2.3",
+				"header:X-Stainless-OS": "Linux", "header:X-Stainless-Arch": "x64",
+				"header:X-Stainless-Runtime": "python", "header:X-Stainless-Lang": "python",
+			}}
+			cfg := &config.Config{ClaudeHeaderDefaults: config.ClaudeHeaderDefaults{UserAgent: "claude-cli/2.1.280 (external, cli)", OS: "Windows", Arch: "x64"}}
+			if err := applyClaudeHeaders(req, auth, tc.token, false, nil, []byte(`{"model":"claude-sonnet-4-5"}`), cfg, nil, false); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{"User-Agent": "claude-cli/2.1.280 (external, sdk-cli, workload/cron)", "X-Stainless-Package-Version": "9.9.9", "X-Stainless-Runtime-Version": "v1.2.3", "X-Stainless-OS": "Linux", "X-Stainless-Arch": "x64", "X-Stainless-Runtime": "python", "X-Stainless-Lang": "python"}
+			if tc.pinned {
+				want = map[string]string{"User-Agent": "claude-cli/2.1.321 (external, sdk-cli, workload/cron)", "X-Stainless-Package-Version": "0.128.0", "X-Stainless-Runtime-Version": "v26.12.1", "X-Stainless-OS": "MacOS", "X-Stainless-Arch": "arm64", "X-Stainless-Runtime": "node", "X-Stainless-Lang": "js"}
+			}
+			for key, value := range want {
+				if got := req.Header.Get(key); got != value {
+					t.Errorf("%s=%q, want %q", key, got, value)
+				}
+			}
+		})
 	}
 }
