@@ -26,7 +26,7 @@ All final checks used **Go 1.27.3 darwin/arm64, CGO_ENABLED=1**, task-local GOCA
 | --- | --- |
 | New capture regression against old production code | Exit 1 with substantive assertion `ClientHello length = 508, want 1499` |
 | Focused `go test -json -count=20 -run '^TestClaudeCodeTLS' ./internal/runtime/executor/helps` | Exit 0, 60 top-level passes and 140 including subtests |
-| Final `go test -json -count=1 -skip <two-bind-tests> ./...` | Exit 0, 4241 top-level passes and 8773 including subtests, 69 passing package results |
+| Final `go test -json -count=1 -skip <two-bind-tests> ./...` | Exit 0, 4241 top-level passes and 8773 including subtests, 68 test-bearing packages and 69 passing package results |
 | Related `go test -json -race -count=1 -skip <two-bind-tests>` | Exit 0, 1830 top-level passes and 4358 including subtests, eight packages |
 | `go build -o <task>/codexproxy ./cmd/server` | Exit 0, binary SHA256 `d1c63f8dfc68d326652074b03f677f1fc9f9b31ee237a575d555a7f811c73d3c` |
 | Changed-file gofmt, `git diff --check`, source hash readback | Passed |
@@ -49,7 +49,9 @@ This closes the captured cold-TLS mismatch within **U4**. The existing **14 them
 4. **U4, billing, entrypoint and host profile.** A three-hex billing suffix depends on message text and version. The supplied `.870` versus `.c3d` observations do not justify hardcoding a suffix. `sdk-cli` versus `cli`, and physical Linux versus the selected MacOS/arm64 profile, require matched scenarios before treating them as inconsistencies. Retain the existing profile and derivation. A follow-up should use identical inputs/version/entrypoint and assert coherent related headers. The benefit is a reproducible software-profile comparison. Blind global rewrites risk misclassifying native clients and changing attribution. Decide only after matched-input evidence establishes a concrete mismatch.
 5. **K3/U2, retry and quota observations.** The research mock config has `disable-cooling: true`, and its 401/429/500 and pre-visible-output retries cannot establish production five-hour cooldown or post-output replay behavior. Retain existing policy. Any proposed change needs a mock manager-level case with production-equivalent options, exact attempt counts, healthy/limited siblings, cooldown persistence, late results and visible-output boundaries. The benefit is correct quota recovery. Risks concern repeated side effects, account rotation and manual-disable state. The protected-policy discussion and rollback requirements in the decision register below continue to apply.
 
-The independent selected TLS repair is validated and ready for the standing normal main publication flow. Its implementation and remote/CI receipts will be added after successful readback. This run has performed no server deployment, Release or tag creation.
+The TLS implementation and its evidence ledger are committed as **[651a969e7](https://github.com/vpromise/CodexProxy/commit/651a969e7bbff0196e653a4fbdb5606b669b9b63)** (`651a969e7bbff0196e653a4fbdb5606b669b9b63`), tree `bff79ad5884659219779e0a6734819b88cd9a9b1`. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch SHA and GitHub branch/commit/tree readbacks agree at **2026-11-13T15:51:27.104836+00:00**. The candidate worktree was clean after commit and its tested source manifest still matched.
+
+Exact implementation-SHA Actions runs, check-runs and status entries are **zero**. The aggregate status is pending with an empty status list. The six inspected workflow definitions trigger on PR/tag events. Publication is verified and this SHA has no GitHub CI execution. This documentation-only receipt receives a separate normal commit/push and exact-SHA readback. This run performed no server deployment, Release or tag creation.
 
 ## Current checkpoint - 2026-11-13
 
