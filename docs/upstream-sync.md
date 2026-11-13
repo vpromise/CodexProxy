@@ -87,7 +87,9 @@ The register remains **14 themes K1-K6/U1-U8**. The **84 previously closed IDs**
 
 Protected changes follow the current [codexproxy-upstream-sync skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md), which states **“Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.”** This applies to U1/K2 refresh classification/recovery, K3 scheduling and U4 original-owner pinning, with K1/K4 requiring their stated contract choices. Prior concrete approvals remain effective. Timer runs and unanswered questions add no approval.
 
-The independent verified selection is ready for normal commit/push to the verified fork main. Its exact local mapping, remote readback and CI observation are recorded after publication. Existing deployment receipts remain the historical server record.
+The implementation and review ledger are committed as **[a59e38139](https://github.com/vpromise/CodexProxy/commit/a59e3813931375e1748a92e8f73525d933f59650)** (`a59e3813931375e1748a92e8f73525d933f59650`), tree `c14afb1cb57d7d3306528ce94ce876a7494119f7`. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch SHA and GitHub branch/commit/tree readbacks agree at **2026-11-13T00:56:06.948389+00:00**. All eleven selected paths are committed, the candidate worktree is clean and the tested source manifest still matches.
+
+Exact implementation-SHA Actions runs, check-runs and status entries are **zero**. The status aggregate is pending with an empty status list. The six inspected workflow definitions trigger on PR/tag events. Publication is verified, with no GitHub CI execution on this SHA. This follow-up changes only the ledger and receives its own normal push and exact-SHA readback. Server deployment remains unperformed for this selection, with prior deployment receipts preserved.
 
 ## Current checkpoint - 2026-11-12
 
