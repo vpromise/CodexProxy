@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +15,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
@@ -100,7 +104,21 @@ func (e *serverResponsesWebsocketCaptureExecutor) HttpRequest(context.Context, *
 }
 
 func TestSyncOctober23ServerResponsesWebsocketReauthorizesEachTurn(t *testing.T) {
-	server := newTestServer(t)
+	for _, requestLog := range []bool{false, true} {
+		t.Run(fmt.Sprintf("request_log=%t", requestLog), func(t *testing.T) {
+			testServerResponsesWebsocketReauthorizesEachTurn(t, requestLog)
+		})
+	}
+}
+
+func testServerResponsesWebsocketReauthorizesEachTurn(t *testing.T, requestLog bool) {
+	t.Helper()
+	logBase := t.TempDir()
+	t.Setenv("WRITABLE_PATH", logBase)
+	server := newTestServerWithOptions(t, WithRequestLoggerFactory(func(cfg *config.Config, configPath string) logging.RequestLogger {
+		cfg.RequestLog = requestLog
+		return defaultRequestLoggerFactory(cfg, configPath)
+	}))
 	provider := &revocableServerAccessProvider{}
 	server.accessManager.SetProviders([]sdkaccess.Provider{provider})
 
@@ -121,8 +139,17 @@ func TestSyncOctober23ServerResponsesWebsocketReauthorizesEachTurn(t *testing.T)
 		registry.GetGlobalRegistry().UnregisterClient(authEntry.ID)
 	})
 
-	httpServer := httptest.NewServer(server.engine)
-	defer httpServer.Close()
+	var requests sync.WaitGroup
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		defer requests.Done()
+		server.engine.ServeHTTP(w, r)
+	}))
+	defer func() {
+		httpServer.Close()
+		// Close does not wait for hijacked WebSocket handlers or their logging middleware.
+		requests.Wait()
+	}()
 
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/v1/responses"
 	headers := http.Header{"Authorization": []string{"Bearer key-1"}}
@@ -130,7 +157,11 @@ func TestSyncOctober23ServerResponsesWebsocketReauthorizesEachTurn(t *testing.T)
 	if errDial != nil {
 		t.Fatalf("dial websocket: %v", errDial)
 	}
-	defer func() { _ = conn.Close() }()
+	defer func() {
+		if errClose := conn.Close(); errClose != nil {
+			t.Errorf("close websocket: %v", errClose)
+		}
+	}()
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 	turn1 := []byte(`{"type":"response.create","model":"ws-reauth-model","input":[{"type":"message","role":"user","content":"turn 1"}]}`)
@@ -182,4 +213,23 @@ func TestSyncOctober23ServerResponsesWebsocketReauthorizesEachTurn(t *testing.T)
 	if gotCalls := wsExec.calls.Load(); gotCalls != 1 {
 		t.Fatalf("executor calls after revoked turn = %d, want 1", gotCalls)
 	}
+	t.Cleanup(func() {
+		// Deferred connection shutdown and request draining finish before log inspection.
+		entries, errReadDir := os.ReadDir(filepath.Join(logBase, "logs"))
+		if errReadDir != nil {
+			t.Fatalf("read request logs: %v", errReadDir)
+		}
+		var logCount int
+		for _, entry := range entries {
+			if strings.HasSuffix(entry.Name(), ".tmp") || strings.HasPrefix(entry.Name(), "request-log-parts-") {
+				t.Errorf("request log temporary entry remains after handler completion: %s", entry.Name())
+			}
+			if strings.HasSuffix(entry.Name(), ".log") {
+				logCount++
+			}
+		}
+		if logCount == 0 {
+			t.Error("expected a completed request log for the revoked credential")
+		}
+	})
 }

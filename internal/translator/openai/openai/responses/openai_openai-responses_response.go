@@ -19,6 +19,12 @@ type oaiToResponsesStateReasoning struct {
 	ReasoningData string
 	OutputIndex   int
 }
+type oaiToResponsesStateMessage struct {
+	MessageID   string
+	Status      string
+	Text        string
+	OutputIndex int
+}
 type oaiToResponsesState struct {
 	// Request inputs stay fixed for a stream; avoid validating the full history per chunk.
 	RequestJSON        []byte
@@ -33,6 +39,9 @@ type oaiToResponsesState struct {
 	// aggregation buffers for response.output
 	// Per-output message text buffers by index
 	MsgTextBuf   map[int]*strings.Builder
+	MsgCurrentID map[int]string
+	MsgSegCount  map[int]int
+	Messages     []oaiToResponsesStateMessage
 	ReasoningBuf strings.Builder
 	Reasonings   []oaiToResponsesStateReasoning
 	FuncArgsBuf  map[string]*strings.Builder
@@ -45,7 +54,6 @@ type oaiToResponsesState struct {
 	// message item state per output index
 	MsgItemAdded    map[int]bool // whether response.output_item.added emitted for message
 	MsgContentAdded map[int]bool // whether response.content_part.added emitted for message
-	MsgItemDone     map[int]bool // whether message done events were emitted
 	// function item state
 	FuncItemAdded  map[string]bool
 	FuncItemCustom map[string]bool
@@ -169,7 +177,7 @@ func buildResponsesCompletedEvent(st *oaiToResponsesState, requestRawJSON []byte
 		index int
 		raw   []byte
 	}
-	outputItems := make([]completedOutputItem, 0, len(st.Reasonings)+len(st.MsgItemAdded)+len(st.FuncArgsBuf))
+	outputItems := make([]completedOutputItem, 0, len(st.Reasonings)+len(st.Messages)+len(st.MsgItemAdded)+len(st.FuncArgsBuf))
 	if len(st.Reasonings) > 0 {
 		for _, r := range st.Reasonings {
 			item := []byte(`{"id":"","type":"reasoning","summary":[{"type":"summary_text","text":""}]}`)
@@ -177,6 +185,13 @@ func buildResponsesCompletedEvent(st *oaiToResponsesState, requestRawJSON []byte
 			item, _ = sjson.SetBytes(item, "summary.0.text", r.ReasoningData)
 			outputItems = append(outputItems, completedOutputItem{index: r.OutputIndex, raw: item})
 		}
+	}
+	for _, message := range st.Messages {
+		item := []byte(`{"id":"","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":""}],"role":"assistant"}`)
+		item, _ = sjson.SetBytes(item, "id", message.MessageID)
+		item, _ = sjson.SetBytes(item, "status", message.Status)
+		item, _ = sjson.SetBytes(item, "content.0.text", message.Text)
+		outputItems = append(outputItems, completedOutputItem{index: message.OutputIndex, raw: item})
 	}
 	if len(st.MsgItemAdded) > 0 {
 		for i := range st.MsgItemAdded {
@@ -189,7 +204,7 @@ func buildResponsesCompletedEvent(st *oaiToResponsesState, requestRawJSON []byte
 				msgStatus = "incomplete"
 			}
 			item := []byte(`{"id":"","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":""}],"role":"assistant"}`)
-			item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("msg_%s_%d", st.ResponseID, i))
+			item, _ = sjson.SetBytes(item, "id", st.MsgCurrentID[i])
 			item, _ = sjson.SetBytes(item, "status", msgStatus)
 			item, _ = sjson.SetBytes(item, "content.0.text", txt)
 			outputItems = append(outputItems, completedOutputItem{index: st.MsgOutputIx[i], raw: item})
@@ -265,9 +280,10 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 			FuncArgsSent:    make(map[string]int),
 			MsgOutputIx:     make(map[int]int),
 			MsgTextBuf:      make(map[int]*strings.Builder),
+			MsgCurrentID:    make(map[int]string),
+			MsgSegCount:     make(map[int]int),
 			MsgItemAdded:    make(map[int]bool),
 			MsgContentAdded: make(map[int]bool),
-			MsgItemDone:     make(map[int]bool),
 			FuncItemAdded:   make(map[string]bool),
 			FuncItemCustom:  make(map[string]bool),
 			FuncArgsDone:    make(map[string]bool),
@@ -411,6 +427,10 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 		st.Created = root.Get("created").Int()
 		// reset aggregation state for a new streaming response
 		st.MsgTextBuf = make(map[int]*strings.Builder)
+		st.MsgCurrentID = make(map[int]string)
+		st.MsgSegCount = make(map[int]int)
+		st.Messages = nil
+		st.Reasonings = nil
 		st.ReasoningBuf.Reset()
 		st.ReasoningID = ""
 		st.ReasoningIndex = 0
@@ -423,7 +443,6 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 		st.NextOutputIx = 0
 		st.MsgItemAdded = make(map[int]bool)
 		st.MsgContentAdded = make(map[int]bool)
-		st.MsgItemDone = make(map[int]bool)
 		st.FuncItemAdded = make(map[string]bool)
 		st.FuncItemCustom = make(map[string]bool)
 		st.FuncArgsDone = make(map[string]bool)
@@ -488,17 +507,18 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 	}
 
 	emitMessageItemDone := func(idx int) {
-		if !st.MsgItemAdded[idx] || st.MsgItemDone[idx] {
+		if !st.MsgItemAdded[idx] {
 			return
 		}
 		msgOutputIndex := st.MsgOutputIx[idx]
+		msgID := st.MsgCurrentID[idx]
 		fullText := ""
 		if b := st.MsgTextBuf[idx]; b != nil {
 			fullText = b.String()
 		}
 		done := []byte(`{"type":"response.output_text.done","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"text":"","logprobs":[]}`)
 		done, _ = sjson.SetBytes(done, "sequence_number", nextSeq())
-		done, _ = sjson.SetBytes(done, "item_id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
+		done, _ = sjson.SetBytes(done, "item_id", msgID)
 		done, _ = sjson.SetBytes(done, "output_index", msgOutputIndex)
 		done, _ = sjson.SetBytes(done, "content_index", 0)
 		done, _ = sjson.SetBytes(done, "text", fullText)
@@ -506,7 +526,7 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 
 		partDone := []byte(`{"type":"response.content_part.done","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""}}`)
 		partDone, _ = sjson.SetBytes(partDone, "sequence_number", nextSeq())
-		partDone, _ = sjson.SetBytes(partDone, "item_id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
+		partDone, _ = sjson.SetBytes(partDone, "item_id", msgID)
 		partDone, _ = sjson.SetBytes(partDone, "output_index", msgOutputIndex)
 		partDone, _ = sjson.SetBytes(partDone, "content_index", 0)
 		partDone, _ = sjson.SetBytes(partDone, "part.text", fullText)
@@ -519,11 +539,16 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 		itemDone := []byte(`{"type":"response.output_item.done","sequence_number":0,"output_index":0,"item":{"id":"","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":""}],"role":"assistant"}}`)
 		itemDone, _ = sjson.SetBytes(itemDone, "sequence_number", nextSeq())
 		itemDone, _ = sjson.SetBytes(itemDone, "output_index", msgOutputIndex)
-		itemDone, _ = sjson.SetBytes(itemDone, "item.id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
+		itemDone, _ = sjson.SetBytes(itemDone, "item.id", msgID)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.status", msgStatus)
 		itemDone, _ = sjson.SetBytes(itemDone, "item.content.0.text", fullText)
 		out = append(out, emitRespEvent("response.output_item.done", itemDone))
-		st.MsgItemDone[idx] = true
+		st.Messages = append(st.Messages, oaiToResponsesStateMessage{MessageID: msgID, Status: msgStatus, Text: fullText, OutputIndex: msgOutputIndex})
+		delete(st.MsgItemAdded, idx)
+		delete(st.MsgContentAdded, idx)
+		delete(st.MsgOutputIx, idx)
+		delete(st.MsgTextBuf, idx)
+		delete(st.MsgCurrentID, idx)
 	}
 
 	finalizeOpenItems := func() {
@@ -645,12 +670,98 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 		if hasActiveUnfinishedTool {
 			return out
 		}
-		if len(st.MsgItemAdded) == 0 && len(st.FuncItemAdded) == 0 {
+		if len(st.Messages) == 0 && len(st.MsgItemAdded) == 0 && len(st.FuncItemAdded) == 0 && (len(st.Reasonings) == 0 || st.FinishReason == "") {
 			return out
 		}
 		st.CompletedEmitted = true
 		out = append(out, buildResponsesCompletedEvent(st, requestForNamespace, nextSeq))
 		return out
+	}
+
+	emitReasoningDelta := func(idx int, reasoningText string) {
+		if reasoningText == "" {
+			return
+		}
+		// Close the current message before opening an interleaved reasoning segment.
+		emitMessageItemDone(idx)
+
+		// On first appearance, add reasoning item and part
+		if st.ReasoningID == "" {
+			st.ReasoningID = fmt.Sprintf("rs_%s_%d", st.ResponseID, idx)
+			if len(st.Reasonings) > 0 {
+				st.ReasoningID = fmt.Sprintf("rs_%s_%d_%d", st.ResponseID, idx, len(st.Reasonings))
+			}
+			st.ReasoningIndex = allocOutputIndex()
+			item := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"reasoning","status":"in_progress","summary":[]}}`)
+			item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
+			item, _ = sjson.SetBytes(item, "output_index", st.ReasoningIndex)
+			item, _ = sjson.SetBytes(item, "item.id", st.ReasoningID)
+			out = append(out, emitRespEvent("response.output_item.added", item))
+			part := []byte(`{"type":"response.reasoning_summary_part.added","sequence_number":0,"item_id":"","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}`)
+			part, _ = sjson.SetBytes(part, "sequence_number", nextSeq())
+			part, _ = sjson.SetBytes(part, "item_id", st.ReasoningID)
+			part, _ = sjson.SetBytes(part, "output_index", st.ReasoningIndex)
+			out = append(out, emitRespEvent("response.reasoning_summary_part.added", part))
+		}
+		// Append incremental text to reasoning buffer
+		st.ReasoningBuf.WriteString(reasoningText)
+		msg := []byte(`{"type":"response.reasoning_summary_text.delta","sequence_number":0,"item_id":"","output_index":0,"summary_index":0,"delta":""}`)
+		msg, _ = sjson.SetBytes(msg, "sequence_number", nextSeq())
+		msg, _ = sjson.SetBytes(msg, "item_id", st.ReasoningID)
+		msg, _ = sjson.SetBytes(msg, "output_index", st.ReasoningIndex)
+		msg, _ = sjson.SetBytes(msg, "delta", reasoningText)
+		out = append(out, emitRespEvent("response.reasoning_summary_text.delta", msg))
+	}
+	emitTextDelta := func(idx int, text string) {
+		if text == "" {
+			return
+		}
+
+		// Ensure the message item and its first content part are announced before any text deltas
+		if st.ReasoningID != "" {
+			stopReasoning(st.ReasoningBuf.String())
+			st.ReasoningBuf.Reset()
+		}
+		if _, exists := st.MsgOutputIx[idx]; !exists {
+			st.MsgOutputIx[idx] = allocOutputIndex()
+			seg := st.MsgSegCount[idx]
+			st.MsgSegCount[idx] = seg + 1
+			st.MsgCurrentID[idx] = fmt.Sprintf("msg_%s_%d", st.ResponseID, idx)
+			if seg > 0 {
+				st.MsgCurrentID[idx] = fmt.Sprintf("msg_%s_%d_%d", st.ResponseID, idx, seg)
+			}
+		}
+		msgOutputIndex := st.MsgOutputIx[idx]
+		if !st.MsgItemAdded[idx] {
+			item := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"message","status":"in_progress","content":[],"role":"assistant"}}`)
+			item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
+			item, _ = sjson.SetBytes(item, "output_index", msgOutputIndex)
+			item, _ = sjson.SetBytes(item, "item.id", st.MsgCurrentID[idx])
+			out = append(out, emitRespEvent("response.output_item.added", item))
+			st.MsgItemAdded[idx] = true
+		}
+		if !st.MsgContentAdded[idx] {
+			part := []byte(`{"type":"response.content_part.added","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""}}`)
+			part, _ = sjson.SetBytes(part, "sequence_number", nextSeq())
+			part, _ = sjson.SetBytes(part, "item_id", st.MsgCurrentID[idx])
+			part, _ = sjson.SetBytes(part, "output_index", msgOutputIndex)
+			part, _ = sjson.SetBytes(part, "content_index", 0)
+			out = append(out, emitRespEvent("response.content_part.added", part))
+			st.MsgContentAdded[idx] = true
+		}
+
+		msg := []byte(`{"type":"response.output_text.delta","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"delta":"","logprobs":[]}`)
+		msg, _ = sjson.SetBytes(msg, "sequence_number", nextSeq())
+		msg, _ = sjson.SetBytes(msg, "item_id", st.MsgCurrentID[idx])
+		msg, _ = sjson.SetBytes(msg, "output_index", msgOutputIndex)
+		msg, _ = sjson.SetBytes(msg, "content_index", 0)
+		msg, _ = sjson.SetBytes(msg, "delta", text)
+		out = append(out, emitRespEvent("response.output_text.delta", msg))
+		// aggregate for response.output
+		if st.MsgTextBuf[idx] == nil {
+			st.MsgTextBuf[idx] = &strings.Builder{}
+		}
+		st.MsgTextBuf[idx].WriteString(text)
 	}
 
 	// choices[].delta content / tool_calls / reasoning_content
@@ -659,78 +770,19 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponses(ctx context.Context, 
 			idx := int(choice.Get("index").Int())
 			delta := choice.Get("delta")
 			if delta.Exists() {
-				// reasoning_content (OpenAI reasoning incremental text)
-				rc := delta.Get("reasoning_content")
-				if !rc.Exists() || rc.String() == "" {
-					rc = delta.Get("reasoning")
+				reasoningTexts := collectOpenAIObjectReasoningTexts(delta)
+				for _, text := range reasoningTexts {
+					emitReasoningDelta(idx, text)
 				}
-				if rc.Exists() && rc.String() != "" {
-					// On first appearance, add reasoning item and part
-					if st.ReasoningID == "" {
-						st.ReasoningID = fmt.Sprintf("rs_%s_%d", st.ResponseID, idx)
-						st.ReasoningIndex = allocOutputIndex()
-						item := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"reasoning","status":"in_progress","summary":[]}}`)
-						item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
-						item, _ = sjson.SetBytes(item, "output_index", st.ReasoningIndex)
-						item, _ = sjson.SetBytes(item, "item.id", st.ReasoningID)
-						out = append(out, emitRespEvent("response.output_item.added", item))
-						part := []byte(`{"type":"response.reasoning_summary_part.added","sequence_number":0,"item_id":"","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}`)
-						part, _ = sjson.SetBytes(part, "sequence_number", nextSeq())
-						part, _ = sjson.SetBytes(part, "item_id", st.ReasoningID)
-						part, _ = sjson.SetBytes(part, "output_index", st.ReasoningIndex)
-						out = append(out, emitRespEvent("response.reasoning_summary_part.added", part))
+				forEachOpenAIContentSegment(delta.Get("content"), func(isReasoning bool, text string) {
+					if isReasoning {
+						if len(reasoningTexts) == 0 {
+							emitReasoningDelta(idx, text)
+						}
+					} else {
+						emitTextDelta(idx, text)
 					}
-					// Append incremental text to reasoning buffer
-					st.ReasoningBuf.WriteString(rc.String())
-					msg := []byte(`{"type":"response.reasoning_summary_text.delta","sequence_number":0,"item_id":"","output_index":0,"summary_index":0,"delta":""}`)
-					msg, _ = sjson.SetBytes(msg, "sequence_number", nextSeq())
-					msg, _ = sjson.SetBytes(msg, "item_id", st.ReasoningID)
-					msg, _ = sjson.SetBytes(msg, "output_index", st.ReasoningIndex)
-					msg, _ = sjson.SetBytes(msg, "delta", rc.String())
-					out = append(out, emitRespEvent("response.reasoning_summary_text.delta", msg))
-				}
-
-				if c := delta.Get("content"); c.Exists() && c.String() != "" {
-					// Ensure the message item and its first content part are announced before any text deltas
-					if st.ReasoningID != "" {
-						stopReasoning(st.ReasoningBuf.String())
-						st.ReasoningBuf.Reset()
-					}
-					if _, exists := st.MsgOutputIx[idx]; !exists {
-						st.MsgOutputIx[idx] = allocOutputIndex()
-					}
-					msgOutputIndex := st.MsgOutputIx[idx]
-					if !st.MsgItemAdded[idx] {
-						item := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"message","status":"in_progress","content":[],"role":"assistant"}}`)
-						item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
-						item, _ = sjson.SetBytes(item, "output_index", msgOutputIndex)
-						item, _ = sjson.SetBytes(item, "item.id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
-						out = append(out, emitRespEvent("response.output_item.added", item))
-						st.MsgItemAdded[idx] = true
-					}
-					if !st.MsgContentAdded[idx] {
-						part := []byte(`{"type":"response.content_part.added","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""}}`)
-						part, _ = sjson.SetBytes(part, "sequence_number", nextSeq())
-						part, _ = sjson.SetBytes(part, "item_id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
-						part, _ = sjson.SetBytes(part, "output_index", msgOutputIndex)
-						part, _ = sjson.SetBytes(part, "content_index", 0)
-						out = append(out, emitRespEvent("response.content_part.added", part))
-						st.MsgContentAdded[idx] = true
-					}
-
-					msg := []byte(`{"type":"response.output_text.delta","sequence_number":0,"item_id":"","output_index":0,"content_index":0,"delta":"","logprobs":[]}`)
-					msg, _ = sjson.SetBytes(msg, "sequence_number", nextSeq())
-					msg, _ = sjson.SetBytes(msg, "item_id", fmt.Sprintf("msg_%s_%d", st.ResponseID, idx))
-					msg, _ = sjson.SetBytes(msg, "output_index", msgOutputIndex)
-					msg, _ = sjson.SetBytes(msg, "content_index", 0)
-					msg, _ = sjson.SetBytes(msg, "delta", c.String())
-					out = append(out, emitRespEvent("response.output_text.delta", msg))
-					// aggregate for response.output
-					if st.MsgTextBuf[idx] == nil {
-						st.MsgTextBuf[idx] = &strings.Builder{}
-					}
-					st.MsgTextBuf[idx].WriteString(c.String())
-				}
+				})
 
 				// tool calls
 				if tcs := delta.Get("tool_calls"); tcs.Exists() && tcs.IsArray() && len(tcs.Array()) > 0 {
@@ -894,21 +946,25 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponsesNonStream(_ context.Co
 
 	// Build output list from choices[...]
 	var outputItems [][]byte
-	// Detect and capture reasoning content if present (with fallback to reasoning)
-	rc := gjson.GetBytes(rawJSON, "choices.0.message.reasoning_content")
-	if !rc.Exists() || rc.String() == "" {
-		rc = gjson.GetBytes(rawJSON, "choices.0.message.reasoning")
+	choiceArr := root.Get("choices").Array()
+	type parsedChoiceContent struct{ reasoning, text string }
+	parsedContents := make([]parsedChoiceContent, len(choiceArr))
+	for i, choice := range choiceArr {
+		parsedContents[i].reasoning, parsedContents[i].text = extractOpenAIMessageContent(choice.Get("message.content"))
 	}
-	rcText := rc.String()
+	rcText := ""
+	if len(choiceArr) > 0 {
+		rcText = strings.Join(collectOpenAIObjectReasoningTexts(choiceArr[0].Get("message")), "")
+		if rcText == "" {
+			rcText = parsedContents[0].reasoning
+		}
+	}
+	rid := strings.TrimPrefix(id, "resp_")
 	includeReasoning := rcText != ""
 	if !includeReasoning && len(requestRawJSON) > 0 {
 		includeReasoning = gjson.GetBytes(requestRawJSON, "reasoning").Exists()
 	}
 	if includeReasoning {
-		rid := id
-		if strings.HasPrefix(rid, "resp_") {
-			rid = strings.TrimPrefix(rid, "resp_")
-		}
 		// Prefer summary_text from reasoning_content; encrypted_content is optional
 		reasoningItem := []byte(`{"id":"","type":"reasoning","encrypted_content":"","summary":[]}`)
 		reasoningItem, _ = sjson.SetBytes(reasoningItem, "id", fmt.Sprintf("rs_%s", rid))
@@ -919,62 +975,71 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponsesNonStream(_ context.Co
 		outputItems = append(outputItems, reasoningItem)
 	}
 
-	if choices := root.Get("choices"); choices.Exists() && choices.IsArray() {
-		choices.ForEach(func(_, choice gjson.Result) bool {
-			msg := choice.Get("message")
-			if msg.Exists() {
-				// Text message part
-				if c := msg.Get("content"); c.Exists() && c.String() != "" {
-					itemStatus := "completed"
-					if isIncomplete {
-						itemStatus = "incomplete"
-					}
-					item := []byte(`{"id":"","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":""}],"role":"assistant"}`)
-					item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("msg_%s_%d", id, int(choice.Get("index").Int())))
-					item, _ = sjson.SetBytes(item, "status", itemStatus)
-					item, _ = sjson.SetBytes(item, "content.0.text", c.String())
+	for i, choice := range choiceArr {
+		msg := choice.Get("message")
+		if msg.Exists() {
+			if i > 0 {
+				reasoning := strings.Join(collectOpenAIObjectReasoningTexts(msg), "")
+				if reasoning == "" {
+					reasoning = parsedContents[i].reasoning
+				}
+				if reasoning != "" {
+					item := []byte(`{"id":"","type":"reasoning","encrypted_content":"","summary":[{"type":"summary_text","text":""}]}`)
+					item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("rs_%s_%d", rid, choice.Get("index").Int()))
+					item, _ = sjson.SetBytes(item, "summary.0.text", reasoning)
 					outputItems = append(outputItems, item)
 				}
+			}
+			// Text message part
+			if text := parsedContents[i].text; text != "" {
+				itemStatus := "completed"
+				if isIncomplete {
+					itemStatus = "incomplete"
+				}
+				item := []byte(`{"id":"","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":""}],"role":"assistant"}`)
+				item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("msg_%s_%d", id, int(choice.Get("index").Int())))
+				item, _ = sjson.SetBytes(item, "status", itemStatus)
+				item, _ = sjson.SetBytes(item, "content.0.text", text)
+				outputItems = append(outputItems, item)
+			}
 
-				// Function/tool calls
-				if tcs := msg.Get("tool_calls"); tcs.Exists() && tcs.IsArray() {
-					customToolNames := responsesCustomToolNames(requestForNamespace)
-					tcs.ForEach(func(tcIndex, tc gjson.Result) bool {
-						callID := tc.Get("id").String()
-						if callID == "" {
-							// Providers may omit tool_call ids; synthesize one so the
-							// function_call item stays usable for Codex round-trips.
-							callID = fmt.Sprintf("call_%s_%d_%d", id, choice.Get("index").Int(), tcIndex.Int())
-						}
-						name := canonicalResponsesToolName(requestForNamespace, tc.Get("function.name").String())
-						args := tc.Get("function.arguments").String()
-						toolStatus := "completed"
-						if isIncomplete {
-							toolStatus = "incomplete"
-						}
-						if _, isCustomTool := customToolNames[name]; isCustomTool {
-							item := []byte(`{"id":"","type":"custom_tool_call","status":"completed","input":"","call_id":"","name":""}`)
-							item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("ctc_%s", callID))
-							item, _ = sjson.SetBytes(item, "status", toolStatus)
-							item, _ = sjson.SetBytes(item, "input", unwrapCustomToolInput(args))
-							item, _ = sjson.SetBytes(item, "call_id", callID)
-							item = applyResponsesFunctionCallNamespaceFields(item, requestForNamespace, name, "")
-							outputItems = append(outputItems, item)
-							return true
-						}
-						item := []byte(`{"id":"","type":"function_call","status":"completed","arguments":"","call_id":"","name":""}`)
-						item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("fc_%s", callID))
+			// Function/tool calls
+			if tcs := msg.Get("tool_calls"); tcs.Exists() && tcs.IsArray() {
+				customToolNames := responsesCustomToolNames(requestForNamespace)
+				tcs.ForEach(func(tcIndex, tc gjson.Result) bool {
+					callID := tc.Get("id").String()
+					if callID == "" {
+						// Providers may omit tool_call ids; synthesize one so the
+						// function_call item stays usable for Codex round-trips.
+						callID = fmt.Sprintf("call_%s_%d_%d", id, choice.Get("index").Int(), tcIndex.Int())
+					}
+					name := canonicalResponsesToolName(requestForNamespace, tc.Get("function.name").String())
+					args := tc.Get("function.arguments").String()
+					toolStatus := "completed"
+					if isIncomplete {
+						toolStatus = "incomplete"
+					}
+					if _, isCustomTool := customToolNames[name]; isCustomTool {
+						item := []byte(`{"id":"","type":"custom_tool_call","status":"completed","input":"","call_id":"","name":""}`)
+						item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("ctc_%s", callID))
 						item, _ = sjson.SetBytes(item, "status", toolStatus)
-						item, _ = sjson.SetBytes(item, "arguments", args)
+						item, _ = sjson.SetBytes(item, "input", unwrapCustomToolInput(args))
 						item, _ = sjson.SetBytes(item, "call_id", callID)
 						item = applyResponsesFunctionCallNamespaceFields(item, requestForNamespace, name, "")
 						outputItems = append(outputItems, item)
 						return true
-					})
-				}
+					}
+					item := []byte(`{"id":"","type":"function_call","status":"completed","arguments":"","call_id":"","name":""}`)
+					item, _ = sjson.SetBytes(item, "id", fmt.Sprintf("fc_%s", callID))
+					item, _ = sjson.SetBytes(item, "status", toolStatus)
+					item, _ = sjson.SetBytes(item, "arguments", args)
+					item, _ = sjson.SetBytes(item, "call_id", callID)
+					item = applyResponsesFunctionCallNamespaceFields(item, requestForNamespace, name, "")
+					outputItems = append(outputItems, item)
+					return true
+				})
 			}
-			return true
-		})
+		}
 	}
 	if len(outputItems) > 0 {
 		resp, _ = sjson.SetRawBytes(resp, "output", translatorcommon.JoinRawArray(outputItems))
@@ -1009,13 +1074,11 @@ func ConvertOpenAIChatCompletionsResponseToOpenAIResponsesNonStream(_ context.Co
 // CanFinalizeResponseStream permits a clean EOF only after item completion and
 // a finish reason; usage-only chunks may still arrive before that EOF.
 func (st *oaiToResponsesState) CanFinalizeResponseStream() bool {
-	if st == nil || st.CompletedEmitted || st.FinishReason == "" || (len(st.MsgItemAdded) == 0 && len(st.FuncItemAdded) == 0) {
+	if st == nil || st.CompletedEmitted || st.FinishReason == "" || (len(st.Messages) == 0 && len(st.MsgItemAdded) == 0 && len(st.FuncItemAdded) == 0 && len(st.Reasonings) == 0) {
 		return false
 	}
-	for idx := range st.MsgItemAdded {
-		if !st.MsgItemDone[idx] {
-			return false
-		}
+	if len(st.MsgItemAdded) > 0 {
+		return false
 	}
 	for key := range st.FuncItemAdded {
 		if !st.FuncItemDone[key] {
@@ -1023,4 +1086,84 @@ func (st *oaiToResponsesState) CanFinalizeResponseStream() bool {
 		}
 	}
 	return st.ReasoningID == ""
+}
+
+// Reasoning fields take precedence over duplicated typed thinking content.
+func collectOpenAIObjectReasoningTexts(obj gjson.Result) []string {
+	for _, field := range []string{"reasoning_content", "reasoning", "reasoning_details"} {
+		if texts := collectOpenAIReasoningTexts(obj.Get(field)); len(texts) > 0 {
+			return texts
+		}
+	}
+	return nil
+}
+
+func collectOpenAIReasoningTexts(node gjson.Result) []string {
+	if node.Type == gjson.String {
+		if text := node.String(); text != "" {
+			return []string{text}
+		}
+		return nil
+	}
+	if node.IsArray() {
+		var texts []string
+		for _, part := range node.Array() {
+			texts = append(texts, collectOpenAIReasoningTexts(part)...)
+		}
+		return texts
+	}
+	if node.IsObject() && node.Get("text").Type == gjson.String {
+		return collectOpenAIReasoningTexts(node.Get("text"))
+	}
+	return nil
+}
+
+func forEachOpenAIContentSegment(content gjson.Result, emit func(bool, string)) {
+	if content.Type == gjson.String {
+		emit(false, content.String())
+		return
+	}
+	if !content.IsArray() {
+		return
+	}
+	for _, part := range content.Array() {
+		if part.Type == gjson.String {
+			emit(false, part.String())
+			continue
+		}
+		switch part.Get("type").String() {
+		case "thinking", "reasoning", "thought", "reasoning.text", "reasoning_text":
+			for _, field := range []string{"thinking", "reasoning", "reasoning_content", "text"} {
+				if texts := collectOpenAIReasoningTexts(part.Get(field)); len(texts) > 0 {
+					emit(true, strings.Join(texts, ""))
+					break
+				}
+			}
+		case "text", "output_text":
+			if text := part.Get("text"); text.Type == gjson.String {
+				emit(false, text.String())
+			}
+		case "refusal":
+			text := part.Get("refusal")
+			if text.Type != gjson.String || text.String() == "" {
+				text = part.Get("text")
+			}
+			if text.Type == gjson.String {
+				emit(false, text.String())
+			}
+		}
+		// Unknown structured parts carry no visible-text contract. Do not stringify them.
+	}
+}
+
+func extractOpenAIMessageContent(content gjson.Result) (string, string) {
+	var reasoning, text strings.Builder
+	forEachOpenAIContentSegment(content, func(isReasoning bool, segment string) {
+		if isReasoning {
+			reasoning.WriteString(segment)
+		} else {
+			text.WriteString(segment)
+		}
+	})
+	return reasoning.String(), text.String()
 }

@@ -43,6 +43,10 @@ type Server struct {
 	// server is the underlying HTTP server.
 	server *http.Server
 
+	// startStopMu guards listener publication and HTTP/TLS initialization against Stop.
+	startStopMu sync.Mutex
+	stopped     bool
+
 	// muxBaseListener is the shared TCP listener used to serve both HTTP and Redis protocol traffic.
 	muxBaseListener net.Listener
 
@@ -277,6 +281,13 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to start HTTP server: server not initialized")
 	}
 
+	s.startStopMu.Lock()
+	stopped := s.stopped
+	s.startStopMu.Unlock()
+	if stopped {
+		return nil
+	}
+
 	addr := s.server.Addr
 	listener, errListen := net.Listen("tcp", addr)
 	if errListen != nil {
@@ -285,6 +296,7 @@ func (s *Server) Start() error {
 
 	cfg := s.configSnapshot()
 	useTLS := cfg != nil && cfg.TLS.Enable
+	var tlsConfig *tls.Config
 	if useTLS {
 		certPath := strings.TrimSpace(cfg.TLS.Cert)
 		keyPath := strings.TrimSpace(cfg.TLS.Key)
@@ -302,13 +314,9 @@ func (s *Server) Start() error {
 			return fmt.Errorf("failed to start HTTPS server: %v", errLoad)
 		}
 
-		tlsConfig := &tls.Config{
+		tlsConfig = &tls.Config{
 			Certificates: []tls.Certificate{certPair},
 			NextProtos:   []string{"h2", "http/1.1"},
-		}
-		s.server.TLSConfig = tlsConfig
-		if errHTTP2 := http2.ConfigureServer(s.server, &http2.Server{}); errHTTP2 != nil {
-			log.Warnf("failed to configure HTTP/2: %v", errHTTP2)
 		}
 		listener = tls.NewListener(listener, tlsConfig)
 		log.Debugf("Starting API server on %s with TLS", addr)
@@ -317,8 +325,24 @@ func (s *Server) Start() error {
 	}
 
 	httpListener := newMuxListener(listener.Addr(), 1024)
+	s.startStopMu.Lock()
+	if s.stopped {
+		s.startStopMu.Unlock()
+		_ = httpListener.Close()
+		if errClose := listener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
+			log.Debugf("failed to close listener after concurrent shutdown: %v", errClose)
+		}
+		return nil
+	}
+	if tlsConfig != nil {
+		s.server.TLSConfig = tlsConfig
+		if errHTTP2 := http2.ConfigureServer(s.server, &http2.Server{}); errHTTP2 != nil {
+			log.Warnf("failed to configure HTTP/2: %v", errHTTP2)
+		}
+	}
 	s.muxBaseListener = listener
 	s.muxHTTPListener = httpListener
+	s.startStopMu.Unlock()
 
 	httpErrCh := make(chan error, 1)
 	acceptErrCh := make(chan error, 1)
@@ -332,14 +356,10 @@ func (s *Server) Start() error {
 
 	select {
 	case errServe := <-httpErrCh:
-		if s.muxBaseListener != nil {
-			if errClose := s.muxBaseListener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
-				log.Debugf("failed to close shared listener after HTTP serve exit: %v", errClose)
-			}
+		if errClose := listener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
+			log.Debugf("failed to close shared listener after HTTP serve exit: %v", errClose)
 		}
-		if s.muxHTTPListener != nil {
-			_ = s.muxHTTPListener.Close()
-		}
+		_ = httpListener.Close()
 		errAccept := <-acceptErrCh
 		errServe = normalizeHTTPServeError(errServe)
 		errAccept = normalizeListenerError(errAccept)
@@ -351,13 +371,9 @@ func (s *Server) Start() error {
 		}
 		return nil
 	case errAccept := <-acceptErrCh:
-		if s.muxHTTPListener != nil {
-			_ = s.muxHTTPListener.Close()
-		}
-		if s.muxBaseListener != nil {
-			if errClose := s.muxBaseListener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
-				log.Debugf("failed to close shared listener after accept loop exit: %v", errClose)
-			}
+		_ = httpListener.Close()
+		if errClose := listener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
+			log.Debugf("failed to close shared listener after accept loop exit: %v", errClose)
 		}
 		errServe := <-httpErrCh
 		errServe = normalizeHTTPServeError(errServe)
@@ -390,11 +406,19 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	if s.muxHTTPListener != nil {
-		_ = s.muxHTTPListener.Close()
+	s.startStopMu.Lock()
+	// The stop marker prevents later initialization after this lock is released,
+	// so Shutdown can run without holding the lock across connection draining.
+	s.stopped = true
+	httpListener := s.muxHTTPListener
+	baseListener := s.muxBaseListener
+	s.startStopMu.Unlock()
+
+	if httpListener != nil {
+		_ = httpListener.Close()
 	}
-	if s.muxBaseListener != nil {
-		if errClose := s.muxBaseListener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
+	if baseListener != nil {
+		if errClose := baseListener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
 			log.Debugf("failed to close shared listener: %v", errClose)
 		}
 	}
