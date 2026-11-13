@@ -46,91 +46,117 @@ func newResumptionTestCertificate(t *testing.T) gotls.Certificate {
 	return gotls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}
 }
 
-// TestClaudeCodeTLSSessionResumptionCompletesHandshake proves the Claude Code
-// inference ClientHello can actually resume: the spec places pre_shared_key
-// after the padding extension, so a malformed ordering or padding interaction
-// would surface here as a handshake failure rather than a silent regression.
+// TestClaudeCodeTLSSessionResumptionCompletesHandshake covers hybrid and
+// classical key exchange, a cold HelloRetryRequest, TLS 1.2, and real session tickets.
 func TestClaudeCodeTLSSessionResumptionCompletesHandshake(t *testing.T) {
-	certificate := newResumptionTestCertificate(t)
-	roots := x509.NewCertPool()
-	roots.AddCert(certificate.Leaf)
-
-	listener, errListen := net.Listen("tcp", "127.0.0.1:0")
-	if errListen != nil {
-		t.Fatalf("listen: %v", errListen)
-	}
-	t.Cleanup(func() {
-		if errClose := listener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
-			t.Errorf("close listener: %v", errClose)
-		}
-	})
-
-	serverConfig := &gotls.Config{
-		Certificates: []gotls.Certificate{certificate},
-		MinVersion:   gotls.VersionTLS13,
-	}
-	go func() {
-		for {
-			raw, errAccept := listener.Accept()
-			if errAccept != nil {
-				return
+	for _, tc := range []struct {
+		name    string
+		version uint16
+		curve   gotls.CurveID
+		rounds  int
+	}{
+		{name: "TLS13_MLKEM", version: gotls.VersionTLS13, curve: gotls.X25519MLKEM768, rounds: 2},
+		{name: "TLS13_X25519", version: gotls.VersionTLS13, curve: gotls.X25519, rounds: 2},
+		// uTLS v1.8.2 cannot recompute PSK binders after HelloRetryRequest.
+		// Exercise the supported cold handshake here. The preexisting warm
+		// handshake failure is recorded separately in the sync ledger.
+		{name: "TLS13_P256_ColdHelloRetryRequest", version: gotls.VersionTLS13, curve: gotls.CurveP256, rounds: 1},
+		{name: "TLS12_X25519", version: gotls.VersionTLS12, curve: gotls.X25519, rounds: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			certificate := newResumptionTestCertificate(t)
+			roots := x509.NewCertPool()
+			roots.AddCert(certificate.Leaf)
+			listener, errListen := net.Listen("tcp", "127.0.0.1:0")
+			if errListen != nil {
+				t.Fatal(errListen)
 			}
-			go func(conn net.Conn) {
-				server := gotls.Server(conn, serverConfig)
-				if errHandshake := server.Handshake(); errHandshake != nil {
-					_ = conn.Close()
-					return
+			serverDone := make(chan struct{})
+			serverResults := make(chan error, tc.rounds)
+			t.Cleanup(func() {
+				if errClose := listener.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
+					t.Errorf("close listener: %v", errClose)
 				}
-				// The greeting flushes the post-handshake NewSessionTicket
-				// messages the client needs in order to resume.
-				_, _ = server.Write([]byte("ok\n"))
-				_, _ = server.Read(make([]byte, 8))
-				_ = server.Close()
-			}(raw)
-		}
-	}()
-
-	sessionCache := tls.NewLRUClientSessionCache(claudeCodeSessionCacheCapacity)
-	dial := func(round int) (resumed bool, helloLength int) {
-		raw, errDial := net.Dial("tcp", listener.Addr().String())
-		if errDial != nil {
-			t.Fatalf("round %d dial: %v", round, errDial)
-		}
-		defer func() {
-			if errClose := raw.Close(); errClose != nil && !errors.Is(errClose, net.ErrClosed) {
-				t.Errorf("round %d close: %v", round, errClose)
+				<-serverDone
+			})
+			serverConfig := &gotls.Config{
+				Certificates:     []gotls.Certificate{certificate},
+				MinVersion:       tc.version,
+				MaxVersion:       tc.version,
+				CurvePreferences: []gotls.CurveID{tc.curve},
 			}
-		}()
+			go func() {
+				defer close(serverDone)
+				for round := 0; round < tc.rounds; round++ {
+					raw, errAccept := listener.Accept()
+					if errAccept != nil {
+						serverResults <- errAccept
+						return
+					}
+					// A test-only deadline bounds failed handshakes and cleanup.
+					errServer := raw.SetDeadline(time.Now().Add(5 * time.Second))
+					server := gotls.Server(raw, serverConfig)
+					if errServer == nil {
+						errServer = server.Handshake()
+					}
+					if errServer == nil {
+						// Reading this greeting also consumes the session tickets.
+						_, errServer = server.Write([]byte("ok\n"))
+					}
+					if errServer == nil {
+						_, errServer = io.ReadFull(server, make([]byte, 4))
+					}
+					serverResults <- errors.Join(errServer, raw.Close())
+				}
+			}()
 
-		config := newClaudeCodeTLSConfig("api.anthropic.com", sessionCache)
-		config.RootCAs = roots
-		conn := tls.UClient(raw, config, tls.HelloCustom)
-		if errPreset := conn.ApplyPreset(claudeCodeTLSClientHelloSpec()); errPreset != nil {
-			t.Fatalf("round %d apply preset: %v", round, errPreset)
-		}
-		if errHandshake := conn.Handshake(); errHandshake != nil {
-			t.Fatalf("round %d handshake: %v", round, errHandshake)
-		}
-		helloLength = len(conn.HandshakeState.Hello.Raw)
-		if _, errRead := conn.Read(make([]byte, 8)); errRead != nil && !errors.Is(errRead, io.EOF) {
-			t.Fatalf("round %d read: %v", round, errRead)
-		}
-		_, _ = conn.Write([]byte("bye\n"))
-		return conn.ConnectionState().DidResume, helloLength
-	}
-
-	firstResumed, firstLength := dial(1)
-	if firstResumed {
-		t.Fatal("first handshake reported resumption without a cached session")
-	}
-	secondResumed, secondLength := dial(2)
-	if !secondResumed {
-		t.Fatal("second handshake did not resume, so the session cache is not effective")
-	}
-
-	// The padding extension absorbs the pre_shared_key bytes, so a resumed
-	// ClientHello keeps the same BoringSSL padding boundary as a fresh one.
-	if firstLength != secondLength {
-		t.Fatalf("resumed ClientHello length = %d, want %d to match the fresh handshake", secondLength, firstLength)
+			sessionCache := tls.NewLRUClientSessionCache(claudeCodeSessionCacheCapacity)
+			for round := 0; round < tc.rounds; round++ {
+				func() {
+					raw, errDial := net.Dial("tcp", listener.Addr().String())
+					if errDial != nil {
+						t.Fatal(errDial)
+					}
+					defer func() {
+						if errClose := raw.Close(); errClose != nil {
+							t.Errorf("close client: %v", errClose)
+						}
+					}()
+					if errDeadline := raw.SetDeadline(time.Now().Add(5 * time.Second)); errDeadline != nil {
+						t.Fatal(errDeadline)
+					}
+					config := newClaudeCodeTLSConfig("api.anthropic.com", sessionCache)
+					config.RootCAs = roots
+					conn := tls.UClient(raw, config, tls.HelloCustom)
+					if errPreset := conn.ApplyPreset(claudeCodeTLSClientHelloSpec()); errPreset != nil {
+						t.Fatal(errPreset)
+					}
+					if errHandshake := conn.HandshakeContext(t.Context()); errHandshake != nil {
+						t.Fatalf("round %d handshake: %v", round, errHandshake)
+					}
+					if _, errRead := io.ReadFull(conn, make([]byte, 3)); errRead != nil {
+						t.Fatal(errRead)
+					}
+					if _, errWrite := conn.Write([]byte("bye\n")); errWrite != nil {
+						t.Fatal(errWrite)
+					}
+					if errServer := <-serverResults; errServer != nil {
+						t.Fatalf("round %d server: %v", round, errServer)
+					}
+					state := conn.ConnectionState()
+					if state.Version != tc.version || state.DidResume != (round == 1) {
+						t.Fatalf("round %d version=%x resumed=%v", round, state.Version, state.DidResume)
+					}
+					if round == 1 && tc.version == gotls.VersionTLS13 {
+						hello := conn.HandshakeState.Hello.Raw
+						record := append([]byte{22, 3, 1, byte(len(hello) >> 8), byte(len(hello))}, hello...)
+						extensions := parseClientHelloExtensionLengths(t, record)
+						if last := extensions[len(extensions)-1]; last[0] != 41 {
+							t.Fatalf("last resumed extension = %v, want pre_shared_key (41)", last)
+						}
+					}
+				}()
+			}
+		})
 	}
 }

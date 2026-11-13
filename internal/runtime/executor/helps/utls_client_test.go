@@ -213,33 +213,31 @@ type claudeCodeTLSFingerprintFixture struct {
 	KeyShareGroups      []uint16
 }
 
-func TestClaudeCodeTLSClientHelloSpecMatches252Capture(t *testing.T) {
+func TestClaudeCodeTLSClientHelloSpecMatches321Capture(t *testing.T) {
 	t.Parallel()
 
-	// research/21§6 + research/23§6: 2.1.252 (Bun 1.4.1 / BoringSSL) keeps
-	// 2.1.220's ciphers, sigalgs and extension order, but sends a fixed 0xff01
-	// extension (parsed here as renegotiation_info, one zero byte) instead of
-	// real renegotiation_info data. Like BoringSSL it pads the ClientHello
-	// record to 0x200 (512) once the unpadded length exceeds 0xff: the SNI
-	// extension pushes hostname connections over the threshold (277 -> +231),
-	// IP connections (251) stay under it and carry no padding extension.
+	// Native Claude Code 2.1.321 capture from 2026-11-12, SHA256
+	// 5301d13bf1f836ce299204bfe3b9c3dccea87b461902b8292f98beecffcd1074.
+	// Twelve distinct native captures agree on these structural fields. JA3
+	// is recalculated from the raw bytes, including the registered 0xff01
+	// renegotiation_info extension and excluding vector length prefixes.
 	fixture := claudeCodeTLSFingerprintFixture{
-		ClientHelloLength: 508,
-		JA3:               "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-21,29-23-24,0",
-		JA3MD5:            "d871d02cecbde59abbf8f4806134addf",
+		ClientHelloLength: 1499,
+		JA3:               "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43,4588-29-23-24,0",
+		JA3MD5:            "1523504b38f0fae0d881d4b6554aac1b",
 		ALPN:              []string{"http/1.1"},
 		HTTPVersion:       "HTTP/1.1",
 		CipherSuites:      []uint16{4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49161, 49171, 49162, 49172, 156, 157, 47, 53},
-		ExtensionTypes:    []uint16{0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 21},
+		ExtensionTypes:    []uint16{0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43},
 		ExtensionLengths: [][2]int{
-			{0, 22}, {23, 0}, {65281, 1}, {10, 8}, {11, 2}, {35, 0}, {16, 11},
-			{5, 5}, {13, 20}, {18, 0}, {51, 38}, {45, 2}, {43, 5}, {21, 231},
+			{0, 22}, {23, 0}, {65281, 1}, {10, 10}, {11, 2}, {35, 0}, {16, 11},
+			{5, 5}, {13, 24}, {18, 0}, {51, 1258}, {45, 2}, {43, 5},
 		},
-		SupportedGroups:     []uint16{29, 23, 24},
+		SupportedGroups:     []uint16{4588, 29, 23, 24},
 		PointFormats:        []uint8{0},
-		SignatureAlgorithms: []uint16{1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537, 513},
+		SignatureAlgorithms: []uint16{1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537, 2055, 1539, 513},
 		SupportedVersions:   []uint16{772, 771},
-		KeyShareGroups:      []uint16{29},
+		KeyShareGroups:      []uint16{4588, 29},
 	}
 
 	record := captureClaudeCodeClientHello(t)
@@ -299,9 +297,8 @@ func TestClaudeCodeTLSResumptionIsWireSafe(t *testing.T) {
 	t.Parallel()
 
 	// RFC 8446 4.2.11 requires pre_shared_key to be the final extension. The
-	// BoringSSL padding extension (research/23§6) sits right before it; it
-	// contributes zero bytes on first connections whose unpadded ClientHello
-	// is under the 0xff threshold.
+	// conditional BoringSSL padding extension sits right before it. The
+	// measured hybrid ClientHello exceeds the padding window.
 	spec := claudeCodeTLSClientHelloSpec()
 	last := spec.Extensions[len(spec.Extensions)-1]
 	if _, ok := last.(*tls.UtlsPreSharedKeyExtension); !ok {

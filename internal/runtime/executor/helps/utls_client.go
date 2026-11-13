@@ -189,37 +189,32 @@ func newClaudeCodeTLSConfig(host string, sessionCache tls.ClientSessionCache) *t
 	}
 }
 
-// claudeBunGREASEExt emits the fixed GREASE-style extension 0xff01 / len 1 /
-// body 0x00 that Bun 1.4.1 (Claude Code 2.1.252) sends in place of the old
-// renegotiation_info extension. The body byte is constant across 80 native
-// captures, so it is pinned rather than drawn from utls's greaseSeed.
+// claudeRenegotiationInfoExt emits the registered renegotiation_info extension
+// 0xff01 with an empty renegotiated_connection vector, as captured from Bun.
 //
 // Embedding UtlsGREASEExtension borrows its unexported writeToUConn method
 // (required by the TLSExtension write path, unimplementable from another
 // package); the type switch `case *UtlsGREASEExtension` in utls's ApplyPreset
 // re-greasing loop does not match this wrapper type, so Value is never
 // rewritten. Len/Read are overridden to pin the exact bytes.
-type claudeBunGREASEExt struct {
+type claudeRenegotiationInfoExt struct {
 	tls.UtlsGREASEExtension
 }
 
-func (e *claudeBunGREASEExt) Len() int { return 5 }
+func (e *claudeRenegotiationInfoExt) Len() int { return 5 }
 
-func (e *claudeBunGREASEExt) Read(p []byte) (int, error) {
+func (e *claudeRenegotiationInfoExt) Read(p []byte) (int, error) {
 	if len(p) < 5 {
-		return 0, errors.New("claudeBunGREASEExt: short buffer")
+		return 0, errors.New("claudeRenegotiationInfoExt: short buffer")
 	}
 	copy(p, []byte{0xff, 0x01, 0x00, 0x01, 0x00})
 	return 5, io.EOF
 }
 
 // claudeCodeTLSClientHelloSpec reproduces the deterministic Bun/BoringSSL
-// ClientHello emitted by Claude Code 2.1.252. The template models Bun/BoringSSL,
-// not the host operating system. Keep it in sync with a fresh native capture
-// whenever the advertised Claude Code version changes. Target JA3:
-// d871d02cecbde59abbf8f4806134addf
-// (hostname, SNI-first, BoringSSL-padded record, includes padding ext 0x0015)
-// / e97f5146a7009cc2918b50e903b6ff8d (IP, no SNI, unpadded).
+// ClientHello emitted by Claude Code 2.1.321. Keep the Bun/BoringSSL template
+// aligned with verified native captures when updating the advertised version.
+// The hostname/SNI-first fresh-handshake JA3 is 1523504b38f0fae0d881d4b6554aac1b.
 func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 	return &tls.ClientHelloSpec{
 		CipherSuites: []uint16{
@@ -245,10 +240,8 @@ func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 		Extensions: []tls.TLSExtension{
 			&tls.SNIExtension{},
 			&tls.ExtendedMasterSecretExtension{},
-			// Bun sends a fixed GREASE-style 0xff01 extension here; 2.1.220's
-			// renegotiation_info lived at the same position.
-			&claudeBunGREASEExt{},
-			&tls.SupportedCurvesExtension{Curves: []tls.CurveID{tls.X25519, tls.CurveP256, tls.CurveP384}},
+			&claudeRenegotiationInfoExt{},
+			&tls.SupportedCurvesExtension{Curves: []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256, tls.CurveP384}},
 			&tls.SupportedPointsExtension{SupportedPoints: []byte{0}},
 			&tls.SessionTicketExtension{},
 			&tls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}},
@@ -262,16 +255,17 @@ func claudeCodeTLSClientHelloSpec() *tls.ClientHelloSpec {
 				tls.PKCS1WithSHA384,
 				tls.PSSWithSHA512,
 				tls.PKCS1WithSHA512,
+				tls.Ed25519,
+				tls.ECDSAWithP521AndSHA512,
 				tls.PKCS1WithSHA1,
 			}},
 			&tls.SCTExtension{},
-			&tls.KeyShareExtension{KeyShares: []tls.KeyShare{{Group: tls.X25519}}},
+			&tls.KeyShareExtension{KeyShares: []tls.KeyShare{{Group: tls.X25519MLKEM768}, {Group: tls.X25519}}},
 			&tls.PSKKeyExchangeModesExtension{Modes: []uint8{tls.PskModeDHE}},
 			&tls.SupportedVersionsExtension{Versions: []uint16{tls.VersionTLS13, tls.VersionTLS12}},
-			// Bun (BoringSSL) pads the ClientHello record to 0x200 (512) when the
-			// unpadded length is above 0xff; the SNI extension pushes hostname
-			// connections over the threshold, IP connections (251B) stay under
-			// it and carry no padding extension in the measured captures.
+			// BoringSSL pads only lengths between 0xff and 0x200. The hybrid
+			// key share places the measured 2.1.321 hello above that window,
+			// so this extension contributes no bytes on the fresh handshake.
 			&tls.UtlsPaddingExtension{GetPaddingLen: tls.BoringPaddingStyle},
 			// pre_shared_key MUST be the final extension (RFC 8446 4.2.11).
 			// It contributes zero bytes until a cached session exists.
