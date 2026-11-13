@@ -266,10 +266,20 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	extraBetas, body = extractAndRemoveBetas(body)
 	bodyForTranslation := body
 	bodyForUpstream := body
+	threadScope := e.claudeThreadScope(ctx, auth, req, opts, baseURL) + fmt.Sprintf("|aliases=%t", fp.MCPAlias && cloaked)
 	var oauthToolNamesReverseMap map[string]string
 	if fp.MCPAlias && cloaked {
-		mcpAliases := resolveClaudeMCPAliasOptions(ctx)
-		bodyForUpstream, oauthToolNamesReverseMap = prepareClaudeOAuthToolNamesForUpstream(bodyForUpstream, mcpAliases)
+		if helps.ClaudeThreadContinues(bodyForUpstream) {
+			_, aliasStore := e.threadStores()
+			var found bool
+			oauthToolNamesReverseMap, found = aliasStore.Load(threadScope, gjson.GetBytes(bodyForUpstream, "thread.previous_message_id").String())
+			if !found {
+				return nil, helps.ClaudeThreadNotFoundError{}
+			}
+		} else {
+			mcpAliases := resolveClaudeMCPAliasOptions(ctx)
+			bodyForUpstream, oauthToolNamesReverseMap = prepareClaudeOAuthToolNamesForUpstream(bodyForUpstream, mcpAliases)
+		}
 	}
 	bodyForUpstream = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, bodyForUpstream, baseModel, helps.APIKeyModelIsCompat(req))
 	if fp.ApplyCLIIdentity {
@@ -335,6 +345,10 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		if err != nil {
 			return nil, err
 		}
+	}
+	threadState, errThread := e.prepareClaudeThreadBetas(ctx, httpReq, auth, req, opts, bodyForUpstream, extraBetas, incomingHeaders, touchedPayloadPaths, threadScope, cloaked, oauthToolNamesReverseMap)
+	if errThread != nil {
+		return nil, errThread
 	}
 	fastRequest := isAnthropicUpstreamBase(baseURL) && claudeRequestIsFast(httpReq, bodyForUpstream)
 	authID, authLabel, authType, authValue := claudeAuthLogIdentity(auth)
@@ -416,6 +430,9 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		}
 		return nil, wrapClaudeFastRequestError(fastRequest, httpResp.StatusCode, withClaudeUpstreamResponseMetadata(err, httpResp.Header))
 	}
+	streamBody := threadState.StreamReader(decodedBody, func(messageID string) {
+		commitClaudeContinuity(diagnosticsState, messageID, helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
+	})
 	out := make(chan cliproxyexecutor.StreamChunk, 1)
 	go func() {
 		defer close(out)
@@ -454,7 +471,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 
 		// If the response target is Claude, directly forward complete SSE events without translation.
 		if responseFormat == to {
-			scanner := helps.NewCodexSSEScanner(ctx, decodedBody, 52_428_800) // 50MB
+			scanner := helps.NewCodexSSEScanner(ctx, streamBody, 52_428_800) // 50MB
 			var event bytes.Buffer
 			var upstreamMessageID string
 			upstreamCompleted := false
@@ -524,7 +541,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		}
 
 		// For other formats, use translation
-		scanner := helps.NewCodexSSEScanner(ctx, decodedBody, 52_428_800) // 50MB
+		scanner := helps.NewCodexSSEScanner(ctx, streamBody, 52_428_800) // 50MB
 		var param any
 		var upstreamMessageID string
 		upstreamCompleted := false

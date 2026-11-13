@@ -271,6 +271,12 @@ func (s *Service) registerExecutorForAuth(a *coreauth.Auth, forceReplace bool) {
 	}
 	switch strings.ToLower(a.Provider) {
 	case "claude":
+		if previous, ok := s.coreManager.Executor("claude"); ok {
+			if claude, ok := previous.(*executor.ClaudeExecutor); ok {
+				s.coreManager.RegisterExecutor(claude.WithConfig(cfg))
+				return
+			}
+		}
 		s.coreManager.RegisterExecutor(executor.NewClaudeExecutor(cfg))
 	default:
 		providerKey := strings.ToLower(strings.TrimSpace(a.Provider))

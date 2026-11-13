@@ -54,6 +54,10 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 	}
 	ctx = coreusage.CaptureAPIKey(ctx)
 	req, opts = cliproxysession.Enrich(req, opts)
+	opts, errAccess = m.withClaudeThreadAuth(ctx, providers, req, opts)
+	if errAccess != nil {
+		return cliproxyexecutor.Response{}, errAccess
+	}
 	normalized := m.normalizeProviders(providers)
 	if len(normalized) == 0 {
 		return cliproxyexecutor.Response{}, &Error{Code: "provider_not_found", Message: "no provider supplied"}
@@ -160,6 +164,10 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 	}
 	ctx = coreusage.CaptureAPIKey(ctx)
 	req, opts = cliproxysession.Enrich(req, opts)
+	opts, errAccess = m.withClaudeThreadAuth(ctx, providers, req, opts)
+	if errAccess != nil {
+		return nil, errAccess
+	}
 	if m.HomeEnabled() {
 		if unlockSession := m.lockHomeWebsocketSession(ctx, opts); unlockSession != nil {
 			defer unlockSession()

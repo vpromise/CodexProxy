@@ -4,6 +4,51 @@ Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Claude Thread beta, tool aliases and owner binding - 2026-11-14
+
+The user approved the explained upstream Thread repair with preservation of existing local features. The isolated base is published main **`325d9f24e8b38a5b79cabdde460e76f4ffb082df`**, which contains the account-isolation branch at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`. Work began at **2026-11-13T17:29:13.517623Z**. Fresh official GitHub queries still identify **v8.0.69**, published **2026-11-12T18:26:33Z**, at **`f7ae8feeb3710319f524730849fbe32fde1751e4`**, with reviewed main-only **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. This follow-up completes the specifically approved Thread subset of U4 and retains the existing review boundary.
+
+### Adapted upstream behavior
+
+- **[`02ec93d0`](https://github.com/router-for-me/CLIProxyAPI/commit/02ec93d004edb830d65fa24d699322abd291e03f)** supplies successful beta snapshots, original-credential binding, config-reload sharing and completion ordering. **[`678a9257`](https://github.com/router-for-me/CLIProxyAPI/commit/678a92578ca346ff9e77d4811cbd41f899a8cc96)** and **[`a2976eb8`](https://github.com/router-for-me/CLIProxyAPI/commit/a2976eb8a303f11b4ea5177bce9f9ff752634dfc)** supply tool-alias continuity and pointer-owned shared state. The implementation retains local gjson/sjson, existing Home interfaces, two-provider scope and current request/error pipeline. Upstream Kimi, ojson migration and new standalone KV/configuration frameworks are excluded from this selection.
+- Successful Thread create/continue responses retain the exact final outgoing beta list and reverse tool-name map. Continuations restore the original profile even when server-retained tools are omitted or current-turn thinking changes. Header/payload-policy conflicts and missing beta state return request-scoped 409. Missing reconstructed alias state returns request-scoped 404 with full-history thread-create guidance.
+- State is additionally scoped to the authenticated caller, account pool, requested and execution model, endpoint, physical egress selection, account identity, registration incarnation and aliasing mode. Unlike upstream's message-ID-only alias map, local state cannot cross those boundaries. Token refresh for the same verified account passes. Account replacement, remove/reimport and caller/pool reassignment fail before a second upstream dispatch. Continuation ownership is a routing hint checked against current pool authorization and the existing pinned-selector, manual-disable, cooldown and credential fences.
+- Streaming withholds terminal completion until message_stop, publishes beta/alias/owner state and then releases completion. Truncation, malformed/error events, structured policy refusal and cancellation do not publish usable successful state. Ordinary completed refusals remain representable. Normal JSON responses require a complete successful message. Existing native payload semantics, stream errors, usage, response translation and count_tokens validation remain covered.
+- Reload creates a fresh configured executor while sharing only pointer-owned Thread stores. The local profile cache contains sync.Once and is never copied. Existing service rebinding and direct executor reload tests pass.
+
+### State lifetime and compatibility limits
+
+Beta snapshots retain the upstream 1024-entry FIFO limit. Alias maps reuse the local 1024-entry bounded LRU and are memory-only. Owner hints are bounded to 1024 entries and expire after 24 hours. Beta and owner writes use the already configured Home KV's best-effort NX operations with a 24-hour TTL. Standalone installations gain no new persistent store. Beta memory entries are capacity-bounded rather than time-expiring. Restart, eviction, changed scope or changed aliasing policy can require full-history thread creation. No automatic history replay or credential rotation is added for these request-scoped failures. Real Home restart recovery and live Anthropic acceptance are outside this run's executed checks.
+
+The selected fingerprint remains **Claude 2.1.321 / SDK 0.128.0 / Node v26.12.1 / MacOS / arm64**, with the previously validated TLS/HRR implementation. Codex remains **0.154.0**. Existing native passthrough, cloak controls, credential/device ownership, pool egress, general affinity, quota and manual-disable behavior are exercised by the final suites. Ordinary non-Thread requests retain their existing selection path.
+
+### Executed verification
+
+The original implementation was retested from a separate detached worktree at the exact base above with the retained diagnostic fixture. `go test -json -count=3 -run '^TestAuditReconstructedThreadContinuity$' ./internal/runtime/executor` exits **1** with six beta-loss and six alias-restoration assertion failures across normal/stream entry points. The candidate's focused Thread suite passes three repetitions on each host, **63 top-level / 249 including subtests** per host.
+
+| Check | macOS | dev2 Linux |
+| --- | --- | --- |
+| Toolchain | Go 1.27.3 darwin/arm64, CGO 1 | Go 1.26.11 linux/amd64, CGO 1 |
+| Full `go test -p=4 -json -count=1 ./...` | Exit 0, 4260 top-level / 8853 including subtests | Exit 0, 4262 top-level / 8857 including subtests |
+| Related `go test -p=4 -json -race -count=1` | Exit 0, 2011 top-level / 4719 including subtests | Exit 0, 2013 top-level / 4723 including subtests |
+| `go build -p=4 -o <task>/server ./cmd/server` | Exit 0 | Exit 0 |
+
+The eleven race packages are executor/helps, executor, sdk/cliproxy/session, sdk/cliproxy/auth, sdk/cliproxy, Claude handlers, httpwire, auth/claude, cache, sdk/proxyutil and config. Tests include normal and streaming original-owner selection, reload, refresh, disabled/cooled owners, revocation, pool reassignment, foreign callers, conflicting explicit pins, account replacement/reimport, model-alias metadata, changed alias policy, bounded/copy-safe state, policy conflicts and completion publication ordering.
+
+The preexisting wire-capture helper now creates a successful predecessor before asserting a continuation. Its fixture caller and response IDs are unique within their tested scope. Initial failures from old synthetic shared IDs and missing predecessors are retained in the evidence. Protocol/prefix assertions remain in place. Final source-only changes were frozen before the complete suites.
+
+macOS freshly reproduces errno49 for 127.0.0.2. Its only command exclusion is `^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$`. Two secondary-IP subtests self-skip. Linux runs all local bind tests with no exclusion. Optional public-egress and external TLS-capture checks self-skip on both hosts. Test fixtures use synthetic credentials and local transports. No live provider call or production service change was made.
+
+The **1833-file** manifest SHA256 is **`52803a31906bc8626469b4f317ab500e605c889643cba779b08325cd78c658d5`**. Source/test/build files match before and after both hosts' tests. Both compiler/test/embed audits identify **92 packages / 1224 inputs**, with zero unrecorded or mismatched compiler inputs. The subsequent ledger changes are documentation-only. macOS validation completed at **2026-11-13T17:40:46.542292Z** and Linux at **2026-11-13T17:41:53.842170Z**. Linux transfer SHA256 is **`0956ba51aa3488499b9f25aa9af9eae8a1fa5111619321267d99d57553403a68`** and the independently retrieved results archive is **`83e41940c8a99a87338f930beee981a17b208f703b70b1a407d34089ef11ece6`**.
+
+The original checkout stays on `codex/user-provider-isolation` at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`. Its ignored flatted Go package remains outside the isolated candidate's compiler coverage. Its files and index are preserved. Publication and exact-SHA CI readback are recorded in the follow-up receipt.
+
+### Remaining decisions
+
+The approved reconstructed Thread state, alias restoration and original-owner binding subset of **U4** is implemented and validated in this entry. The remaining U4 questions concern API-key stable device identity, actual native 2.1.321 acceptance and extended TLS captures, and consumer-specific model/catalog/tool-profile choices. The prior **14 themes K1-K6/U1-U8** and **84 closed IDs** retain their other dispositions in the dated decision register below. No new approval is requested for the completed Thread subset. Unrelated cooldown/disable/refresh/migration policies retain the skill's concrete-plan discussion boundary.
+
+Implementation publication is pending the normal commit/push below. This task's scope is source synchronization and GitHub publication. No server deployment, Release or tag is included.
+
 ## Claude 2.1.321 macOS profile and verified protocol repairs - 2026-11-14
 
 This user-authorized follow-up uses published main **`43fbcc4c78d9fb57785499226c28285f86457026`** as its isolated base. Work began at **2026-11-13T16:27:57Z**. Final Linux full/race/build completed at **2026-11-13T16:46:39Z**, followed by twenty TLS repetitions at **16:46:54Z**. The freshly checked CPA release remains **v8.0.69 / `f7ae8feeb3710319f524730849fbe32fde1751e4`**, with previously reviewed main-only `1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`. This scoped repair retains that review boundary.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
@@ -276,10 +277,20 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	extraBetas, body = extractAndRemoveBetas(body)
 	bodyForTranslation := body
 	bodyForUpstream := body
+	threadScope := e.claudeThreadScope(ctx, auth, req, opts, baseURL) + fmt.Sprintf("|aliases=%t", fp.MCPAlias && cloaked)
 	var oauthToolNamesReverseMap map[string]string
 	if fp.MCPAlias && cloaked {
-		mcpAliases := resolveClaudeMCPAliasOptions(ctx)
-		bodyForUpstream, oauthToolNamesReverseMap = prepareClaudeOAuthToolNamesForUpstream(bodyForUpstream, mcpAliases)
+		if helps.ClaudeThreadContinues(bodyForUpstream) {
+			_, aliasStore := e.threadStores()
+			var found bool
+			oauthToolNamesReverseMap, found = aliasStore.Load(threadScope, gjson.GetBytes(bodyForUpstream, "thread.previous_message_id").String())
+			if !found {
+				return resp, helps.ClaudeThreadNotFoundError{}
+			}
+		} else {
+			mcpAliases := resolveClaudeMCPAliasOptions(ctx)
+			bodyForUpstream, oauthToolNamesReverseMap = prepareClaudeOAuthToolNamesForUpstream(bodyForUpstream, mcpAliases)
+		}
 	}
 	bodyForUpstream = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, bodyForUpstream, baseModel, helps.APIKeyModelIsCompat(req))
 	if fp.ApplyCLIIdentity {
@@ -345,6 +356,10 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		if err != nil {
 			return resp, err
 		}
+	}
+	threadState, errThread := e.prepareClaudeThreadBetas(ctx, httpReq, auth, req, opts, bodyForUpstream, extraBetas, incomingHeaders, touchedPayloadPaths, threadScope, cloaked, oauthToolNamesReverseMap)
+	if errThread != nil {
+		return resp, errThread
 	}
 	fastRequest := isAnthropicUpstreamBase(baseURL) && claudeRequestIsFast(httpReq, bodyForUpstream)
 	authID, authLabel, authType, authValue := claudeAuthLogIdentity(auth)
@@ -460,6 +475,11 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 			streamUsage.PublishFailure(ctx, reporter, errValidate)
 			return resp, errValidate
 		}
+		if threadState != nil {
+			if _, errState := io.Copy(io.Discard, threadState.StreamReader(bytes.NewReader(data), nil)); errState != nil {
+				return resp, errState
+			}
+		}
 		commitClaudeContinuity(diagnosticsState, claudeMessageIDFromSSE(data), helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
 		for i, line := range lines {
 			restoredLine, errRestore := restoreClaudeOAuthToolNamesFromStreamLine(line, oauthToolNamesReverseMap)
@@ -475,6 +495,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		streamUsage.Publish(ctx, reporter)
 		data = bytes.Join(lines, []byte("\n"))
 	} else {
+		threadState.Commit(helps.ClaudeThreadResponseID(data))
 		commitClaudeContinuity(diagnosticsState, claudeMessageIDFromResponse(data), helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
 		reporter.Publish(ctx, helps.ParseClaudeUsage(data))
 		var errRestore error

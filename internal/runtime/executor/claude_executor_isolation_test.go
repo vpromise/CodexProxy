@@ -46,6 +46,7 @@ func captureIsolatedClaudeRequest(t *testing.T, isolated bool, mode string, payl
 			t.Fatal(err)
 		}
 	}
+	clientKey := "synthetic-client-" + t.Name()
 	const token = "sk-ant-oat-audit-synthetic-only"
 	a := &coreauth.Auth{ID: "claude-isolation-" + t.Name(), Provider: "claude", Status: coreauth.StatusActive, Attributes: map[string]string{"auth_kind": "oauth"}, Metadata: claudeOAuthTestMetadata()}
 	a.Metadata["access_token"] = token
@@ -53,8 +54,8 @@ func captureIsolatedClaudeRequest(t *testing.T, isolated bool, mode string, payl
 	a.Metadata["expired"] = time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	a.Metadata["pool_account_id"] = "synthetic-pool-account"
 	a.Metadata[claudeAccountProfileTokenSHA256Key] = claudeAccountProfileTokenSHA256(token)
-	cfg := &config.Config{AccessIsolation: config.AccessIsolation{Enabled: isolated, Pools: []config.AccountPool{{ID: "audit-pool", Name: "Synthetic", Provider: "claude", Accounts: []string{coreauth.AccountIdentity(a)}}}, Keys: []config.ClientKeyBinding{{Key: "synthetic-client-a", Pool: "audit-pool"}}}}
-	cfg.APIKeys = []string{"synthetic-client-a"}
+	cfg := &config.Config{AccessIsolation: config.AccessIsolation{Enabled: isolated, Pools: []config.AccountPool{{ID: "audit-pool", Name: "Synthetic", Provider: "claude", Accounts: []string{coreauth.AccountIdentity(a)}}}, Keys: []config.ClientKeyBinding{{Key: clientKey, Pool: "audit-pool"}}}}
+	cfg.APIKeys = []string{clientKey}
 	m := coreauth.NewManager(nil, &coreauth.RoundRobinSelector{}, nil)
 	m.SetConfig(cfg)
 	m.SetRetryConfig(0, 0, 0)
@@ -89,12 +90,28 @@ func captureIsolatedClaudeRequest(t *testing.T, isolated bool, mode string, payl
 			ct = "text/event-stream"
 			response = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_audit\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"content\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 		}
+		if previous := gjson.GetBytes(payload, "thread.previous_message_id").String(); previous != "" {
+			response = strings.ReplaceAll(response, "msg_audit", previous)
+		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {ct}}, Body: io.NopCloser(strings.NewReader(response)), Request: req}, nil
 	})
 	ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
-	ctx = coreauth.WithClientIdentity(ctx, "synthetic-client-a", "config-inline")
-	opts := coreexecutor.Options{SourceFormat: format, OriginalRequest: payload, Headers: headers, Metadata: map[string]any{coreexecutor.CallerScopeMetadataKey: session.CallerScope("synthetic-client-a")}}
+	ctx = coreauth.WithClientIdentity(ctx, clientKey, "config-inline")
+	opts := coreexecutor.Options{SourceFormat: format, OriginalRequest: payload, Headers: headers, Metadata: map[string]any{coreexecutor.CallerScopeMetadataKey: session.CallerScope(clientKey)}}
 	req := coreexecutor.Request{Model: "claude-opus-5-5", Payload: payload}
+	// Continuation wire assertions need an actual successful predecessor now
+	// that the executor refuses to guess missing Thread state.
+	if gjson.GetBytes(payload, "thread.type").String() == "continue" {
+		seed, _ := sjson.SetBytes(payload, "thread", map[string]string{"type": "create"})
+		seedOpts := opts
+		seedOpts.OriginalRequest = seed
+		seedReq := req
+		seedReq.Payload = seed
+		if _, err := m.Execute(ctx, []string{"claude"}, seedReq, seedOpts); err != nil {
+			t.Fatal(err)
+		}
+		calls = 0
+	}
 	if stream {
 		r, err := m.ExecuteStream(ctx, []string{"claude"}, req, opts)
 		if err != nil {

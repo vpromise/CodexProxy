@@ -3,16 +3,22 @@ package executor
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	sigcompat "github.com/router-for-me/CLIProxyAPI/v7/internal/signature"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	cliproxysession "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/session"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -22,6 +28,8 @@ import (
 // If api_key is unavailable on auth, it falls back to legacy via ClientAdapter.
 type ClaudeExecutor struct {
 	cfg                     *config.Config
+	threadBetas             *helps.ClaudeThreadBetaStore
+	threadAliases           *helps.ClaudeThreadAliasStore
 	requestLogProvider      string
 	upstreamModelNormalizer func(string) string
 	oauthProfileFetcher     claudeOAuthProfileFetcher
@@ -137,7 +145,108 @@ func logClaudeSignatureSanitizeReport(ctx context.Context, baseModel string, rep
 // omit max_tokens. Prefer registered model metadata before using a fallback.
 const defaultModelMaxTokens = 1024
 
-func NewClaudeExecutor(cfg *config.Config) *ClaudeExecutor { return &ClaudeExecutor{cfg: cfg} }
+func NewClaudeExecutor(cfg *config.Config) *ClaudeExecutor {
+	return &ClaudeExecutor{cfg: cfg, threadBetas: &helps.ClaudeThreadBetaStore{}, threadAliases: &helps.ClaudeThreadAliasStore{}}
+}
+
+var claudeThreadStoreInitMu sync.Mutex
+
+func (e *ClaudeExecutor) threadStores() (*helps.ClaudeThreadBetaStore, *helps.ClaudeThreadAliasStore) {
+	claudeThreadStoreInitMu.Lock()
+	defer claudeThreadStoreInitMu.Unlock()
+	if e.threadBetas == nil {
+		e.threadBetas = &helps.ClaudeThreadBetaStore{}
+	}
+	if e.threadAliases == nil {
+		e.threadAliases = &helps.ClaudeThreadAliasStore{}
+	}
+	return e.threadBetas, e.threadAliases
+}
+
+// WithConfig retains Thread state during executor rebinding. The profile cache
+// contains sync.Once and must never be copied after first use.
+func (e *ClaudeExecutor) WithConfig(cfg *config.Config) *ClaudeExecutor {
+	betas, aliases := e.threadStores()
+	return &ClaudeExecutor{cfg: cfg, threadBetas: betas, threadAliases: aliases, requestLogProvider: e.requestLogProvider, upstreamModelNormalizer: e.upstreamModelNormalizer, oauthProfileFetcher: e.oauthProfileFetcher}
+}
+
+func (e *ClaudeExecutor) claudeThreadScope(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, baseURL string) string {
+	identity := cliproxyauth.AccountIdentity(auth)
+	if identity == "" {
+		identity, _ = claudeCreds(auth)
+	}
+	if auth != nil {
+		identity = fmt.Sprintf("%s\x00%s\x00%d", identity, auth.ID, auth.RegistrationEpoch)
+	}
+	raw := e.upstreamRequestLogProvider() + "\x00" + req.Model + "\x00" + strings.TrimRight(baseURL, "/") + "\x00" + identity + "\x00" + cliproxyauth.ClaudeThreadScope(ctx, req, opts)
+	digest := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(digest[:])
+}
+
+func (e *ClaudeExecutor) prepareClaudeThreadBetas(ctx context.Context, request *http.Request, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, body []byte, extraBetas []string, incomingHeaders http.Header, touched map[string]bool, scope string, cloaked bool, aliases map[string]string) (*helps.ClaudeThreadBetaRequest, error) {
+	if !gjson.GetBytes(body, "thread").IsObject() {
+		return nil, nil
+	}
+	apiKey, _ := claudeCreds(auth)
+	fp := resolveClaudeFingerprintPolicy(e.cfg, auth, apiKey)
+	customBetas := map[string]string{}
+	if auth != nil {
+		for name, value := range auth.Attributes {
+			if strings.EqualFold(name, "header:Anthropic-Beta") {
+				customBetas[name] = value
+			}
+		}
+	}
+	rawPolicy, _ := json.Marshal([]any{cloaked, fp.UseOAuthBetas, fp.MCPAlias, customBetas})
+	digest := sha256.Sum256(rawPolicy)
+	payloadConfigured := false
+	for path := range touched {
+		if path == "betas" || strings.HasPrefix(path, "betas.") {
+			payloadConfigured = true
+		}
+	}
+	independent := claudeRequestedBetas(strings.Join(helps.HeaderValuesCaseInsensitive(incomingHeaders, "Anthropic-Beta"), ","), nil)
+	actual := claudeRequestedBetas(strings.Join(helps.HeaderValuesCaseInsensitive(request.Header, "Anthropic-Beta"), ","), nil)
+	bodyBetas := make([]string, 0, len(extraBetas))
+	for _, beta := range extraBetas {
+		beta = strings.TrimSpace(beta)
+		credentialBeta := fp.UseOAuthBetas && (beta == claudeOAuthBeta || beta == claudeExtendedCacheTTLBeta)
+		if actual[beta] && !independent[beta] && !credentialBeta {
+			bodyBetas = append(bodyBetas, beta)
+			independent[beta] = true
+		}
+	}
+	store, aliasStore := e.threadStores()
+	state, found, errBind := store.Bind(ctx, scope, gjson.GetBytes(body, "thread.previous_message_id").String(), request.Header, helps.ClaudeThreadBetaPolicy{Fingerprint: hex.EncodeToString(digest[:]), BodyBetas: strings.Join(bodyBetas, ","), PayloadConfigured: payloadConfigured})
+	if errBind != nil {
+		return nil, errBind
+	}
+	if !found {
+		return nil, helps.ClaudeThreadBetaConflictError{}
+	}
+	declared := claudeRequestedBetas(strings.Join(helps.HeaderValuesCaseInsensitive(request.Header, "Anthropic-Beta"), ","), nil)
+	for beta, needed := range map[string]bool{
+		claudeFastModeBeta:         strings.EqualFold(gjson.GetBytes(body, "speed").String(), "fast"),
+		claudeAdvisorToolBeta:      claudeBodyHasAdvisorTool(body),
+		claudeThinkingBindingBeta:  gjson.GetBytes(body, "thinking.block_binding").Exists(),
+		claudeExtendedCacheTTLBeta: helps.ClaudePayloadHas1hTTL(body),
+	} {
+		if needed && !declared[beta] {
+			return nil, helps.ClaudeThreadBetaConflictError{}
+		}
+	}
+	selected, _ := opts.Metadata[cliproxyexecutor.SelectedAuthMetadataKey].(string)
+	ownerScope := cliproxyauth.ClaudeThreadScope(ctx, req, opts)
+	state.OnCommit(func(messageID string) {
+		if cloaked && fp.MCPAlias {
+			aliasStore.Save(scope, messageID, aliases)
+		}
+		if auth != nil && selected == auth.ID && selected != "" && e.upstreamRequestLogProvider() == "claude" {
+			cliproxysession.RememberClaudeThreadAuth(ownerScope, messageID, selected)
+		}
+	})
+	return state, nil
+}
 
 func (e *ClaudeExecutor) Identifier() string { return "claude" }
 
