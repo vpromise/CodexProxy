@@ -26,6 +26,10 @@ func (s *Server) registerManagementRoutes() {
 	mgmt := s.engine.Group("/v0/management")
 	mgmt.Use(s.managementAvailabilityMiddleware(), s.mgmt.Middleware())
 	{
+		mgmt.GET("/oauth-intake", s.mgmt.ListSelfServiceOAuth)
+		mgmt.POST("/oauth-intake", s.mgmt.CreateSelfServiceOAuth)
+		mgmt.POST("/oauth-intake/:id/accept", s.mgmt.AcceptSelfServiceOAuth)
+		mgmt.POST("/oauth-intake/:id/reject", s.mgmt.RejectSelfServiceOAuth)
 		mgmt.GET("/config", s.mgmt.GetConfig)
 		mgmt.GET("/config.yaml", s.mgmt.GetConfigYAML)
 		mgmt.PUT("/config.yaml", s.mgmt.PutConfigYAML)

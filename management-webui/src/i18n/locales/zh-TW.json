@@ -1353,5 +1353,41 @@
     "conflict": "設定已在其他位置更新，你的編輯仍保留在此頁。請重新載入最新設定後再儲存。",
     "savedReloadRequired": "變更已儲存，但讀取最新設定失敗。請重新載入後再繼續編輯。",
     "reloadRequired": "重新載入後可繼續"
+  },
+  "self_service": {
+    "title": "自助帳號授權",
+    "description": "產生有效期限 24 小時的一次性邀請。訪客向提供方登入，授權資料獨立儲存並等待管理員審核。",
+    "refresh": "重新整理",
+    "provider": "提供方",
+    "label": "內部備註（選填）",
+    "create": "產生邀請",
+    "link": "邀請連結，僅在此時顯示",
+    "copy": "複製連結",
+    "copied": "已複製邀請連結",
+    "copy_failed": "複製失敗",
+    "hide": "隱藏連結",
+    "empty": "尚無邀請或待審核記錄。",
+    "accept": "接收為停用帳號",
+    "accept_confirm": "帳號將以停用狀態進入帳號清單。請先分配帳號池並檢查存取策略，再啟用帳號。若相同身分已存在，將保留現有帳號。",
+    "reject": "撤銷 / 拒絕",
+    "reject_confirm": "關閉此邀請並清除待審核憑據，保留審核記錄。",
+    "accepted_hint": "已接收為停用帳號，請先分配帳號池並檢查存取策略，再啟用。",
+    "accounts": "查看帳號",
+    "next": "已接收帳號會出現在認證檔案中。請先分配帳號池並檢查存取策略，再啟用。",
+    "pools": "帳號池管理",
+    "created": "建立時間",
+    "expires": "連結到期",
+    "status": {
+      "invited": "待授權",
+      "authorizing": "授權中",
+      "exchanging": "交換憑據中",
+      "pending": "待審核",
+      "importing": "匯入未完成，請重試接收",
+      "accepted": "已接收",
+      "rejected": "已拒絕",
+      "revoked": "已撤銷",
+      "expired": "連結已到期",
+      "failed": "授權失敗"
+    }
   }
 }

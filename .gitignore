@@ -36,6 +36,8 @@ docs/*
 !docs/branding.md
 !docs/access-isolation.md
 !docs/access-isolation-validation.md
+!docs/self-service-oauth.md
+!docs/self-service-oauth-validation.md
 !docs/agents/
 !docs/adr/
 AGENTS.md

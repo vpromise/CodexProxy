@@ -1344,5 +1344,41 @@
     "conflict": "配置已在其他位置更新，你的编辑仍保留在此页。请重新加载最新配置后再保存。",
     "savedReloadRequired": "更改已保存，但读取最新配置失败。请重新加载后再继续编辑。",
     "reloadRequired": "重新加载后可继续"
+  },
+  "self_service": {
+    "title": "自助账号授权",
+    "description": "生成有效期 24 小时的一次性邀请。访客在提供方完成登录，授权资料独立保存并等待管理员审核。",
+    "refresh": "刷新记录",
+    "provider": "提供方",
+    "label": "内部备注（可选）",
+    "create": "生成邀请",
+    "link": "邀请链接，仅在此时展示",
+    "copy": "复制链接",
+    "copied": "邀请链接已复制",
+    "copy_failed": "复制失败",
+    "hide": "隐藏链接",
+    "empty": "暂无邀请或待审核记录。",
+    "accept": "接收为禁用账号",
+    "accept_confirm": "账号将以禁用状态进入账号列表。请先分配账号池并检查访问策略，再启用账号。若相同身份已存在，将保留现有账号。",
+    "reject": "撤销 / 拒绝",
+    "reject_confirm": "关闭此邀请并清除待审核凭据，保留审核记录。",
+    "accepted_hint": "已接收为禁用账号，请先分配账号池并检查访问策略，再启用。",
+    "accounts": "查看账号",
+    "next": "已接收账号会出现在认证文件中。请先分配账号池并检查访问策略，再启用。",
+    "pools": "账号池管理",
+    "created": "创建时间",
+    "expires": "链接到期",
+    "status": {
+      "invited": "待授权",
+      "authorizing": "授权中",
+      "exchanging": "交换凭据中",
+      "pending": "待审核",
+      "importing": "导入未完成，请重试接收",
+      "accepted": "已接收",
+      "rejected": "已拒绝",
+      "revoked": "已撤销",
+      "expired": "链接已过期",
+      "failed": "授权失败"
+    }
   }
 }

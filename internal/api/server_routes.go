@@ -57,6 +57,12 @@ func (s *Server) setupRoutes() {
 	s.engine.GET("/api/hello", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	s.engine.GET("/management.html", s.serveManagementControlPanel)
+	selfService := s.engine.Group("/oauth-enroll", s.managementAvailabilityMiddleware())
+	selfService.GET("", s.mgmt.ServeSelfServiceOAuth)
+	selfService.GET("/assets/:asset", s.mgmt.ServeSelfServiceOAuth)
+	selfService.GET("/session", s.mgmt.GetSelfServiceOAuth)
+	selfService.POST("/start", s.mgmt.StartSelfServiceOAuth)
+	selfService.POST("/complete", s.mgmt.CompleteSelfServiceOAuth)
 	openaiHandlers := openai.NewOpenAIAPIHandler(s.handlers)
 	claudeCodeHandlers := claude.NewClaudeCodeAPIHandler(s.handlers)
 	openaiResponsesHandlers := openai.NewOpenAIResponsesAPIHandler(s.handlers)

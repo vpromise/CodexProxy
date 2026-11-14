@@ -601,3 +601,14 @@ func TestRequestLoggingMiddleware_ClientCancellationExclusion(t *testing.T) {
 		}
 	})
 }
+
+func TestSelfServiceCredentialsExcludedFromRequestLogs(t *testing.T) {
+	for _, path := range []string{"/oauth-enroll", "/oauth-enroll/start", "/oauth-enroll/complete", "/oauth-enroll/session"} {
+		if shouldLogRequest(path) {
+			t.Fatalf("enrollment secrets would be logged on %s", path)
+		}
+	}
+	if !shouldLogRequest("/v1/messages") {
+		t.Fatal("inference logging changed")
+	}
+}
