@@ -5,6 +5,26 @@ Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports fro
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 
+## Local main alignment and checkout validation - 2026-11-14
+
+The user requested the latest local fixes and upstream updates on `main`, followed by GitHub publication. At **2026-11-14T04:55:14Z**, official GitHub readbacks still identify released **v8.0.69 / `f7ae8feeb3710319f524730849fbe32fde1751e4`** and upstream main **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. Both equal the existing reviewed boundaries, yielding **zero new upstream commits** to classify and **zero new functional backports** in this follow-up.
+
+All six existing local branches were ancestors of verified published main **`2537e8ccb317a63211f61cb4b89fafca0cb3ef7d`**. The clean primary checkout moved from `codex/user-provider-isolation` at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6` to local `main`, then fast-forwarded from its previous `31c4b2d5a320394f4c5f6dfbe9516d2d24478edc` to the published head. Account isolation, Thread behavior and the Claude metadata repair **`882295b536dcd4ac2baddd37cd905304fb7cf99a`** are included. A normal `git push origin main` returned `Everything up-to-date`. This additional ledger entry records the newly completed checkout validation and is published separately.
+
+### Actual checkout verification
+
+Fresh validation ran against the primary checkout from **04:53:21Z to 04:55:07Z**, using **Go 1.27.3 / darwin arm64 / CGO_ENABLED=1**, disposable task-local build caches and unchanged shared module cache. The 1838-file manifest SHA256 is **`29201e16d22d2ca80360201692f186b7d6df9f0f1677b3e1e5cfb722c01fac7a`**. Actual compiler, test and embed input enumeration covers **93 packages / 1229 files**. Compared with the earlier isolated candidate, the checkout additionally includes the existing ignored `management-webui/node_modules/flatted/golang/pkg/flatted/flatted.go`. It passed compilation in the full suite. All **8128** preexisting ignored regular-file hashes matched after alignment.
+
+- The metadata/header-order regression ran three times and passed **15 top-level / 84 total test results**.
+- The full suite `go test -p=4 -json -count=1 <documented-skip> ./...` passed **4265 top-level / 8881 total test results**.
+- The 11 previously identified executor, auth, session, service, Claude handler, wire, cache, proxy and config packages passed `go test -p=4 -json -race -count=1 <documented-skip>`, with **2016 top-level / 4747 total test results**.
+- `go build -p=4 -o <task>/server ./cmd/server`, compiler-input hash checks and final source-manifest verification passed. The temporary binary SHA256 is **`e072326fe1aedae4480d0c7dc3cc5bba726a8b3276a3c8321745b401f8137cee`**.
+- Fresh `127.0.0.2` binding returned errno 49. The documented two top-level binding tests were excluded, and two related subtests skipped themselves. Optional public-egress and external-TLS capture tests also skipped. Linux results remain the earlier evidence below, whose source/test/build inputs were checked against this checkout with only ledger bookkeeping differences. This follow-up executed no new Linux or real-provider tests.
+
+The source head's Actions runs, check runs and status entries were each zero. Current workflow definitions use PR or tag triggers, so direct-main publication has no observed GitHub CI result. Exact publication SHA and post-push checks for this ledger entry are retained in the accompanying task receipt. Claude remains **2.1.321 / SDK 0.128.0 / Node v26.12.1 / MacOS arm64** and Codex remains **0.154.0**. The existing **14 unresolved themes K1-K6 and U1-U8**, including the four remaining U4 validation/behavior questions below, retain their current scope and await their individual decisions. This follow-up performed no server deployment.
+
+Evidence is retained in `codexproxy-main-alignment-evidence-2026-11-14.tar.gz` beside the task report, including commands, manifest, completed logs, upstream readbacks, ignored-file preservation and publication receipts. Only this follow-up's disposable scratch directory, build output and caches are removed after archiving.
+
 ## Claude 2.1.321 request metadata and HTTP header order - 2026-11-14
 
 The user approved execution of the reviewed header-order, native-metadata, prompt-header/body and tool-summary repairs. The isolated base is verified published main **`8543958dfc1ae0e59dc6394c9c0f4490cb1adeb2`**, containing account-isolation commit `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`. Work began at **2026-11-14T02:09:32Z**. Fresh official GitHub readbacks identify released **v8.0.69 / `f7ae8feeb3710319f524730849fbe32fde1751e4`** and main **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. This targeted follow-up retains the existing reviewed boundary.
