@@ -93,7 +93,7 @@ The applicable [skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/S
 
 ### Publication state
 
-The independent selection and this checkpoint are prepared for a normal main commit/push after final original/remote-state verification. Exact implementation SHA, remote readback and CI observations will be recorded in the publication receipt after the actual push. No Release, tag or deployment is included. Evidence is retained in `codexproxy-upstream-sync-evidence-2026-11-15.tar.gz` beside the Chinese task report; only this run's disposable worktree, build output, caches and lock are removed after archiving.
+The independent selection and this checkpoint are committed as **[023b00e1eb](https://github.com/vpromise/CodexProxy/commit/023b00e1eb90e9498ced4ad141f7148febb7bada)**, tree **`a89892c5ba417e651ac9dacdd29a3dc52f3eff21`**. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH remote and GitHub branch/commit/tree readbacks agree at **2026-11-14T21:18:48Z**. Exact implementation-SHA Actions runs, check-runs and status entries are each **zero**. The inspected six workflow definitions trigger on PR/tag events; direct main push has no CI execution and is not labelled CI-passed. All defined local final checks passed. This receipt is a separate documentation-only commit/push with its own remote/CI readback in the evidence archive. No Release, tag or deployment is included. Evidence is retained in `codexproxy-upstream-sync-evidence-2026-11-15.tar.gz` beside the Chinese task report; only this run's disposable worktree, build output, caches and lock are removed after archiving.
 
 
 ## Local main alignment and checkout validation - 2026-11-14
