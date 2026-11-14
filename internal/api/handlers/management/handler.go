@@ -21,7 +21,6 @@ import (
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type attemptInfo struct {
@@ -38,6 +37,7 @@ const attemptMaxIdleTime = 2 * time.Hour
 
 // Handler aggregates config reference, persistence path and helpers.
 type Handler struct {
+	authCache               managementAuthCache
 	cfg                     *config.Config
 	configFilePath          string
 	mu                      sync.Mutex
@@ -136,6 +136,9 @@ func (h *Handler) SetConfig(cfg *config.Config) {
 		if err != nil || !reflect.DeepEqual(persisted.AccessIsolation, cfg.AccessIsolation) || !reflect.DeepEqual(persisted.APIKeys, cfg.APIKeys) {
 			return
 		}
+	}
+	if h.cfg == nil || h.cfg.RemoteManagement.SecretKey != cfg.RemoteManagement.SecretKey {
+		h.authCache.invalidate()
 	}
 	h.cfg = cfg
 	h.publishAccessConfigLocked()
@@ -420,7 +423,7 @@ func (h *Handler) AuthenticateManagementKey(clientIP string, localClient bool, p
 		return true, 0, ""
 	}
 
-	if secretHash == "" || bcrypt.CompareHashAndPassword([]byte(secretHash), []byte(provided)) != nil {
+	if secretHash == "" || !h.authCache.verify(secretHash, provided) {
 		fail()
 		return false, http.StatusUnauthorized, "invalid management key"
 	}

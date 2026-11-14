@@ -94,6 +94,10 @@ type accessReloadService struct {
 }
 
 func newAccessReloadService(t *testing.T, upstreamURL string) *accessReloadService {
+	return newAccessReloadServiceWithPoolIdentity(t, upstreamURL, "")
+}
+
+func newAccessReloadServiceWithPoolIdentity(t *testing.T, upstreamURL, poolIdentity string) *accessReloadService {
 	t.Helper()
 	t.Setenv("MANAGEMENT_PASSWORD", "")
 	dir := t.TempDir()
@@ -106,6 +110,10 @@ func newAccessReloadService(t *testing.T, upstreamURL string) *accessReloadServi
 	port := listener.Addr().(*net.TCPAddr).Port
 	if errClose := listener.Close(); errClose != nil {
 		t.Fatal(errClose)
+	}
+	identityYAML := ""
+	if poolIdentity != "" {
+		identityYAML = fmt.Sprintf("    pool-account-id: %q\n", poolIdentity)
 	}
 	payload := fmt.Sprintf(`host: 127.0.0.1
 port: %d
@@ -123,9 +131,9 @@ codex-api-key:
   - api-key: synthetic-upstream-key
     base-url: %q
     websockets: true
-    models:
+%s    models:
       - name: %s
-`, port, filepath.Join(dir, "auths"), proxy.URL, filepath.Join(dir, "plugins"), upstreamURL, accessReloadModel)
+`, port, filepath.Join(dir, "auths"), proxy.URL, filepath.Join(dir, "plugins"), upstreamURL, identityYAML, accessReloadModel)
 	if errWrite := os.WriteFile(path, []byte(payload), 0o600); errWrite != nil {
 		t.Fatal(errWrite)
 	}

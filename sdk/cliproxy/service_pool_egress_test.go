@@ -67,7 +67,9 @@ func TestPoolEgressServiceSwitchPreservesActiveStreamAndOtherPool(t *testing.T) 
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 	}))
 	t.Cleanup(upstream.Close)
-	service := newAccessReloadService(t, upstream.URL)
+	// Start with an enrolled account. First-time identity enrollment is asynchronous
+	// and must not act as an implicit bcrypt timing barrier in this egress test.
+	service := newAccessReloadServiceWithPoolIdentity(t, upstream.URL, "223e4567-e89b-12d3-a456-426614174000")
 	t.Cleanup(finish)
 	status, body := service.request(t, http.MethodPut, "/v0/management/api-keys", "synthetic-management-key", `["synthetic-old-key","synthetic-pool-b"]`)
 	if status != http.StatusOK {
