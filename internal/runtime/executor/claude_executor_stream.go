@@ -346,6 +346,9 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 			return nil, err
 		}
 	}
+	if fp.ProfileClaudeCodeCLI || cloaked || nativePassthrough {
+		helps.ApplyClaudeCodeRequestMetadata(httpReq, bodyForUpstream, incomingHeaders, confirmedClaudeCode, oauthToolNamesReverseMap)
+	}
 	threadState, errThread := e.prepareClaudeThreadBetas(ctx, httpReq, auth, req, opts, bodyForUpstream, extraBetas, incomingHeaders, touchedPayloadPaths, threadScope, cloaked, oauthToolNamesReverseMap)
 	if errThread != nil {
 		return nil, errThread

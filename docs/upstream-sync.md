@@ -4,6 +4,52 @@ Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+
+## Claude 2.1.321 request metadata and HTTP header order - 2026-11-14
+
+The user approved execution of the reviewed header-order, native-metadata, prompt-header/body and tool-summary repairs. The isolated base is verified published main **`8543958dfc1ae0e59dc6394c9c0f4490cb1adeb2`**, containing account-isolation commit `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`. Work began at **2026-11-14T02:09:32Z**. Fresh official GitHub readbacks identify released **v8.0.69 / `f7ae8feeb3710319f524730849fbe32fde1751e4`** and main **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. This targeted follow-up retains the existing reviewed boundary.
+
+### Implemented selection
+
+- Upstream **[`f63a925d`](https://github.com/router-for-me/CLIProxyAPI/commit/f63a925d15f6e9f22f9e0cbe71dc6d30356c0a8a)** provides the request-ID ordering precedent. The ordered HTTP/1.1 transport now places the API key and request-metadata fields in the macOS 2.1.321 capture order before the transport trailer. The final send boundary restores their native casing. Messages and count_tokens retain their separate timeout-header profiles.
+- The native gateway hints in **[`f7c738da`](https://github.com/router-for-me/CLIProxyAPI/commit/f7c738dad38bf3fbd737a1f3c54a730e36394617)** are selectively adapted for first-party CLI/native requests. A confirmed native client can retain request class, agent type, previous tool durations, compaction flags, prompt ID and sandy-plover metadata through normal, streaming and count-token entry points. Explicit operator metadata retains precedence, except that a valid final billing prompt ID owns its matching message header. Native detection remains the forwarding gate.
+- `x-claude-code-prompt-id` is synchronized with the final body's validated `cc_prompt_id`. This uses the existing billing and continuity authority after payload processing and fingerprint finalization. Request bodies, CCH signing, response processing and Content-Length remain covered by regression tests.
+- Native sandy-plover snapshots retain their values, including tool history outside the current body. Forced-cloak tool aliases are also applied to tool summaries and previous-tool-duration names. A renamed virtual MCP tool drops its original connector URL/directory attribution. Ordinary full-history requests without a supplied summary derive a cumulative, deduplicated set from paired client tool calls/results. Native source inspection supplies core-tool grouping and ASCII JSON encoding. Incremental Threads and recognized helpers do not gain an invented complete tool history. Oversized synthesized summaries are omitted at the observed 64-entry, 7168-byte or 256-byte-name boundaries.
+
+The selected output tuple is **Claude 2.1.321 / SDK 0.128.0 / Node v26.12.1 / MacOS / arm64**. Existing explicit `always` reconstruction, native passthrough, account/pool/egress isolation, Thread beta/alias/owner state, affinity, cooldown and credential rules are exercised by the full and race suites.
+
+### Reproduction and native validation
+
+A separate detached worktree at the exact base above, with only the two new regression files overlaid, fails with exit **1**, **2 top-level / 15 including subtests**. It reproduces dropped native metadata and incorrect API-key/request-ID header order. The final candidate's focused suite passes three repetitions on each platform, **15 top-level / 84 including subtests** per platform.
+
+The pinned macOS arm64 2.1.321 executable has SHA256 **`abc9feeeca8091d51b623291e044cf0528c2f6b74e0c1d6ef671d52c73f7cd3c`**. Fresh controlled first-party captures exercise synthetic Bearer and API-key authentication, Bash then Read then repeated Bash, followed by a new user turn. Both runs exit 0 and complete two user turns. The ten Messages requests show cumulative tool sets `[]`, `[Bash]`, `[Bash,Read]`, `[Bash,Read]`, `[Bash,Read]`. The tool round retains its prompt ID and the new user turn changes it. Captures also establish previous-tool-duration header placement. Only a synthetic fixture file and printf commands are used.
+
+The same macOS native executable then uses an SSH loopback forward to the new dev2 Linux binary and a controlled TLS mock. Auto, never and always each exit 0, complete two user turns and produce five successful upstream Messages requests. Three additional captured-native request replays return HTTP 200. All **18** outgoing requests pass software/platform, API-key and metadata casing/order, body length, available prompt/billing equality, tool alias/body matching and successful tool-result checks. Native-provided request class and prompt ID survive all three replay modes. These checks use synthetic credentials and locally intercepted mock responses.
+
+The initial tool-capture harness had a Python count-expression error before serving responses. Its failed run is retained. The corrected harness completes the cases above. Initial full-suite runs on both hosts expose two older casing-test assumptions that every mapping must be present on an OAuth request. The fixtures now test the original required fields and explicitly exercise every optional casing mapping with exact value preservation. Their initial failures and complete successful reruns are retained.
+
+### Final verification inputs and results
+
+| Check | macOS | dev2 Linux |
+| --- | --- | --- |
+| Toolchain | Go 1.27.3 darwin/arm64, CGO 1 | Go 1.26.11 linux/amd64, CGO 1 |
+| Full `go test -p=4 -json -count=1 ./...` | Exit 0, 4265 top-level / 8881 including subtests | Exit 0, 4267 top-level / 8885 including subtests |
+| Related `go test -p=4 -json -race -count=1` | Exit 0, 2016 top-level / 4747 including subtests | Exit 0, 2018 top-level / 4751 including subtests |
+| `go build -p=4 -o <task>/server ./cmd/server` | Exit 0 | Exit 0 |
+
+The eleven race packages are executor/helps, executor, sdk/cliproxy/session, sdk/cliproxy/auth, sdk/cliproxy, sdk/api/handlers/claude, httpwire, auth/claude, cache, sdk/proxyutil and config. macOS freshly reproduces errno49 for 127.0.0.2, with only the two documented standard-transport binding tests excluded and two matching secondary-IP subtests self-skipping. Linux executes those cases without exclusions. Optional public-egress and external TLS-capture tests self-skip on both platforms.
+
+The **1837-file** final manifest SHA256 is **`694d4f5ed831422d8a204b8cf979256b877cee5091178a069db10055224d2a7b`**. Both hosts verify every file before and after the tests and independently audit **92 packages / 1228 compiler, test and embed inputs**, with zero unrecorded inputs. macOS validation finishes at **2026-11-14T02:29:57Z** and Linux at **2026-11-14T02:30:14Z**. The independently downloaded Linux results archive SHA256 is **`68543c756e48129d82a73dd82705bde6507683c6646e7c0b3baa3fdd744ea3b7`**. Publication bookkeeping changes only this ledger after the frozen validation snapshot.
+
+### Remaining U4 boundaries and decisions
+
+1. Native clients configured with a custom proxy base omit request class and sometimes prompt/billing attribution before the proxy receives the request. The actual macOS-to-dev2 auto/never runs therefore have no prompt ID, while always emits a coherent header/body pair using the existing session-level continuity policy. The new user turn in always retains that existing ID. Strict per-user-turn regeneration and reconstruction of omitted classification require a separate continuity/cache compatibility decision and reliable entrypoint/turn identity. Proposed follow-up covers retry stability, tool continuations, concurrent user turns, helpers/subagents, session isolation, Thread bodies and cache behavior before changing that contract.
+2. Native connector snapshots are preserved and renamed tools are aligned. Full-history synthesis covers paired visible tools. Complete pre-compaction history, extended connector attribution and native overflow-marker behavior remain outside synthesized coverage. Oversized summaries are omitted rather than asserted complete. Broader parity requires dedicated mixed MCP, compaction, long-history and overflow captures.
+3. Interactive CLI, actual subagents, native count_tokens and real-provider acceptance remain additional validation scopes. The executed native sessions use the sdk-cli entrypoint and mocked upstream responses. A claim of indistinguishable behavior or provider-side detection avoidance is unsupported by these tests.
+4. TLS cookie-HRR resumption remains a fixture-attribution investigation. The existing uTLS HRR patch is already present. Earlier Go/OpenSSL controls reproduced the same fixture failure, so this repair selects no new TLS dependency or extension-format change.
+
+The historical **14 themes K1-K6/U1-U8** and **84 closed IDs** retain their other dispositions in the decision register. This entry completes only the approved U4 metadata/header subset and records its concrete remaining coverage. Protected cooldown, disable, scheduling, credential-lifecycle and migration topics retain their individual discussion requirement. Publication SHA and exact-SHA CI readback follow in the receipt.
+
 ## Claude Thread beta, tool aliases and owner binding - 2026-11-14
 
 The user approved the explained upstream Thread repair with preservation of existing local features. The isolated base is published main **`325d9f24e8b38a5b79cabdde460e76f4ffb082df`**, which contains the account-isolation branch at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`. Work began at **2026-11-13T17:29:13.517623Z**. Fresh official GitHub queries still identify **v8.0.69**, published **2026-11-12T18:26:33Z**, at **`f7ae8feeb3710319f524730849fbe32fde1751e4`**, with reviewed main-only **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. This follow-up completes the specifically approved Thread subset of U4 and retains the existing review boundary.

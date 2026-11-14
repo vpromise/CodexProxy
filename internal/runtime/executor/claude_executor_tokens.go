@@ -240,6 +240,9 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	if errHeaders := applyClaudeHeaders(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, nativePassthrough, claudeSessionID); errHeaders != nil {
 		return cliproxyexecutor.Response{}, errHeaders
 	}
+	if fp.ProfileClaudeCodeCLI || cloaked || nativePassthrough {
+		helps.ApplyClaudeCodeRequestMetadata(httpReq, body, incomingHeaders, confirmedClaudeCode, nil)
+	}
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID

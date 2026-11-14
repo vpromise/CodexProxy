@@ -66,7 +66,9 @@ func TestApplyClaudeHeaders_LeavesHeadersCanonicalForThePipeline(t *testing.T) {
 	if err := applyClaudeHeaders(req, auth, "sk-ant-oat01-wire", false, nil, body, nil, nil, false); err != nil {
 		t.Fatalf("applyClaudeHeaders: %v", err)
 	}
-	for canonical := range claudeWireHeaderCasing {
+	// Optional metadata and API-key headers are absent on this OAuth fixture.
+	for _, wire := range claudeCode2_1_258WireHeaderOrder {
+		canonical := http.CanonicalHeaderKey(wire)
 		if req.Header.Get(canonical) == "" {
 			t.Fatalf("%s is unreadable through Header.Get right after applyClaudeHeaders", canonical)
 		}
@@ -182,12 +184,16 @@ func TestApplyClaudeHeaders_WireCasingIsAnthropicOnly(t *testing.T) {
 // The rewritten keys are unreachable through Header.Get, so the pass has to run
 // after every other mutation. This pins that the values survived the rewrite.
 func TestApplyClaudeHeaders_WireCasingPreservesValues(t *testing.T) {
-	req := newClaudeWireProbeRequest(t, "https://api.anthropic.com/v1/messages?beta=true")
+	req := httptest.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages?beta=true", nil)
+	for canonical := range claudeWireHeaderCasing {
+		req.Header.Set(canonical, "fixture-"+canonical)
+	}
+	applyClaudeWireHeaderCasing(req)
 	for canonical, wire := range claudeWireHeaderCasing {
 		if _, stillCanonical := req.Header[canonical]; stillCanonical {
 			t.Fatalf("%s was not rewritten to %s", canonical, wire)
 		}
-		if len(req.Header[wire]) == 0 || req.Header[wire][0] == "" {
+		if len(req.Header[wire]) != 1 || req.Header[wire][0] != "fixture-"+canonical {
 			t.Fatalf("%s lost its value during the rewrite", wire)
 		}
 	}

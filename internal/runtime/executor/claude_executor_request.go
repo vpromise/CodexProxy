@@ -1448,14 +1448,23 @@ func doClaudeUpstreamRequest(client *http.Client, req *http.Request) (*http.Resp
 }
 
 // claudeWireHeaderCasing maps Go's canonical header name to the exact casing
-// Claude Code 2.1.280 puts on the wire. Only the names that differ are listed;
+// Claude Code 2.1.321 puts on the wire. Only the names that differ are listed;
 // the other headers already survive canonicalisation unchanged.
 var claudeWireHeaderCasing = map[string]string{
-	"X-Client-Request-Id": "x-client-request-id",
-	"X-Stainless-Os":      "X-Stainless-OS",
-	"Anthropic-Beta":      "anthropic-beta",
-	"Anthropic-Version":   "anthropic-version",
-	"X-App":               "x-app",
+	"X-Client-Request-Id":               "x-client-request-id",
+	"X-Api-Key":                         "x-api-key",
+	"X-Claude-Code-Agent-Type":          "x-claude-code-agent-type",
+	"X-Claude-Code-Compaction":          "x-claude-code-compaction",
+	"X-Claude-Code-Context-Compacted":   "x-claude-code-context-compacted",
+	"X-Claude-Code-Prev-Tool-Durations": "x-claude-code-prev-tool-durations",
+	"X-Claude-Code-Prompt-Id":           "x-claude-code-prompt-id",
+	"X-Claude-Code-Request-Class":       "x-claude-code-request-class",
+	"X-Claude-Code-Sandy-Plover":        "x-claude-code-sandy-plover",
+
+	"X-Stainless-Os":    "X-Stainless-OS",
+	"Anthropic-Beta":    "anthropic-beta",
+	"Anthropic-Version": "anthropic-version",
+	"X-App":             "x-app",
 
 	"Anthropic-Dangerous-Direct-Browser-Access": "anthropic-dangerous-direct-browser-access",
 }
@@ -1468,11 +1477,8 @@ var claudeWireHeaderCasing = map[string]string{
 // anthropic-beta and x-app into Anthropic-Beta and X-App. Writing the map keys
 // directly is the only way to keep the original casing.
 //
-// This also fixes ordering for free: Go sorts header names bytewise when it
-// serialises them, and the real client's order is exactly that same bytewise
-// sort, so correct casing reproduces the correct order. Host, User-Agent and
-// Content-Length remain misplaced because Go writes them ahead of the sorted
-// block; that needs transport-level surgery and is out of scope here.
+// The first-party CLI transport orders these fields with its measured HTTP/1.1
+// header list. Casing alone does not place Host or Content-Length correctly.
 //
 // Call this immediately before handing the request to the client and nowhere
 // else. The rewritten keys are unreachable through Header.Get, which
