@@ -1341,5 +1341,41 @@
     "conflict": "The configuration changed elsewhere. Your edits are still here. Reload the latest version before saving again.",
     "savedReloadRequired": "Changes were saved, but the latest configuration could not be loaded. Reload before making more edits.",
     "reloadRequired": "Reload to continue"
+  },
+  "self_service": {
+    "title": "Self-service authorization",
+    "description": "Create a single-use invitation valid for 24 hours. Visitors sign in with the provider. Submitted credentials await review in separate storage.",
+    "refresh": "Refresh",
+    "provider": "Provider",
+    "label": "Internal note (optional)",
+    "create": "Create invitation",
+    "link": "Invitation link — shown only now",
+    "copy": "Copy link",
+    "copied": "Invitation link copied",
+    "copy_failed": "Could not copy link",
+    "hide": "Hide link",
+    "empty": "No invitations or submissions yet.",
+    "accept": "Accept as disabled account",
+    "accept_confirm": "The account will enter the account list disabled. Assign its intended pool and review access policies before enabling it. Existing accounts with the same identity will be preserved.",
+    "reject": "Revoke / reject",
+    "reject_confirm": "Close this invitation and erase any pending credentials. The review record will remain.",
+    "accepted_hint": "Accepted as a disabled account. Assign its pool and review access policies before enabling.",
+    "accounts": "View accounts",
+    "next": "Accepted accounts appear in Auth Files. Assign the intended pool and review access policies before enabling.",
+    "pools": "Account pools",
+    "created": "Created",
+    "expires": "Link expires",
+    "status": {
+      "invited": "Invited",
+      "authorizing": "Awaiting authorization",
+      "exchanging": "Processing authorization",
+      "pending": "Awaiting review",
+      "importing": "Import incomplete — retry acceptance",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "revoked": "Revoked",
+      "expired": "Expired",
+      "failed": "Authorization failed"
+    }
   }
 }

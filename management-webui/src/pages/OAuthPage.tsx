@@ -10,6 +10,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { getErrorMessage, isRecord } from '@/utils/helpers';
 import { notifyAuthFilesChanged } from '@/features/authFiles/authFilesEvents';
 import styles from './OAuthPage.module.scss';
+import { SelfServiceOAuth } from '@/features/selfService/SelfServiceOAuth';
 import iconCodex from '@/assets/icons/codex.svg';
 import iconClaude from '@/assets/icons/claude.svg';
 
@@ -413,6 +414,7 @@ export function OAuthPage() {
             {providerCards.map((provider) => renderOAuthProviderCard(provider))}
           </div>
         </section>
+        <SelfServiceOAuth />
       </div>
     </div>
   );

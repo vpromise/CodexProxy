@@ -1,0 +1,63 @@
+.create,
+.invitation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 16px 0;
+  > :global(.form-group) {
+    flex: 1;
+    min-width: 180px;
+    margin-bottom: 0;
+  }
+}
+.provider {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+.hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.records {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0;
+}
+.record {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+}
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  > span {
+    font-size: 13px;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+  }
+}
+.identifier {
+  font-family: monospace;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .record {
+    flex-direction: column;
+  }
+}

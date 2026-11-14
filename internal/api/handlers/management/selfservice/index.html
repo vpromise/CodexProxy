@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>账号授权 · Account authorization</title><link rel="stylesheet" href="/oauth-enroll/assets/style.css"><script src="/oauth-enroll/assets/app.js" defer></script></head>
+<body><main>
+<button id="language" class="language" type="button">English</button>
+<p class="eyebrow" id="eyebrow">账号授权</p><h1 id="title">安全提交你的账号授权</h1>
+<p id="intro">完成提供方授权后，账号将交由管理员审核。</p>
+<p id="status" role="status" aria-live="polite">正在检查邀请…</p>
+<section id="invitation" hidden>
+<label class="consent"><input id="consent" type="checkbox"><span id="consent-label">我同意将此账号的身份信息和访问、刷新凭据交由本系统保存，并在管理员批准后用于代理调用。我有权提供此账号授权。</span></label>
+<button id="start" type="button">开始授权</button>
+</section>
+<section id="callback-section" hidden>
+<a id="authorize" target="_blank" rel="noopener noreferrer">打开提供方授权页面</a>
+<h2 id="return-title">完成授权后返回这里</h2>
+<p id="callback-hint">提供方会跳转到 localhost 地址。若显示无法连接，复制浏览器地址栏的完整回调地址并粘贴到下方。也可粘贴提供方显示的 code#state。请保持此页面打开。</p>
+<form id="callback-form"><label for="callback" id="callback-label">授权后的回调地址</label><textarea id="callback" rows="3" maxlength="7000" autocomplete="off" spellcheck="false" required></textarea><button id="submit" type="submit">提交授权</button></form>
+</section>
+<p class="footer" id="footer">你只需登录提供方账号，无需本平台的密码或管理权限。此链接仅用于一次账号授权。</p>
+</main></body></html>
