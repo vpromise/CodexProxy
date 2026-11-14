@@ -741,6 +741,36 @@ rerun. No application source or production routing setting changed. No real
 provider inference/refresh, positive native WebSocket/WebRTC test, capacity test
 or endurance test is claimed; the production listener still has no real accounts.
 
+## Deployed verified main to dmit2 — 2026-11-14
+
+At **2026-11-14 13:17:28 Asia/Shanghai**, dmit2 was upgraded from **`a095b1f9266dc00c7289fc9f700c8ef50cfee6e8`** to published source **[`2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`](https://github.com/vpromise/CodexProxy/commit/2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2)**, tree **`1a7a6a9fd34b246bae9f6ae45c145b276d394272`**. Final verification and atomic release/root receipt readback completed at **13:19:45 Asia/Shanghai**. The running version is **`codexproxy-20261114-2a4f6dd2`**, including the previously published account-isolation, Thread and Claude 2.1.321 metadata repairs. This deployment accessed dmit2 only.
+
+### Artifact and validation provenance
+
+A task-owned detached worktree at the published source was cross-built off-host using **Go 1.27.3**, **Linux/amd64 / CGO_ENABLED=0**, `-mod=readonly -trimpath -buildvcs=false`, stripped symbols and explicit version/commit/build-date fields. The ELF is statically linked. Source-matched macOS and dev2 Linux full/race/regression results from the metadata repair were reused after verifying every recorded input, with only ledger bookkeeping differences. This deployment performed a fresh static cross-build and Linux help/runtime probes. No additional Linux unit-test execution is claimed.
+
+- Static binary SHA256 **`81be40338f7ce0348f9be01ae22455a9cc8b1a2f828ccd56d229f88ce8ff2eee`**.
+- Served management HTML SHA256 **`c2349625a7284ac2997858d852db3f4c3976e98df42d550816cd6ababf063b64`**.
+- Exact source archive SHA256 **`8789eacdaa3cc06efd2c850627072db7a756218ee60b7f80325572928cb85e00`**.
+- Established source manifest, excluding the ledger, contains **1836 files**, SHA256 **`9666d86d11a58ebecd0a63179fbcd24d2ac0a51a32bf744f987eaaf062545ac8`**. The Linux static compiler/test/embed audit found **92 packages / 1227 inputs**, all tracked and hash-recorded. Post-build source manifest verification passed.
+- Upload payload checksums, isolated empty-directory `--config /dev/null --help`, rollback shell/Python syntax and executable owner/mode verification passed. The selected source SHA has zero Actions/check runs, with existing PR/tag-only triggers.
+
+### Activation and preservation
+
+Only `codexproxy.service` was restarted after atomic executable replacement. Installed and `/proc/2239634/exe` hashes match the chosen artifact. The effective config retained SHA256 **`15a3af827bac924e2350f27c968c2a169d0b72a76399a33cb68f3c3da0d6a487`**, matching this deployment's fresh baseline. Session affinity remains enabled with **1h** TTL and **round-robin** routing, and account-pool isolation remains enabled. Config/unit/drop-in bytes, semantic process environment, credential-file hashes and new-api/nginx/s-ui process identities all matched before/after.
+
+Resource settings remain MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax **256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB**, RestartSec **15s** and StartLimit **3 per 300s**. Commercial/file logging and usage statistics remain enabled, detailed request logging/debug remain disabled, and log retention is **128 MiB**. Existing `resource_tuning`, `logging_tuning` and `routing_tuning` receipt history was retained.
+
+Ten local/gateway gates and five workstation public HTTPS gates passed, covering health, hello, unauthenticated models/config rejection, expected version/commit headers and management-page bytes. Public TLS verification was enabled. The established local origin-certificate exception was confined to the loopback gateway probe. An existing configured proxy client key remained on the host and returned **200 / 9 models** from read-only `/v1/models`. The current auth directory contains one Codex credential and no Claude credential, with zero configured Claude API-key entries. Real Claude/provider inference and deliberate refresh/rotation were outside the checks. Authenticated management readback was unavailable with the configured key hash.
+
+The post-restart observation recorded **25 healthy samples over 121.43 seconds**, stable PID, zero unplanned restarts, zero new high/max/OOM events and zero service swap usage. Final sampled cgroup memory was **27,189,248 bytes**. This observation establishes short-term readiness within the recorded workload.
+
+Logs were checked from actual process start **2026-11-13 21:17:26 PST**, accounting for the host/log timezone. Application error/fatal/panic and unclassified warning counts were zero. Ten warnings were deliberate unauthenticated GET probes. The log-receipt verifier initially compared Python's timezone tuple with its JSON list readback and failed its serialization assertion. Converting that field to a JSON-native list fixed the verifier; the same log-classification gates then passed. The original script and correction record are retained.
+
+### Recovery and completion records
+
+Protected release directory **`/opt/codex-stack/codexproxy/releases/20261114-2a4f6dd2-dmit2`** retains the exact artifact/source/build manifest, previous executable/config/unit/receipt backups, verification and observation evidence, and syntax-checked **`ROLLBACK.sh`**. Recovery restores the prior binary and restarts only CodexProxy while retaining current config/account data. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were atomically written and read back with verified status. This ledger update is published separately from the running build source, retaining the existing upstream review boundary and all earlier deployment records.
+
 ## Deployed latest main to dmit2 — 2026-11-05
 
 At **2026-11-05 21:33:45 Asia/Shanghai**, dmit2 alone was upgraded from
