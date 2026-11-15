@@ -76,7 +76,7 @@ The applicable [skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/S
 
 ### Publication state
 
-Only this review/validation/blocker ledger entry is eligible for documentation publication. No functional candidate commit or deployment is included. Exact documentation commit, remote readback and CI results will be recorded in the publication receipt and Chinese report.
+The review/validation/blocker entry is committed as **[5704e20a807a372e74b56dc66de2f8abdf66e9ce](https://github.com/vpromise/CodexProxy/commit/5704e20a807a372e74b56dc66de2f8abdf66e9ce)**, tree **`6dbbba7a27e599901fa58fb52d9cfefbfa2b0e76`**, and normally pushed to verified fork **main**. SSH and GitHub branch/commit/tree agree at **2026-11-15T21:17:08.168255+00:00**. Exact-SHA Actions runs, check-runs and status entries are each **zero**; combined status is pending with no statuses. Current six workflow definitions trigger on PR/tag events, so direct-main documentation publication has no observed CI execution and is **not** CI-passed. This is documentation-only: the two functional candidates remain uncommitted/unpushed behind the K1 race gate. A separate documentation receipt commit is pushed and checked independently in the accompanying evidence/report. No deployment, Release or tag is included.
 
 ## Current checkpoint - 2026-11-15
 
