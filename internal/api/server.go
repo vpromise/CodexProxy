@@ -44,8 +44,9 @@ type Server struct {
 	server *http.Server
 
 	// startStopMu guards listener publication and HTTP/TLS initialization against Stop.
-	startStopMu sync.Mutex
-	stopped     bool
+	startStopMu   sync.Mutex
+	stopped       bool
+	consoleServer *http.Server
 
 	// muxBaseListener is the shared TCP listener used to serve both HTTP and Redis protocol traffic.
 	muxBaseListener net.Listener
@@ -288,6 +289,33 @@ func (s *Server) Start() error {
 		return nil
 	}
 
+	cfgControl := s.configSnapshot()
+	control, errControl := s.mgmt.NewConsoleNodeServer(cfgControl)
+	if errControl != nil {
+		return fmt.Errorf("console node startup failed: %w", errControl)
+	}
+	if control != nil {
+		controlListener, errListen := net.Listen("tcp", control.Addr)
+		if errListen != nil {
+			return fmt.Errorf("console node listener: %w", errListen)
+		}
+		s.startStopMu.Lock()
+		if s.stopped {
+			s.startStopMu.Unlock()
+			_ = controlListener.Close()
+			return nil
+		}
+		s.consoleServer = control
+		s.startStopMu.Unlock()
+		defer control.Close()
+		defer controlListener.Close()
+		go func() {
+			if err := managementHandlers.ServeConsoleNode(control, controlListener); err != nil && !errors.Is(err, net.ErrClosed) {
+				log.WithError(err).Error("console node listener stopped")
+			}
+		}()
+	}
+
 	addr := s.server.Addr
 	listener, errListen := net.Listen("tcp", addr)
 	if errListen != nil {
@@ -412,6 +440,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.stopped = true
 	httpListener := s.muxHTTPListener
 	baseListener := s.muxBaseListener
+	control := s.consoleServer
 	s.startStopMu.Unlock()
 
 	if httpListener != nil {
@@ -423,6 +452,11 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
+	if control != nil {
+		if err := control.Shutdown(ctx); err != nil {
+			_ = control.Close()
+		}
+	}
 	// Shutdown the HTTP server.
 	errShutdown := s.server.Shutdown(ctx)
 	if s.codexLiveHandler != nil {

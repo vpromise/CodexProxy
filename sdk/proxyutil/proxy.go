@@ -26,6 +26,8 @@ const (
 	ModeDirect
 	// ModeProxy means a concrete proxy URL was configured.
 	ModeProxy
+	// ModeDirectIP binds all connections to one local IPv4 address.
+	ModeDirectIP
 	// ModeInvalid means the proxy setting is present but malformed or unsupported.
 	ModeInvalid
 )
@@ -62,6 +64,17 @@ func Parse(raw string) (Setting, error) {
 		return setting, fmt.Errorf("proxy URL missing scheme/host")
 	}
 
+	if parsedURL.Scheme == "direct-ip" {
+		if parsedURL.User != nil || parsedURL.Port() != "" || parsedURL.Path != "" || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+			return Setting{Raw: trimmed, Mode: ModeInvalid}, fmt.Errorf("invalid direct-ip route")
+		}
+		if _, err := NewSourceIPDialer(parsedURL.Host); err != nil {
+			return Setting{Raw: trimmed, Mode: ModeInvalid}, err
+		}
+		setting.Mode = ModeDirectIP
+		setting.URL = parsedURL
+		return setting, nil
+	}
 	switch parsedURL.Scheme {
 	case "socks5", "socks5h", "http", "https":
 		setting.Mode = ModeProxy
@@ -104,6 +117,14 @@ func BuildHTTPTransportWithBase(raw string, base proxy.Dialer) (*http.Transport,
 	switch setting.Mode {
 	case ModeInherit:
 		return nil, setting.Mode, nil
+	case ModeDirectIP:
+		dialer, err := NewSourceIPDialer(setting.URL.Host)
+		if err != nil {
+			return nil, setting.Mode, err
+		}
+		transport := NewDirectTransport()
+		applyHTTPTransportBaseDialer(transport, dialer)
+		return transport, setting.Mode, nil
 	case ModeDirect:
 		transport := NewDirectTransport()
 		applyHTTPTransportBaseDialer(transport, base)
@@ -235,6 +256,9 @@ func BuildDialerWithBase(raw string, base proxy.Dialer) (proxy.Dialer, Mode, err
 	switch setting.Mode {
 	case ModeInherit:
 		return nil, setting.Mode, nil
+	case ModeDirectIP:
+		dialer, err := NewSourceIPDialer(setting.URL.Host)
+		return dialer, setting.Mode, err
 	case ModeDirect:
 		return base, setting.Mode, nil
 	case ModeProxy:

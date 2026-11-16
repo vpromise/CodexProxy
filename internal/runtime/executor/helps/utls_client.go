@@ -586,6 +586,9 @@ func (f *fallbackRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 // for Anthropic and a Chrome profile for ChatGPT, with a standard-transport
 // fallback for other hosts.
 func NewUtlsHTTPClient(ctx context.Context, cfg *config.Config, auth *cliproxyauth.Auth, timeout time.Duration) *http.Client {
+	if err := cliproxyauth.ValidateConsoleCredential(ctx, cfg, auth); err != nil {
+		return &http.Client{Transport: claudeTransportError{err: err}}
+	}
 	if client, bound := newPoolUtlsHTTPClient(ctx, auth, timeout); bound {
 		return client
 	}

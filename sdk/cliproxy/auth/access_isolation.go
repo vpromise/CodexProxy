@@ -22,6 +22,9 @@ type clientIdentity struct{ key, provider string }
 // AccessScope is an immutable grant captured at a request boundary. Callers may
 // retain it only for an in-progress operation, never for the next socket message.
 type AccessScope struct {
+	consoleConfig *config.Config
+	consoleRoute  proxyutil.Egress
+
 	enabled   bool
 	denied    bool
 	provider  string
@@ -71,6 +74,9 @@ func (s *AccessScope) LocalSessionKey(sessionID string) string {
 }
 
 func (s *AccessScope) Allows(a *Auth) bool {
+	if s != nil && ValidateConsoleCredential(proxyutil.WithEgress(context.Background(), s.consoleRoute), s.consoleConfig, a) != nil {
+		return false
+	}
 	return !s.Enabled() || (!s.denied && a != nil && a.Provider == s.provider && s.members[AccountIdentity(a)])
 }
 
@@ -95,6 +101,11 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 		ctx = context.Background()
 	}
 	scope := &AccessScope{operation: accessOperationSequence.Add(1)}
+	if m != nil {
+		if cfg, ok := m.runtimeConfig.Load().(*config.Config); ok {
+			scope.consoleConfig = cfg
+		}
+	}
 	identity, _ := ctx.Value(clientIdentityKey{}).(clientIdentity)
 	if identity.key != "" {
 		digest := sha256.Sum256([]byte(identity.provider + "\x00" + identity.key))
@@ -145,6 +156,7 @@ func (m *Manager) NewAccessRequest(ctx context.Context) context.Context {
 	if scope.enabled && !scope.denied && scope.egress.Mode == "direct-ip" {
 		route = proxyutil.Egress{Scope: scope.pool, SourceIP: scope.egress.SourceIP}
 	}
+	scope.consoleRoute = route
 	ctx = proxyutil.WithEgress(ctx, route)
 	if scope.denied {
 		auditAccessDecision(ctx, nil, "denied", "client_grant_unavailable")
@@ -214,6 +226,9 @@ func (m *Manager) CheckCurrentAccount(ctx context.Context, selected *Auth) (errA
 	}
 	if previousEgress != proxyutil.EgressFromContext(ctx).Key() {
 		return &Error{Code: "egress_changed", Message: "Pool egress changed; reconnect the session", HTTPStatus: http.StatusConflict}
+	}
+	if err := ValidateConsoleCredential(ctx, scope.consoleConfig, selected); err != nil {
+		return err
 	}
 	if !scope.Enabled() {
 		return nil

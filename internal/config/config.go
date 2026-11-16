@@ -6,6 +6,8 @@ package config
 
 // Config represents the application's configuration, loaded from a YAML file.
 type Config struct {
+	ConsoleNode ConsoleNodeConfig `yaml:"console-node" json:"console-node"`
+
 	SDKConfig       `yaml:",inline"`
 	AccessIsolation AccessIsolation `yaml:"access-isolation" json:"access-isolation"`
 	// Host is the network host/interface on which the API server will bind.
