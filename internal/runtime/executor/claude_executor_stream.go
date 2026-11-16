@@ -153,6 +153,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		}
 	}
 
+	body = helps.NormalizeClaudeAdvisorToolModels(body)
 	requestedModel := helps.PayloadRequestedModel(opts, req.Model)
 	requestPath := helps.PayloadRequestPath(opts)
 	var touchedPayloadPaths map[string]bool

@@ -50,6 +50,7 @@ func (e *ClaudeExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Aut
 	if rebuildMidSystemMessageEnabled(e.cfg, auth) {
 		body = rebuildMidSystemMessagesToTopLevel(body)
 	}
+	body = helps.NormalizeClaudeAdvisorToolModels(body)
 	body = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, body, baseModel, helps.APIKeyModelIsCompat(req))
 	if errValidate := validateClaudeTokenCountRequest(body); errValidate != nil {
 		return cliproxyexecutor.Response{}, errValidate
@@ -198,6 +199,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		mcpAliases := resolveClaudeMCPAliasOptions(ctx)
 		body, _ = prepareClaudeOAuthToolNamesForUpstream(body, mcpAliases)
 	}
+	body = helps.NormalizeClaudeAdvisorToolModels(body)
 	body = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, body, baseModel, helps.APIKeyModelIsCompat(req))
 	// Two different reasons converge on the same deletions, and they must stay
 	// separable.
