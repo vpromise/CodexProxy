@@ -121,6 +121,13 @@ func (h *Handler) APICall(c *gin.Context) {
 
 	authIndex := firstNonEmptyString(body.AuthIndexSnake, body.AuthIndexCamel, body.AuthIndexPascal)
 	auth := h.authByIndex(authIndex)
+	if binding, bindErr := coreauth.ConsoleCredentialBinding(auth); binding != nil || bindErr != nil {
+		cfg := h.snapshotAuthFileRuntime().cfg
+		if coreauth.ValidateConsoleCredential(c.Request.Context(), cfg, auth) != nil || (requestProxyURL != "" && (binding == nil || requestProxyURL != binding.ProxyURL)) {
+			c.JSON(409, gin.H{"error": "managed credential route cannot be overridden"})
+			return
+		}
+	}
 
 	reqHeaders := body.Header
 	if reqHeaders == nil {

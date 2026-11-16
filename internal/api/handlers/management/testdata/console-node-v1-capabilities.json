@@ -1,0 +1,21 @@
+{
+  "protocol": "console-node/v1",
+  "node_id": "node-a",
+  "instance_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profiles": [
+    {
+      "id": "egress",
+      "version": "1",
+      "expected_public_ip": ""
+    }
+  ],
+  "features": [
+    "enrollment",
+    "disabled_import",
+    "pool_assignment",
+    "versioned_enable",
+    "operation_receipts",
+    "scoped_channel_keys",
+    "owner_renewal"
+  ]
+}

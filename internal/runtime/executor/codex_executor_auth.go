@@ -13,6 +13,9 @@ import (
 )
 
 func (e *CodexExecutor) Refresh(ctx context.Context, auth *cliproxyauth.Auth) (*cliproxyauth.Auth, error) {
+	if err := cliproxyauth.ValidateConsoleCredential(ctx, e.cfg, auth); err != nil {
+		return nil, err
+	}
 	log.Debugf("codex executor: refresh called")
 	if refreshed, handled, err := helps.RefreshAuthViaHome(ctx, e.cfg, auth); handled {
 		return refreshed, err

@@ -16,6 +16,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
 // The single writer is the server process, including all its management handlers.
@@ -26,26 +27,29 @@ var selfServiceMu sync.Mutex
 const selfServiceRecordLimit = 5000
 
 type selfServiceRecord struct {
-	ID            string         `json:"id"`
-	Provider      string         `json:"provider"`
-	Label         string         `json:"label"`
-	Status        string         `json:"status"`
-	CreatedAt     time.Time      `json:"created_at"`
-	ExpiresAt     time.Time      `json:"expires_at"`
-	FlowExpiresAt time.Time      `json:"flow_expires_at,omitempty"`
-	ExchangeAt    time.Time      `json:"exchange_at,omitempty"`
-	ConsentAt     *time.Time     `json:"consent_at,omitempty"`
-	SubmittedAt   *time.Time     `json:"submitted_at,omitempty"`
-	ReviewedAt    *time.Time     `json:"reviewed_at,omitempty"`
-	TokenHash     string         `json:"token_hash"`
-	State         string         `json:"state,omitempty"`
-	Verifier      string         `json:"verifier,omitempty"`
-	Challenge     string         `json:"challenge,omitempty"`
-	AuthURL       string         `json:"auth_url,omitempty"`
-	Credentials   map[string]any `json:"credentials,omitempty"`
-	FileName      string         `json:"file_name,omitempty"`
-	Email         string         `json:"email,omitempty"`
-	AccountID     string         `json:"account_id,omitempty"`
+	RenewalOf       string                   `json:"renewal_of,omitempty"`
+	RenewalRevision string                   `json:"renewal_revision,omitempty"`
+	Console         *coreauth.ConsoleBinding `json:"console_binding,omitempty"`
+	ID              string                   `json:"id"`
+	Provider        string                   `json:"provider"`
+	Label           string                   `json:"label"`
+	Status          string                   `json:"status"`
+	CreatedAt       time.Time                `json:"created_at"`
+	ExpiresAt       time.Time                `json:"expires_at"`
+	FlowExpiresAt   time.Time                `json:"flow_expires_at,omitempty"`
+	ExchangeAt      time.Time                `json:"exchange_at,omitempty"`
+	ConsentAt       *time.Time               `json:"consent_at,omitempty"`
+	SubmittedAt     *time.Time               `json:"submitted_at,omitempty"`
+	ReviewedAt      *time.Time               `json:"reviewed_at,omitempty"`
+	TokenHash       string                   `json:"token_hash"`
+	State           string                   `json:"state,omitempty"`
+	Verifier        string                   `json:"verifier,omitempty"`
+	Challenge       string                   `json:"challenge,omitempty"`
+	AuthURL         string                   `json:"auth_url,omitempty"`
+	Credentials     map[string]any           `json:"credentials,omitempty"`
+	FileName        string                   `json:"file_name,omitempty"`
+	Email           string                   `json:"email,omitempty"`
+	AccountID       string                   `json:"account_id,omitempty"`
 }
 
 func selfServiceRandom(bytes int) (string, error) {

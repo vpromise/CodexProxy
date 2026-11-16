@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
 
 type selfServiceSummary struct {
@@ -214,7 +215,12 @@ func (h *Handler) StartSelfServiceOAuth(c *gin.Context) {
 		return
 	}
 	if record.Status == "invited" {
-		if err = selfServiceStart(h.snapshotAuthFileRuntime().cfg, record); err != nil {
+		cfg, cfgErr := h.selfServiceRecordConfig(record)
+		if cfgErr != nil {
+			c.Status(503)
+			return
+		}
+		if err = selfServiceStart(cfg, record); err != nil {
 			c.JSON(503, gin.H{"error": "authorization unavailable"})
 			return
 		}
@@ -271,7 +277,15 @@ func (h *Handler) CompleteSelfServiceOAuth(c *gin.Context) {
 		c.Status(503)
 		return
 	}
-	cfg := h.snapshotAuthFileRuntime().cfg
+	cfg, cfgErr := h.selfServiceRecordConfig(record)
+	if cfgErr != nil {
+		record.Status = "failed"
+		record.clearFlow()
+		_ = selfServiceWrite(dir, record)
+		selfServiceMu.Unlock()
+		c.Status(503)
+		return
+	}
 	selfServiceMu.Unlock()
 
 	// Finish saving a consumed grant even if the visitor closes the browser.
@@ -463,6 +477,10 @@ func (h *Handler) AcceptSelfServiceOAuth(c *gin.Context) {
 		}
 		metadata["disabled"] = true
 		metadata["self_service_id"] = record.ID
+		if record.Console != nil {
+			metadata["console_binding"] = record.Console
+			metadata["proxy_url"] = record.Console.ProxyURL
+		}
 		data, err = json.Marshal(metadata)
 		if err == nil {
 			err = runtime.writeAuthFile(c.Request.Context(), record.FileName, data)
@@ -507,3 +525,16 @@ func (h *Handler) AcceptSelfServiceOAuth(c *gin.Context) {
 // Kept injectable per handler for offline regression tests; production always
 // uses the same provider implementation as the existing OAuth login paths.
 type selfServiceExchangeFunc func(context.Context, *config.Config, *selfServiceRecord, string) (map[string]any, error)
+
+// selfServiceRecordConfig pins managed enrollment to its immutable egress binding.
+func (h *Handler) selfServiceRecordConfig(record *selfServiceRecord) (*config.Config, error) {
+	cfg := h.snapshotAuthFileRuntime().cfg
+	if record.Console != nil {
+		fake := &coreauth.Auth{ProxyURL: record.Console.ProxyURL, Metadata: map[string]any{"console_binding": record.Console}}
+		if err := coreauth.ValidateConsoleCredential(context.Background(), cfg, fake); err != nil {
+			return nil, err
+		}
+		cfg.ProxyURL = record.Console.ProxyURL
+	}
+	return cfg, nil
+}

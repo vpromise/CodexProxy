@@ -188,6 +188,15 @@ func newProxyAwareWebsocketDialer(cfg *config.Config, auth *cliproxyauth.Auth, c
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 	}
+	ctx := context.Background()
+	if len(contexts) > 0 && contexts[0] != nil {
+		ctx = contexts[0]
+	}
+	if err := cliproxyauth.ValidateConsoleCredential(ctx, cfg, auth); err != nil {
+		dialer.Proxy = nil
+		dialer.NetDialContext = func(context.Context, string, string) (net.Conn, error) { return nil, err }
+		return dialer
+	}
 	if len(contexts) > 0 && helps.ApplyPoolWebsocketEgress(contexts[0], dialer) {
 		return dialer
 	}
@@ -210,6 +219,15 @@ func newProxyAwareWebsocketDialer(cfg *config.Config, auth *cliproxyauth.Auth, c
 	}
 
 	switch setting.Mode {
+	case proxyutil.ModeDirectIP:
+		source, err := proxyutil.NewSourceIPDialer(setting.URL.Host)
+		dialer.Proxy = nil
+		if err != nil {
+			dialer.NetDialContext = func(context.Context, string, string) (net.Conn, error) { return nil, err }
+		} else {
+			dialer.NetDialContext = source.DialContext
+		}
+		return dialer
 	case proxyutil.ModeDirect:
 		dialer.Proxy = nil
 		return dialer
