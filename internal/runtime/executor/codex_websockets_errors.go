@@ -68,20 +68,38 @@ func clearCodexReasoningReplayOnWebsocketError(ctx context.Context, scope codexR
 }
 
 func buildCodexWebsocketErrorPayload(payload []byte, status int) []byte {
-	out := []byte(`{}`)
+	out := []byte(`{"type":"error"}`)
 	out, _ = sjson.SetBytes(out, "status", status)
+	if seq := gjson.GetBytes(payload, "sequence_number"); seq.Type == gjson.Number {
+		out, _ = sjson.SetRawBytes(out, "sequence_number", []byte(seq.Raw))
+	}
+	setError := func(node gjson.Result) bool {
+		if !node.Exists() || node.Type == gjson.Null {
+			return false
+		}
+		if node.IsObject() {
+			out, _ = sjson.SetRawBytes(out, "error", []byte(node.Raw))
+			return true
+		}
+		message := node.String()
+		if strings.TrimSpace(message) == "" {
+			message = http.StatusText(status)
+		}
+		out, _ = sjson.SetBytes(out, "error.message", message)
+		return true
+	}
 
 	if bodyNode := gjson.GetBytes(payload, "body"); bodyNode.Exists() {
 		out, _ = sjson.SetRawBytes(out, "body", []byte(bodyNode.Raw))
-		if bodyErrorNode := bodyNode.Get("error"); bodyErrorNode.Exists() {
-			out, _ = sjson.SetRawBytes(out, "error", []byte(bodyErrorNode.Raw))
+		if setError(bodyNode.Get("error")) {
 			return out
 		}
 	}
 
-	if errNode := gjson.GetBytes(payload, "error"); errNode.Exists() {
-		out, _ = sjson.SetRawBytes(out, "error", []byte(errNode.Raw))
-		return out
+	for _, path := range []string{"error", "response.error"} {
+		if setError(gjson.GetBytes(payload, path)) {
+			return out
+		}
 	}
 
 	out, _ = sjson.SetBytes(out, "error.type", "server_error")

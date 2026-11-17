@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,38 +69,31 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 
 	code := openAIResponsesStreamErrorCode(status)
 
-	trimmed := strings.TrimSpace(errText)
-	if trimmed != "" && json.Valid([]byte(trimmed)) {
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(trimmed), &payload); err == nil {
-			if t, ok := payload["type"].(string); ok && strings.TrimSpace(t) == "error" {
-				if m, ok := payload["message"].(string); ok && strings.TrimSpace(m) != "" {
-					message = strings.TrimSpace(m)
-				}
-				if v, ok := payload["code"]; ok && v != nil {
-					if c, ok := v.(string); ok && strings.TrimSpace(c) != "" {
-						code = strings.TrimSpace(c)
-					} else {
-						code = strings.TrimSpace(fmt.Sprint(v))
-					}
-				}
-				if v, ok := payload["sequence_number"].(float64); ok && sequenceNumber == 0 {
-					sequenceNumber = int(v)
-				}
+	payload := decodeOpenAIResponsesErrorPayload(errText)
+	if payload != nil {
+		if t, ok := payload["type"].(string); ok && strings.TrimSpace(t) == "error" {
+			if m, ok := payload["message"].(string); ok && strings.TrimSpace(m) != "" {
+				message = strings.TrimSpace(m)
 			}
-			if e, ok := payload["error"].(map[string]any); ok {
-				e = applyClaudePromptOverflowCode(e)
-				if m, ok := e["message"].(string); ok && strings.TrimSpace(m) != "" {
-					message = strings.TrimSpace(m)
-				}
-				if v, ok := e["code"]; ok && v != nil {
-					if c, ok := v.(string); ok && strings.TrimSpace(c) != "" {
-						code = strings.TrimSpace(c)
-					} else {
-						code = strings.TrimSpace(fmt.Sprint(v))
-					}
-				}
+			if v, ok := payload["code"]; ok && v != nil {
+				code = strings.TrimSpace(fmt.Sprint(v))
 			}
+		}
+		if v, ok := payload["sequence_number"].(json.Number); ok && sequenceNumber == 0 {
+			if seq, errSequence := v.Int64(); errSequence == nil && seq >= 0 && int64(int(seq)) == seq {
+				sequenceNumber = int(seq)
+			}
+		}
+		if detail, scalar := nestedOpenAIResponsesErrorDetail(payload); detail != nil {
+			detail = applyClaudePromptOverflowCode(detail)
+			if m, ok := detail["message"].(string); ok && strings.TrimSpace(m) != "" {
+				message = strings.TrimSpace(m)
+			}
+			if v, ok := detail["code"]; ok && v != nil {
+				code = strings.TrimSpace(fmt.Sprint(v))
+			}
+		} else if strings.TrimSpace(scalar) != "" {
+			message = scalar
 		}
 	}
 
@@ -130,6 +124,40 @@ func BuildOpenAIResponsesStreamErrorChunk(status int, errText string, sequenceNu
 	return []byte(`{"type":"error","code":"internal_server_error","message":"internal error","sequence_number":0}`)
 }
 
+// Decode protocol counters and error parameters without a float64 round trip.
+func decodeOpenAIResponsesErrorPayload(text string) map[string]any {
+	data := []byte(strings.TrimSpace(text))
+	if !json.Valid(data) {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var payload map[string]any
+	if errDecode := decoder.Decode(&payload); errDecode != nil {
+		return nil
+	}
+	return payload
+}
+
+func nestedOpenAIResponsesErrorDetail(payload map[string]any) (map[string]any, string) {
+	nodes := []any{payload["error"]}
+	for _, path := range []string{"response", "body"} {
+		if wrapper, ok := payload[path].(map[string]any); ok {
+			nodes = append(nodes, wrapper["error"])
+		}
+	}
+	scalar := ""
+	for _, node := range nodes {
+		if detail, ok := node.(map[string]any); ok {
+			return detail, ""
+		}
+		if message, ok := node.(string); ok && strings.TrimSpace(message) != "" && scalar == "" {
+			scalar = message
+		}
+	}
+	return nil, scalar
+}
+
 // applyClaudePromptOverflowCode annotates input rejection, never a generated truncation.
 func applyClaudePromptOverflowCode(detail map[string]any) map[string]any {
 	if existing, ok := detail["code"]; ok && existing != nil && strings.TrimSpace(fmt.Sprint(existing)) != "" {
@@ -142,15 +170,9 @@ func applyClaudePromptOverflowCode(detail map[string]any) map[string]any {
 }
 
 func openAIResponsesStreamFailedErrorDetail(status int, errText, code, message string) map[string]any {
-	var payload map[string]any
-	if errUnmarshal := json.Unmarshal([]byte(strings.TrimSpace(errText)), &payload); errUnmarshal == nil {
-		if errorDetail, ok := payload["error"].(map[string]any); ok {
-			return applyClaudePromptOverflowCode(errorDetail)
-		}
-		if response, ok := payload["response"].(map[string]any); ok {
-			if errorDetail, ok := response["error"].(map[string]any); ok {
-				return applyClaudePromptOverflowCode(errorDetail)
-			}
+	if payload := decodeOpenAIResponsesErrorPayload(errText); payload != nil {
+		if detail, _ := nestedOpenAIResponsesErrorDetail(payload); detail != nil {
+			return applyClaudePromptOverflowCode(detail)
 		}
 	}
 

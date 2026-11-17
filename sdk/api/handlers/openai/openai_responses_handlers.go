@@ -265,7 +265,7 @@ func (f *responsesSSEFramer) repairFrame(frame []byte) []byte {
 	streamEvent := responsesSSEEventName(frame)
 	if !ok || len(payload) == 0 || !json.Valid(payload) {
 		payloadType := gjson.GetBytes(payload, "type").String()
-		if !responsesSSEErrorEvent(payloadType) && !responsesSSEPayloadHasError(payload) && f.shouldFilterPrivateEvent(streamEvent, payloadType) {
+		if !responsesSSEErrorEvent(payloadType) && !responsesSSEPayloadHasErrorForEvent(streamEvent, payload) && f.shouldFilterPrivateEvent(streamEvent, payloadType) {
 			return nil
 		}
 		if bytes.Equal(payload, []byte("[DONE]")) {
@@ -275,7 +275,7 @@ func (f *responsesSSEFramer) repairFrame(frame []byte) []byte {
 	}
 
 	payloadType := gjson.GetBytes(payload, "type").String()
-	if responsesSSEErrorEvent(payloadType) || responsesSSEPayloadHasError(payload) {
+	if responsesSSEErrorEvent(payloadType) || responsesSSEPayloadHasErrorForEvent(streamEvent, payload) {
 		f.dataFrames++
 		if payloadType != "" {
 			f.lastEvent = sanitizeResponsesStreamEventName(payloadType)
@@ -318,7 +318,7 @@ func (f *responsesSSEFramer) repairFrame(frame []byte) []byte {
 
 func responsesSSEPayloadErrorMessage(payload []byte) *interfaces.ErrorMessage {
 	status := http.StatusBadGateway
-	for _, path := range []string{"status", "status_code", "error.status", "error.status_code", "response.error.status", "response.error.status_code"} {
+	for _, path := range []string{"status", "status_code", "error.status", "error.status_code", "response.error.status", "response.error.status_code", "body.status", "body.status_code", "body.error.status", "body.error.status_code"} {
 		candidate := int(gjson.GetBytes(payload, path).Int())
 		if candidate >= http.StatusBadRequest && candidate <= 599 {
 			status = candidate
@@ -354,6 +354,9 @@ func (f *responsesSSEFramer) repairErrorPayload(payload []byte) []byte {
 				respRaw, _ = sjson.SetRawBytes(respRaw, "error", []byte(sanitizedErr.Raw))
 			}
 			env := []byte(`{"type":"response.failed","sequence_number":0,"response":{}}`)
+			if seq := gjson.GetBytes(chunk, "sequence_number"); seq.Type == gjson.Number {
+				env, _ = sjson.SetRawBytes(env, "sequence_number", []byte(seq.Raw))
+			}
 			if updated, errSet := sjson.SetRawBytes(env, "response", respRaw); errSet == nil {
 				chunk = updated
 			}
@@ -383,9 +386,27 @@ func responsesSSETerminalEvent(eventType string) bool {
 }
 
 func responsesSSEPayloadHasError(payload []byte) bool {
+	return responsesSSEPayloadHasErrorForEvent("", payload)
+}
+
+func responsesSSEPayloadHasErrorForEvent(streamEvent string, payload []byte) bool {
 	for _, path := range []string{"error", "response.error"} {
 		result := gjson.GetBytes(payload, path)
 		if result.Exists() && result.Type != gjson.Null {
+			return true
+		}
+	}
+	if node := gjson.GetBytes(payload, "body.error"); node.Exists() && node.Type != gjson.Null &&
+		!(node.Type == gjson.String && strings.TrimSpace(node.String()) == "") {
+		canInfer := true
+		for _, eventType := range []string{streamEvent, gjson.GetBytes(payload, "type").String()} {
+			eventType = strings.ToLower(strings.TrimSpace(eventType))
+			if eventType != "" && !responsesSSEErrorEvent(eventType) && eventType != "invalid_request" &&
+				!strings.HasSuffix(eventType, "_error") && !strings.HasSuffix(eventType, ".error") {
+				canInfer = false
+			}
+		}
+		if canInfer {
 			return true
 		}
 	}
@@ -1001,6 +1022,9 @@ func responsesStreamErrorText(errMsg *interfaces.ErrorMessage, status int) strin
 	if !errorNode.Exists() || !errorNode.IsObject() {
 		errorNode = root.Get("response.error")
 	}
+	if !errorNode.Exists() || !errorNode.IsObject() {
+		errorNode = root.Get("body.error")
+	}
 	if errorNode.Exists() && errorNode.IsObject() {
 		safe := []byte(`{"error":{}}`)
 		copied := false
@@ -1017,6 +1041,19 @@ func responsesStreamErrorText(errMsg *interfaces.ErrorMessage, status int) strin
 			copied = true
 		}
 		if copied {
+			if seq := root.Get("sequence_number"); seq.Type == gjson.Number {
+				safe, _ = sjson.SetRawBytes(safe, "sequence_number", []byte(seq.Raw))
+			}
+			return string(safe)
+		}
+	}
+	for _, path := range []string{"error", "response.error", "body.error"} {
+		if scalar := root.Get(path); scalar.Type == gjson.String && strings.TrimSpace(scalar.String()) != "" {
+			safe := []byte(`{"error":{}}`)
+			safe, _ = sjson.SetBytes(safe, "error.message", truncateResponsesStreamErrorText(redactResponsesStreamErrorText(scalar.String()), responsesStreamErrorMessageLimit))
+			if seq := root.Get("sequence_number"); seq.Type == gjson.Number {
+				safe, _ = sjson.SetRawBytes(safe, "sequence_number", []byte(seq.Raw))
+			}
 			return string(safe)
 		}
 	}

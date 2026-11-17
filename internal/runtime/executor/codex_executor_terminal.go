@@ -181,22 +181,27 @@ func codexTerminalFailureStatus(body []byte) int {
 func codexTerminalFailureBody(eventData []byte) ([]byte, bool) {
 	eventType := gjson.GetBytes(eventData, "type").String()
 	var body []byte
+	paths := []string{"error", "body.error", "response.error"}
 	switch eventType {
 	case "error":
-		body = codexTerminalErrorBody(eventData, "error")
-		if len(body) == 0 {
-			body = codexTerminalTopLevelErrorBody(eventData)
-		}
 	case "response.failed":
-		body = codexTerminalErrorBody(eventData, "response.error")
-		if len(body) == 0 {
-			body = codexTerminalErrorBody(eventData, "error")
-		}
+		paths = []string{"response.error", "error", "body.error"}
 	default:
 		return nil, false
 	}
+	for _, path := range paths {
+		if body = codexTerminalErrorBody(eventData, path); len(body) > 0 {
+			break
+		}
+	}
+	if len(body) == 0 && eventType == "error" {
+		body = codexTerminalTopLevelErrorBody(eventData)
+	}
 	if len(body) == 0 {
 		body = []byte(`{"error":{"message":"upstream stream failed without error details"}}`)
+	}
+	if seq := gjson.GetBytes(eventData, "sequence_number"); seq.Type == gjson.Number {
+		body, _ = sjson.SetRawBytes(body, "sequence_number", []byte(seq.Raw))
 	}
 	return body, true
 }
@@ -214,7 +219,7 @@ func codexTerminalStreamErrShouldHandle(body []byte) bool {
 
 func codexTerminalErrorBody(eventData []byte, path string) []byte {
 	errorResult := gjson.GetBytes(eventData, path)
-	if !errorResult.Exists() {
+	if !errorResult.Exists() || errorResult.Type == gjson.Null {
 		return nil
 	}
 	body := []byte(`{"error":{}}`)
