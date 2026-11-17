@@ -1,6 +1,6 @@
 # Upstream sync ledger
 
-Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
+Updated: 2026-11-16 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
@@ -752,6 +752,32 @@ IPv4, and classification of deliberate model errors. All final assertions were
 rerun. No application source or production routing setting changed. No real
 provider inference/refresh, positive native WebSocket/WebRTC test, capacity test
 or endurance test is claimed; the production listener still has no real accounts.
+
+## Deployed self-service OAuth version to dmit2 — 2026-11-16
+
+The user selected the current checkout, published branch **`codex/self-service-oauth`**, commit **[`58d64d999f69ea2f2295a3ffb15f34c06549af90`](https://github.com/vpromise/CodexProxy/commit/58d64d999f69ea2f2295a3ffb15f34c06549af90)**, tree **`fef8846de5f8532fb7efd8447059dbaccfe9bcc9`**. Only dmit2 was deployed. The initial switch completed at **2026-11-16 00:20:13 Asia/Shanghai**; a verifier correction required one further planned restart at **00:26:53**, and final atomic receipt readback completed at **00:30:23**. The running version is **`codexproxy-20261116-58d64d99`**, replacing `2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`. The self-service public page and administrator review UI are included. Existing nginx routing already forwards the enrollment paths and preserves the external Host and Authorization headers; no gateway change was made.
+
+### Exact artifact and fresh validation
+
+A clean detached worktree was tested and cross-built off-host using **Go 1.27.3 / darwin arm64**, with a **Linux amd64 / CGO_ENABLED=0** release build, `-mod=readonly -trimpath -buildvcs=false`, stripped symbols and explicit version/commit/build-date fields. The **1851-file** source manifest, excluding only this ledger, remained **`40a84cd6d035d8e6aca561ad9f044261433771080eb3b0ca893f1e8aee5e2af0`** before and after validation/build. All **92 packages / 1236 compiler, test and embed inputs** were manifest-recorded. The committed management bundle matched the pinned frontend verification documented in `docs/self-service-oauth-validation.md`; no catalog or frontend assets were regenerated.
+
+- Fresh full Go suite: **8892 passing test/subtest events**, **69 passing test-bearing packages**, exit 0. The two documented `127.0.0.2` binding tests were excluded on macOS; four other optional/environment-dependent cases self-skipped. Fresh race checks across API, management, middleware, authentication and watcher packages passed **1802 test/subtest events / five packages**, with no race report.
+- Static ELF: **62,460,064 bytes**, SHA256 **`f2170854b2f0358b5442a6b7cffc495c7239819ae1156decc4c15a5c81ec16ab`**. Build date **`2026-11-15T16:14:20Z`**. Served management HTML SHA256 **`5259074e48ddc22f2e5fc4f3494e808e34501ccf1e3f74a017c92f7a91aa319e`**.
+- Exact source archive SHA256 **`828a4ecd6409fc07c23b9ca47ad4ab85c4ac5ea886c9097378990baf9c096b73`**. Upload checksums, isolated Linux `--config /dev/null --help`, executable metadata and rollback syntax passed. This run executed macOS unit/race tests and Linux runtime checks, not Linux unit tests.
+
+### Activation, verifier correction and acceptance
+
+Installed and running PID **2252719** executable hashes match the artifact. Configuration retained the fresh baseline SHA256 **`eecb84a94d9c71a0d34a3af84d9a6cfdcb9470372ea216d40ba5c25227c59a79`**; the older receipt's configuration hash was not restored. Credential-file hashes, dotenv/nginx/unit/drop-in bytes, semantic process environment, executable owner/mode, routing/isolation/logging settings and new-api/nginx/s-ui identities matched the baseline. MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax **256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB** and existing restart protection remain unchanged. Docker remained inactive.
+
+The first public verification recorded a health request timeout and a management-intake **403**. The latter response explicitly identified the existing five-failure / 30-minute management IP ban: repeated unauthenticated verifier requests shared the loopback client identity. This was a verifier side effect, not a new authorization-policy change. Original failed public results, original scripts, first-process checks and its successful **121.58-second** observation are retained. Private checks were corrected to bind distinct real loopback source addresses, keeping every original status/hash assertion and the existing authentication rules. One planned restart of the same artifact cleared the verifier-induced in-memory attempt state. No configuration, credential or access-policy reset was performed.
+
+The corrected verifier passed **20 local/gateway gates** and **10 workstation public HTTPS gates**, with public certificate verification enabled. These cover health/hello, unauthenticated inference and management rejection, expected version/commit, management HTML, enrollment page/script/style bytes, no-store/no-referrer headers, and invitation-required session access. The final public health response was **200**, and both management probes returned **401**. The final process completed **25 healthy samples over 121.59 seconds**, with no automatic restarts or new high/max/OOM events; final sampled memory was **25,628,672 bytes**, swap **0**. Final application logs contained **0 errors** and **0 unclassified warnings**; all **12 warnings** were deliberate unauthenticated probes.
+
+An existing host-local inference key returned **200 / 0 visible models** from a read-only query. Authenticated management readback remained unavailable because only a management-key hash was available. No real OAuth exchange, deliberate credential refresh or inference request was performed. These checks establish deployment and endpoint readiness, not live-provider acceptance or completion of the feature guide's real-account acceptance exercise.
+
+### Recovery and records
+
+Protected recovery and evidence are retained under **`/opt/codex-stack/codexproxy/releases/20261116-58d64d99-dmit2/`**, including **`ROLLBACK.sh`** restoring `2a4f6dd2`, previous executable/config/unit/receipt snapshots, exact source/build/test evidence, original and corrected verifiers, both observations, and final/public/log results. Rollback replaces the executable only and preserves current configuration, accepted accounts and sensitive intake storage. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were atomically saved and read back equal; resource, logging and routing tuning histories were retained. This deployment bookkeeping is recorded locally and has not been pushed. The upstream review boundary and other hosts remain unchanged.
 
 ## Deployed matching CodexProxy build to bawg — 2026-11-14
 
