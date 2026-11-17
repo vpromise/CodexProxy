@@ -137,6 +137,13 @@ func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream,
 	// Stream configuration to enable or disable streaming responses
 	out, _ = sjson.SetBytes(out, "stream", stream)
 
+	formatInstruction := ""
+	if schema, ok := common.ClaudeOutputFormatSchema(modelName, root.Get("response_format")); ok {
+		out, _ = sjson.SetBytes(out, "output_config.format.type", "json_schema")
+		out, _ = sjson.SetRawBytes(out, "output_config.format.schema", []byte(schema.Raw))
+		formatInstruction = common.BuildClaudeOutputFormatDescription(root.Get("response_format"))
+	}
+
 	// Process messages and transform them to Claude Code format
 	if messages := root.Get("messages"); messages.Exists() && messages.IsArray() {
 		lastToolMessage := map[string]gjson.Result{}
@@ -313,6 +320,11 @@ func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream,
 			return true
 		})
 
+		if formatInstruction != "" {
+			block := []byte(`{"type":"text","text":""}`)
+			block, _ = sjson.SetBytes(block, "text", formatInstruction)
+			systemBlocks = append(systemBlocks, block)
+		}
 		messageBlocks := messageAccumulator.Messages()
 
 		// Preserve a minimal conversational turn for system-only inputs.

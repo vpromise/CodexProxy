@@ -126,6 +126,7 @@ func collectClaudeInputTokenSegments(payload []byte) ([]string, error) {
 	collectClaudeMessageTokenSegments(root.Get("messages"), &segments)
 	collectClaudeToolTokenSegments(root.Get("tools"), &segments)
 	collectClaudeToolChoiceTokenSegments(root.Get("tool_choice"), &segments)
+	collectClaudeOutputConfigTokenSegments(root.Get("output_config"), &segments)
 	return segments, nil
 }
 
@@ -384,4 +385,16 @@ func (state *ClaudeInputTokenState) logEstimateError(ctx context.Context, err er
 		"upstream_format": state.upstreamFormat.String(),
 		"response_format": state.responseFormat.String(),
 	}).WithError(err).Warn("failed to estimate Claude input tokens")
+}
+
+func collectClaudeOutputConfigTokenSegments(outputConfig gjson.Result, segments *[]string) {
+	if !outputConfig.IsObject() {
+		return
+	}
+	format := outputConfig.Get("format")
+	if !format.IsObject() {
+		return
+	}
+	appendClaudeTokenString(segments, format.Get("type").String())
+	appendClaudeTokenJSON(segments, format.Get("schema"))
 }

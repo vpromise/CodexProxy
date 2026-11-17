@@ -18,6 +18,7 @@ func (s *Service) registerModelsForAuth(ctx context.Context, a *coreauth.Auth) {
 }
 
 func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreauth.Auth, compatCache *openAICompatibilityRegistrationCache) {
+	cfg := s.modelRegistrationConfig()
 	if a == nil || a.ID == "" {
 		return
 	}
@@ -45,7 +46,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 	if compatDetected {
 		provider = "openai-compatibility"
 	}
-	excluded := s.oauthExcludedModels(provider, authKind)
+	excluded := oauthExcludedModelsForConfig(cfg, provider, authKind)
 	// The synthesizer pre-merges per-account and global exclusions into the "excluded_models" attribute.
 	// If this attribute is present, it represents the complete list of exclusions and overrides the global config.
 	if a.Attributes != nil {
@@ -53,7 +54,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 			excluded = strings.Split(val, ",")
 		}
 	}
-	if s.tryRegisterPluginModelsForAuth(ctx, a, provider, authKind, excluded) {
+	if s.tryRegisterPluginModelsForAuthWithConfig(ctx, cfg, a, provider, authKind, excluded) {
 		return
 	}
 	if ctx.Err() != nil {
@@ -63,7 +64,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 	switch provider {
 	case "claude":
 		models = registry.GetClaudeModels()
-		if entry := s.resolveConfigClaudeKey(a); entry != nil {
+		if entry := resolveConfigClaudeKeyForConfig(cfg, a); entry != nil {
 			if len(entry.Models) > 0 {
 				models = buildClaudeConfigModels(entry)
 			}
@@ -74,7 +75,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 		models = applyExcludedModels(models, excluded)
 	case "codex":
 		if authKind == "apikey" {
-			if entry := s.resolveConfigCodexKey(a); entry != nil {
+			if entry := resolveConfigCodexStyleKey(a, cfgCodexKeys(cfg), true); entry != nil {
 				models = buildCodexConfigModels(entry)
 				excluded = entry.ExcludedModels
 			}
@@ -101,7 +102,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 		models = applyExcludedModels(models, excluded)
 	default:
 		// Handle OpenAI-compatibility providers by name using config
-		if s.cfg != nil {
+		if cfg != nil {
 			providerKey := provider
 			compatName := strings.TrimSpace(a.Provider)
 			isCompatAuth := false
@@ -149,11 +150,11 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 				}
 				if len(ms) > 0 {
 					ms = s.appendPluginModels(providerKey, ms)
-					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
+					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, cfg.ForceModelPrefix))
 				} else {
 					ms = s.appendPluginModels(providerKey, nil)
 					if len(ms) > 0 {
-						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
+						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, cfg.ForceModelPrefix))
 					} else {
 						s.unregisterModelsForAuth(a)
 					}
@@ -171,22 +172,22 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 				ms := cached.models
 				if len(ms) > 0 {
 					ms = s.appendPluginModels(providerKey, ms)
-					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
+					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, cfg.ForceModelPrefix))
 				} else {
 					ms = s.appendPluginModels(providerKey, nil)
 					if len(ms) > 0 {
-						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, s.cfg.ForceModelPrefix))
+						s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(ms, a.Prefix, cfg.ForceModelPrefix))
 					} else {
 						s.unregisterModelsForAuth(a)
 					}
 				}
 				return
 			}
-			if indexed := configEntryForAuthIndex(a, s.cfg.OpenAICompatibility); indexed != nil && registerCompat(indexed) {
+			if indexed := configEntryForAuthIndex(a, cfg.OpenAICompatibility); indexed != nil && registerCompat(indexed) {
 				return
 			}
-			for i := range s.cfg.OpenAICompatibility {
-				compat := &s.cfg.OpenAICompatibility[i]
+			for i := range cfg.OpenAICompatibility {
+				compat := &cfg.OpenAICompatibility[i]
 				if strings.EqualFold(compat.Name, compatName) && registerCompat(compat) {
 					return
 				}
@@ -194,7 +195,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 			if isCompatAuth {
 				models = s.appendPluginModels(providerKey, nil)
 				if len(models) > 0 {
-					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(models, a.Prefix, s.cfg != nil && s.cfg.ForceModelPrefix))
+					s.registerResolvedModelsForAuth(a, providerKey, applyModelPrefixes(models, a.Prefix, cfg != nil && cfg.ForceModelPrefix))
 				} else {
 					// No matching provider found or models removed entirely; drop any prior registration.
 					s.unregisterModelsForAuth(a)
@@ -206,7 +207,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 	if ctx.Err() != nil {
 		return
 	}
-	models = applyOAuthModelAliasForAuth(s.cfg, provider, authKind, a.Attributes, models)
+	models = applyOAuthModelAliasForAuth(cfg, provider, authKind, a.Attributes, models)
 	if ctx.Err() != nil {
 		return
 	}
@@ -216,7 +217,7 @@ func (s *Service) registerModelsForAuthWithCache(ctx context.Context, a *coreaut
 	}
 	models = s.appendPluginModels(key, models)
 	if len(models) > 0 {
-		s.registerResolvedModelsForAuth(a, key, applyModelPrefixes(models, a.Prefix, s.cfg != nil && s.cfg.ForceModelPrefix))
+		s.registerResolvedModelsForAuth(a, key, applyModelPrefixes(models, a.Prefix, cfg != nil && cfg.ForceModelPrefix))
 		return
 	}
 
@@ -308,10 +309,14 @@ func configEntryForAuthIndex[T any](auth *coreauth.Auth, entries []T) *T {
 }
 
 func (s *Service) resolveConfigClaudeKey(auth *coreauth.Auth) *config.ClaudeKey {
-	if auth == nil || s.cfg == nil {
+	return resolveConfigClaudeKeyForConfig(s.modelRegistrationConfig(), auth)
+}
+
+func resolveConfigClaudeKeyForConfig(cfg *config.Config, auth *coreauth.Auth) *config.ClaudeKey {
+	if auth == nil || cfg == nil {
 		return nil
 	}
-	if entry := configEntryForAuthIndex(auth, s.cfg.ClaudeKey); entry != nil {
+	if entry := configEntryForAuthIndex(auth, cfg.ClaudeKey); entry != nil {
 		return entry
 	}
 	var attrKey, attrBase string
@@ -319,8 +324,8 @@ func (s *Service) resolveConfigClaudeKey(auth *coreauth.Auth) *config.ClaudeKey 
 		attrKey = strings.TrimSpace(auth.Attributes["api_key"])
 		attrBase = strings.TrimSpace(auth.Attributes["base_url"])
 	}
-	for i := range s.cfg.ClaudeKey {
-		entry := &s.cfg.ClaudeKey[i]
+	for i := range cfg.ClaudeKey {
+		entry := &cfg.ClaudeKey[i]
 		cfgKey := strings.TrimSpace(entry.APIKey)
 		cfgBase := strings.TrimSpace(entry.BaseURL)
 		if attrKey != "" && attrBase != "" {
@@ -339,8 +344,8 @@ func (s *Service) resolveConfigClaudeKey(auth *coreauth.Auth) *config.ClaudeKey 
 		}
 	}
 	if attrKey != "" {
-		for i := range s.cfg.ClaudeKey {
-			entry := &s.cfg.ClaudeKey[i]
+		for i := range cfg.ClaudeKey {
+			entry := &cfg.ClaudeKey[i]
 			if strings.EqualFold(strings.TrimSpace(entry.APIKey), attrKey) {
 				return entry
 			}
@@ -349,11 +354,14 @@ func (s *Service) resolveConfigClaudeKey(auth *coreauth.Auth) *config.ClaudeKey 
 	return nil
 }
 
-func (s *Service) resolveConfigCodexKey(auth *coreauth.Auth) *config.CodexKey {
-	if s == nil || s.cfg == nil {
+func cfgCodexKeys(cfg *config.Config) []config.CodexKey {
+	if cfg == nil {
 		return nil
 	}
-	return resolveConfigCodexStyleKey(auth, s.cfg.CodexKey, true)
+	return cfg.CodexKey
+}
+func (s *Service) resolveConfigCodexKey(auth *coreauth.Auth) *config.CodexKey {
+	return resolveConfigCodexStyleKey(auth, cfgCodexKeys(s.modelRegistrationConfig()), true)
 }
 
 func resolveConfigCodexStyleKey(auth *coreauth.Auth, entries []config.CodexKey, validateIndexCredentials bool) *config.CodexKey {
@@ -388,7 +396,10 @@ func resolveConfigCodexStyleKey(auth *coreauth.Auth, entries []config.CodexKey, 
 }
 
 func (s *Service) oauthExcludedModels(provider, authKind string) []string {
-	cfg := s.cfg
+	return oauthExcludedModelsForConfig(s.modelRegistrationConfig(), provider, authKind)
+}
+
+func oauthExcludedModelsForConfig(cfg *config.Config, provider, authKind string) []string {
 	if cfg == nil {
 		return nil
 	}
@@ -891,4 +902,15 @@ func (s *Service) unregisterModelsForAuth(auth *coreauth.Auth) {
 	if auth != nil {
 		s.applyAuthModelRegistration(auth, func() { GlobalModelRegistry().UnregisterClient(auth.ID) })
 	}
+}
+
+// modelRegistrationConfig captures one published configuration for a complete registration.
+// Publication replaces this pointer under cfgMu; callbacks run after releasing the lock.
+func (s *Service) modelRegistrationConfig() *config.Config {
+	if s == nil {
+		return nil
+	}
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
+	return s.cfg
 }

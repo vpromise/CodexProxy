@@ -556,6 +556,16 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 	}
 	// Preserve a minimal conversational turn for system-only inputs or when messages became empty
 	// so downstream validation still sees a Claude-shaped request.
+	formatResult := root.Get("text.format")
+	if !formatResult.Exists() {
+		formatResult = root.Get("response_format")
+	}
+	if schema, ok := common.ClaudeOutputFormatSchema(modelName, formatResult); ok {
+		out, _ = sjson.SetBytes(out, "output_config.format.type", "json_schema")
+		out, _ = sjson.SetRawBytes(out, "output_config.format.schema", []byte(schema.Raw))
+		appendSystemText(common.BuildClaudeOutputFormatDescription(formatResult), gjson.Result{})
+	}
+
 	if len(messageBlocks) == 0 && (len(systemBlocks) > 0 || hadMessages) {
 		messageBlocks = append(messageBlocks, []byte(`{"role":"user","content":[{"type":"text","text":""}]}`))
 	}
