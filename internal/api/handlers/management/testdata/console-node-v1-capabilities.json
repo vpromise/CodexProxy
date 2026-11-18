@@ -6,7 +6,9 @@
     {
       "id": "egress",
       "version": "1",
-      "expected_public_ip": ""
+      "expected_public_ip": "",
+      "egress_mode": "direct-ip",
+      "source_ip": "127.0.0.1"
     }
   ],
   "features": [

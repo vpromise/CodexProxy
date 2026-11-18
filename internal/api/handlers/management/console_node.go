@@ -187,7 +187,17 @@ func (n *consoleNode) guard(c *gin.Context) {
 func (n *consoleNode) capabilities(c *gin.Context) {
 	profiles := []map[string]string{}
 	for _, p := range n.cfg.EgressProfiles {
-		profiles = append(profiles, map[string]string{"id": p.ID, "version": p.Version, "expected_public_ip": p.ExpectedPublicIP})
+		profile := map[string]string{"id": p.ID, "version": p.Version, "expected_public_ip": p.ExpectedPublicIP}
+		if route, err := proxyutil.Parse(p.ProxyURL); err == nil {
+			switch route.Mode {
+			case proxyutil.ModeDirectIP:
+				profile["egress_mode"] = "direct-ip"
+				profile["source_ip"] = route.URL.Host
+			case proxyutil.ModeProxy:
+				profile["egress_mode"] = "proxy"
+			}
+		}
+		profiles = append(profiles, profile)
 	}
 	c.JSON(200, gin.H{"protocol": "console-node/v1", "node_id": n.cfg.NodeID, "instance_id": n.cfg.InstanceID, "profiles": profiles, "features": []string{"enrollment", "disabled_import", "pool_assignment", "versioned_enable", "operation_receipts", "scoped_channel_keys", "owner_renewal"}})
 }
@@ -544,12 +554,37 @@ func (n *consoleNode) action(c *gin.Context) {
 	n.finish(c, op, err, nil)
 }
 func (n *consoleNode) findAuth(r *selfServiceRecord) *coreauth.Auth {
-	for _, a := range n.h.snapshotAuthFileRuntime().manager.List() {
-		if a.FileName == r.FileName && a.Metadata["self_service_id"] == consoleRootID(r) {
-			return a
-		}
+	if r == nil || r.FileName == "" || filepath.Base(r.FileName) != r.FileName {
+		return nil
 	}
-	return nil
+	manager := n.h.snapshotAuthFileRuntime().manager
+	if manager == nil {
+		return nil
+	}
+	rootID := consoleRootID(r)
+	var match *coreauth.Auth
+	for _, a := range manager.List() {
+		if a.Provider != r.Provider || a.Metadata["self_service_id"] != rootID {
+			continue
+		}
+		if a.FileName != r.FileName {
+			// Some loaded registrations keep the file identity in ID and path.
+			// Require both and the original node binding before using that identity.
+			name := strings.TrimSpace(a.FileName)
+			if (name != "" && name != r.FileName) || a.ID != r.FileName || a.Attributes["path"] != filepath.Join(n.authDir, r.FileName) {
+				continue
+			}
+			binding, err := coreauth.ConsoleCredentialBinding(a)
+			if err != nil || binding == nil || !reflect.DeepEqual(binding, r.Console) {
+				continue
+			}
+		}
+		if match != nil {
+			return nil
+		}
+		match = a
+	}
+	return match
 }
 func consoleRootID(r *selfServiceRecord) string {
 	if r.RenewalOf != "" {
