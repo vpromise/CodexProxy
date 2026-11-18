@@ -55,6 +55,10 @@ The 14 active themes in the preceding register remain pending. K1–K5, U1–U2 
 - **U6/K3**. Decide whether case-only alias rename is needed and whether dual-case fork exposure should be allowed. Local config drops equivalents case-insensitively. Test duplicate-case IDs, explicit aliases, per-auth/global precedence, force-mapping, isolation, quota/cooldown and reload. Roll back only alias parsing/catalog/resolution; leave account state intact.
 - **U8**. Decide the plugin consumer and ABI version before adding executor attribution or distinct cache TTL telemetry. Exercise old/new ABI, missing versus zero, stream/final usage ownership and unchanged aggregate billing; revert the optional fields independently.
 
+### Verified publication
+
+Normally pushed fork main as [`0ac4f279`](https://github.com/vpromise/CodexProxy/commit/0ac4f279fe473f02a8a08b9c68e332c4a9c1c3e2), full SHA `0ac4f279fe473f02a8a08b9c68e332c4a9c1c3e2`, tree `f78e4f21a4af576b59cc14cd749a5df08698a57d`. SSH remote, GitHub branch/commit and the 1853-file source manifest were independently read back after publication at 2026-11-18T21:05:51.444912+00:00. GitHub shows 0 Actions runs, 0 check runs and 0 status entries for that source SHA. Existing workflows have pull-request or tag triggers; this direct main push has no CI execution. Local validation is recorded above. No servers were deployed.
+
 ## Current checkpoint - 2026-11-18
 
 Inspection began **2026-11-17T21:00:08Z** (2026-11-18 05:00:08 Asia/Shanghai). Official latest non-draft/non-prerelease **v8.0.76**, published **2026-11-17T02:09:49Z**, has a lightweight tag independently resolved to **`7df56074b252384d878ec4fca840552c6fb5236e`**. Upstream main equals that SHA at inspection, with **zero main-only commits**. Prior canonical main's reviewed boundary is **v8.0.75 / `c19787b25262b5e6e46a9e8da62f4333e7e478bc`**. The full ancestral range **`c19787b2..7df56074` contains 15 commits / 13 non-merges / 2 merges**. Both independent remerge diffs are empty. Every commit is accounted for below; this review boundary is not an upstream merge or claim of complete implementation.
