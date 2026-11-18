@@ -5,6 +5,21 @@ Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports fro
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 
+## TOTH2 and TOTH Console OAuth account lookup rollout - 2026-11-19
+
+This targeted deployment uses [`4abceda4`](https://github.com/vpromise/CodexProxy/commit/4abceda4a82f04d22db33fd5ba7f01603af94235) on `codex/console-node-v1`. The node resolves an OAuth enrollment to its verified runtime account and backing credential file. The fallback requires the enrollment's original ownership and egress binding, and rejects ambiguous matches. The capability response reports the effective direct-IP binding for compatible pool selection in Console [`3e80256b`](https://github.com/vpromise/CodexProxyConsole/commit/3e80256b32701a9fa0a7614ad7ed638a738f9d55). The reviewed upstream boundary stays at its prior entry.
+
+Both nodes run the same Linux amd64, CGO=0 binary, version `codexproxy-console-node-20261119-4abceda4`, binary SHA256 `c8401302bbf7970337a80c7c56c3a06adf4f52deaabf1249a1e460e73512bbb4`. Both served the expected public management page over verified TLS. Installed and running binaries, local health, unauthenticated API rejection, service settings, configurations and neighboring services were checked.
+
+| Target | Verified (Asia/Shanghai) | Production readback |
+| --- | --- | --- |
+| TOTH2 | 00:26:45 | The three affected enrollments read as accepted and resolve to the existing three accounts. The old failed operation is retained. All 12 Claude pools were preserved and the 12 new-api channel keys could read the model list over HTTPS from BAWG. |
+| TOTH | 00:33:20 | The existing three Claude accounts, three pools and their distinct bound source IPs matched the baseline. All three BAWG new-api channel keys returned HTTP 200 for the model list. The existing public AccountPool entry returned HTTP 200. |
+
+The focused enrollment regressions and race checks for management, watcher and synthesizer passed. The full macOS Go suite passed with two documented secondary-loopback binding tests excluded. The cross-build and Linux production health checks passed. Production verification used read-only operations with existing credentials and did not start a new OAuth enrollment or model inference.
+
+Each node retains the previous executable, configuration, unit and deployment receipt under `/opt/codexproxy/releases/20261119-oauth-console-4abceda4`. From that directory the node-specific rollback is `LC_ALL=C python rollout.py rollback`. It restores the prior executable while preserving current account data.
+
 ## Local main alignment and checkout validation - 2026-11-14
 
 The user requested the latest local fixes and upstream updates on `main`, followed by GitHub publication. At **2026-11-14T04:55:14Z**, official GitHub readbacks still identify released **v8.0.69 / `f7ae8feeb3710319f524730849fbe32fde1751e4`** and upstream main **`1aaf56bc6a0fc6fce19049ba7ae8554c882304a6`**. Both equal the existing reviewed boundaries, yielding **zero new upstream commits** to classify and **zero new functional backports** in this follow-up.
