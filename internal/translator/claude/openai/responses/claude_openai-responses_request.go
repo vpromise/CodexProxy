@@ -1,6 +1,7 @@
 package responses
 
 import (
+	"encoding/base64"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -393,23 +394,7 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 								}
 							}
 						case "input_file":
-							fileData := part.Get("file_data").String()
-							if fileData != "" {
-								mediaType := "application/octet-stream"
-								data := fileData
-								if strings.HasPrefix(fileData, "data:") {
-									trimmed := strings.TrimPrefix(fileData, "data:")
-									mediaAndData := strings.SplitN(trimmed, ";base64,", 2)
-									if len(mediaAndData) == 2 {
-										if mediaAndData[0] != "" {
-											mediaType = mediaAndData[0]
-										}
-										data = mediaAndData[1]
-									}
-								}
-								contentPart := []byte(`{"type":"document","source":{"type":"base64","media_type":"","data":""}}`)
-								contentPart, _ = sjson.SetBytes(contentPart, "source.media_type", mediaType)
-								contentPart, _ = sjson.SetBytes(contentPart, "source.data", data)
+							if contentPart := convertResponsesContentPartToClaude(part); len(contentPart) > 0 {
 								contentPart = common.AttachCacheControl(contentPart, part)
 								partsJSON = append(partsJSON, contentPart)
 								if role == "" {
@@ -1017,6 +1002,13 @@ func convertResponsesContentPartToClaude(part gjson.Result) []byte {
 					mediaType = mediaAndData[0]
 				}
 				data = mediaAndData[1]
+			}
+		}
+		if mediaType == "application/octet-stream" && len(data) >= 8 {
+			// Decode only the first two base64 groups to identify a PDF header.
+			var prefix [6]byte
+			if n, err := base64.StdEncoding.Decode(prefix[:], []byte(data[:8])); err == nil && strings.HasPrefix(string(prefix[:n]), "%PDF-") {
+				mediaType = "application/pdf"
 			}
 		}
 		contentPart := []byte(`{"type":"document","source":{"type":"base64","media_type":"","data":""}}`)

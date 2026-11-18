@@ -1,10 +1,59 @@
 # Upstream sync ledger
 
-Updated: 2026-11-18 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
+Updated: 2026-11-19 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 
+
+## Current checkpoint - 2026-11-19
+
+Inspection started at **2026-11-18T20:58:51Z** (2026-11-19 04:58:51 Asia/Shanghai). Latest stable release [v8.0.77](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.77) published at 2026-11-17T22:18:44Z. Official release, lightweight tag and upstream main agree on **`a5e8f69e56309e1ef6d6872e667da81fdfbce2ce`**. The complete published range from v8.0.76 is **`7df56074b252384d878ec4fca840552c6fb5236e..a5e8f69e56309e1ef6d6872e667da81fdfbce2ce`**, with 17 commits (13 non-merges, 4 merges) and zero main-only commits. All four independent remerge diffs are empty.
+
+The main candidate started at published fork `dbc063fef39f0ca30940c3ab141a78010457e7b8`. The prior Codex Responses error repair (`e6bc523d`), the previously recovered configuration snapshot, model metadata and Claude JSON schema fixes (`bb02ca52`), and their publication receipt are all in remote main. The primary checkout remains clean at `codex/self-service-oauth` `68988b5f`. TOTH2's separately authorized Haiku 5.5 rollout is already published on `codex/console-node-v1`; its feature branch and deployment record are outside this main synchronization. No unfinished approved main batch was found. Repository identity, clean index, worktrees and task lock were checked.
+
+### Complete dispositions
+
+| Source | Status | Local scope and evidence |
+| --- | --- | --- |
+| [`cc1d5d7`](https://github.com/router-for-me/CLIProxyAPI/commit/cc1d5d789a1abcacf244f7e078166e9b8cf8ae89) | discussion U3/U4 | RE2 rules for the unadopted payload.replace feature. Matching, deletion, and explicit opt-in need concrete user rules. |
+| [`25501b6`](https://github.com/router-for-me/CLIProxyAPI/commit/25501b6baaa561f5c5a8955146b006b3b36b3702) | discussion U3/U4 | Adds system/developer text replacement. Changes instruction/history semantics beyond the prior optional user-text feature. |
+| [`1c0ec3c`](https://github.com/router-for-me/CLIProxyAPI/commit/1c0ec3cec18de7287ce80c0bba472bd73ec288d1) | partial selected; K6 remainder | Keep handler-generated fallback data out of executor capture for memory and file-backed sinks. Existing local diagnostics/retention remain; no new raw bodies or error-only logging policy. |
+| [`e3d19b2`](https://github.com/router-for-me/CLIProxyAPI/commit/e3d19b2458e759eac9d895744cceb289cde9982c) | conditional U5 | Local Chat-to-Codex translator flattens inline audio. The upstream rejection and regression are for strict Muse/Meta Responses; no supported native audio consumer or validated local contract supplied. Keep present routing and format. |
+| [`3b5de44`](https://github.com/router-for-me/CLIProxyAPI/commit/3b5de44b82f450723cbd1ff87e799d7fec6b2c12) | conditional U5 | Meta executor fixture is out of scope. The shared omitted-format correction matters only if nested inline audio is selected for a supported consumer. |
+| [`4b028c8`](https://github.com/router-for-me/CLIProxyAPI/commit/4b028c845a08a1b710435ee1dee3b0dc0d8fd8cb) | merge accounted | PR 7626; independent remerge diff empty. |
+| [`593df32`](https://github.com/router-for-me/CLIProxyAPI/commit/593df3274ce085d4e74ccf2e68ad0016040e326b) | merge accounted | PR 7625; independent remerge diff empty. |
+| [`f08cb93`](https://github.com/router-for-me/CLIProxyAPI/commit/f08cb93189420cad286bd9f66d8f3d6f5fa3b48e) | partial selected; U5 remainder | Recognize the decoded %PDF- header in inline file data with generic MIME, for user messages and paired tool-result arrays on Responses-to-Claude. Preserve bytes, cache controls and existing non-PDF behavior. Filename-only inference, remote URL/text document handling and singleton tool-media shape remain separate. |
+| [`e21cf8a`](https://github.com/router-for-me/CLIProxyAPI/commit/e21cf8a5c71f19269dd1096c7ba94eaa8038c96b) | conditional U5 | Native Codex/compatibility branches could gain text/content and URL documents. Keep existing base64 and no-silent-loss checks, and require a narrow conversion/forwarding contract. Removed providers excluded. |
+| [`e138443`](https://github.com/router-for-me/CLIProxyAPI/commit/e1384430b6b32fee9ee4375315984c3136cb933b) | conditional U5 | Native tool-result document/media extraction may be valuable. Decide allowed media/layout and unsupported-result treatment before changing call/result pairing or deleting content. Gemini/Antigravity excluded. |
+| [`687caf7`](https://github.com/router-for-me/CLIProxyAPI/commit/687caf786bbefc1e222c1677d5dbdbd3f87f30a7) | conditional U8 | Optional executor usage attribution crosses plugin ABI/RPC and ownership. No enabled consumer established. Keep native accounting and provider identity. |
+| [`193f04f`](https://github.com/router-for-me/CLIProxyAPI/commit/193f04f70f19f041d825baa6e2d219af52362c3e) | merge accounted | PR 7628; independent remerge diff empty. |
+| [`34d8fe0`](https://github.com/router-for-me/CLIProxyAPI/commit/34d8fe0f68137d6b22fcba3d52d7a352c916f2c3) | Gemini excluded; OAuth case-only aliases discussion U6/K3 | Local normalization discards case-only aliases. Catalog and global/per-credential fallback changes can change visible duplicates or model routing; defer until rename-only versus fork and precedence are authorized. |
+| [`f7b3ccd`](https://github.com/router-for-me/CLIProxyAPI/commit/f7b3ccdff9801786cd9675f47beaa8608a31376e) | conditional U8 | Plugin usage ABI gains 5m/1h cache-write data. Local public plugin type currently exposes aggregate creation tokens. Decide explicit optional fields only for a consumer; preserve missing versus zero and aggregate billing. |
+| [`9f6672f`](https://github.com/router-for-me/CLIProxyAPI/commit/9f6672f568aa6742f83c32957ab7699ea67dcc84) | discussion U3/U4 | Adds arbitrary existing JSON string path replacement. No configured payload.replace consumer. Paths could change tool args, metadata, or signed content. Retain current payload rules. |
+| [`51e6095`](https://github.com/router-for-me/CLIProxyAPI/commit/51e60958904560ac7283faf28b2deb969e887cf6) | merge accounted | PR 7624; independent remerge diff empty. |
+| [`a5e8f69`](https://github.com/router-for-me/CLIProxyAPI/commit/a5e8f69e56309e1ef6d6872e667da81fdfbce2ce) | discussion U4 catalog; tooling only | Adds GPT-6.2 Astra and Sol to eligible-tier catalogs and changes model-fetch tooling default to 0.169.0; neither is a runtime fingerprint update. Separate model authorization and tier/metadata verification. |
+
+PRs 7624/7625/7626/7628 and issues 7617/7619/7620/7621/7630 supplied context alongside commit patches and current supported call paths.
+
+### Selected changes and verification
+
+- Executor capture marks both file-backed and memory-backed responses. Generic and Claude handler fallbacks preserve captured upstream content and still record diagnostics when no executor capture exists. Existing downstream statuses, streaming handling, quotas, retry paths, logging gates and storage limits remain in place.
+- Responses-to-Claude detects inline PDF from the bounded decoded header when the media type would otherwise be generic. The shared conversion preserves explicit MIME, bytes, cache controls, and paired tool IDs for both normal messages and tool-result arrays. The change adds no URL fetching or file formats and keeps the attachment-drop guard.
+- On the previous published source with the same tests, three top-level regressions failed for memory/file capture contamination and default MIME, with no compile/setup failure. The final focused suite passed 3 repetitions (9 top-level, 30 total passing events). Full tests passed 69 packages with tests and 23 packages without tests (4296 top-level, 9038 total passing events). Eight affected packages passed race checks (1725 top-level, 4368 total passing events); focused areas include executor, executor/helps, logging, middleware, generic/Claude/OpenAI handlers and Claude Responses translation.
+- Fresh macOS listener probes passed 127.0.0.1 and ::1; 127.0.0.2 cannot bind (errno 49). Only the two documented Claude standard transport tests were excluded on command lines. Optional public egress/TLS capture and secondary-loopback subcases self-skipped; three allocation-budget tests self-skipped under race and are covered by full tests. Go 1.27.3 darwin/arm64, CGO 1. Read-only dependency mode, changed-file formatting and `go build ./cmd/server` passed. Build SHA256 `33bf91a688fdf3e9c73c7418e5fae29eec2f276476408995bb7ad486d5c3af47`.
+- 1853-file source/test/build manifest SHA256 `71704d97a3a0c88d6b8f3e4b245063539f1f829594cf58b7d1ab203f77fa59cd` matches before and after execution. The package file listing contains 1245 distinct repository compiler, test and embed paths across 92 package directories, all matching the manifest. No Linux tests, live provider calls or deployment were performed.
+
+### Decision register amendments
+
+The 14 active themes in the preceding register remain pending. K1–K5, U1–U2 and U7 gain no new required decisions. Scope updates below carry forward the existing protections.
+
+- **K6**. Decide whether remaining local dial/read errors get metadata-only diagnostics or bounded sanitized detail. Prefer keeping downstream capture status and existing limits, with tests for redaction, recovered retries, HTTP/SSE/WS, file/memory failure and cleanup. Roll back only the additional diagnostic storage.
+- **U3/U4**. Approve exact payload fields and ordered rules, if needed, before adding replacement anywhere. Start with explicit user text; system/developer and arbitrary paths require separate scope. Test bounded RE2, Unicode, empty replacement, tool and signed content, then roll back the opt-in rule layer only.
+- **U4 catalog**. Decide GPT-6.2 Astra/Sol tier rollout and verify actual provider availability and catalog metadata before an isolated catalog change. The upstream 0.169.0 change is for the model fetcher. Runtime source still uses Codex 0.154.0 and Claude 2.1.321 (SDK 0.128.0, Node v26.12.1); no profile change is selected.
+- **U5**. Decide the actual native consumer and supported format for nested audio, Claude text/content/URL documents, and single-object tool media before implementation. Require lossless pairing and checked unsupported input, with offline HTTP/stream/count regression; roll back the added mapping independently.
+- **U6/K3**. Decide whether case-only alias rename is needed and whether dual-case fork exposure should be allowed. Local config drops equivalents case-insensitively. Test duplicate-case IDs, explicit aliases, per-auth/global precedence, force-mapping, isolation, quota/cooldown and reload. Roll back only alias parsing/catalog/resolution; leave account state intact.
+- **U8**. Decide the plugin consumer and ABI version before adding executor attribution or distinct cache TTL telemetry. Exercise old/new ABI, missing versus zero, stream/final usage ownership and unchanged aggregate billing; revert the optional fields independently.
 
 ## Current checkpoint - 2026-11-18
 

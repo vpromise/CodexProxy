@@ -24,6 +24,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/clienterror"
 	. "github.com/router-for-me/CLIProxyAPI/v7/internal/constant"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/interfaces"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
@@ -675,6 +676,9 @@ func claudeErrorDetailFromText(status int, errText string) (string, string) {
 
 func appendClaudeAPIResponse(c *gin.Context, data []byte) {
 	if c == nil || len(data) == 0 {
+		return
+	}
+	if captured, _ := c.Get(logging.APIResponseCapturedContextKey); captured == true {
 		return
 	}
 	if _, exists := c.Get("API_RESPONSE_TIMESTAMP"); !exists {

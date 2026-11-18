@@ -504,6 +504,9 @@ func writeAttemptResponse(ginCtx *gin.Context, attempt *upstreamAttempt, payload
 		attempt.response = &strings.Builder{}
 	}
 	attempt.response.Write(payload)
+	if ginCtx != nil {
+		ginCtx.Set(logging.APIResponseCapturedContextKey, true)
+	}
 }
 
 func updateAggregatedRequest(ginCtx *gin.Context, attempts []*upstreamAttempt) {

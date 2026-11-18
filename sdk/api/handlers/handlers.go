@@ -582,9 +582,12 @@ func (h *BaseAPIHandler) StartNonStreamingKeepAlive(c *gin.Context, ctx context.
 	}
 }
 
-// appendAPIResponse preserves any previously captured API response and appends new data.
+// appendAPIResponse records a fallback only when the executor has not captured a response.
 func appendAPIResponse(c *gin.Context, data []byte) {
 	if c == nil || len(data) == 0 {
+		return
+	}
+	if captured, _ := c.Get(logging.APIResponseCapturedContextKey); captured == true {
 		return
 	}
 
