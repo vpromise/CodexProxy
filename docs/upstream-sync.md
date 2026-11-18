@@ -5,6 +5,16 @@ Updated: 2026-11-14 (Asia/Shanghai). This ledger records selective backports fro
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 
+## TOTH2 Claude Haiku 5.5 catalog rollout - 2026-11-19
+
+TOTH2 uses `--local-model` and the previous binary's embedded Claude catalog did not contain `claude-haiku-5-5`. The model-only change [`c1aca62d`](https://github.com/vpromise/CodexProxy/commit/c1aca62d3e0759bcea9a476fbc6720b1e7ec5c75) adds the entry from the [upstream model catalog snapshot](https://github.com/router-for-me/models/blob/829b3b7f5cb34ca0c568d753e481ae0e054b206b/models.json).
+
+TOTH2 verified at 00:58:16 Asia/Shanghai. Version `codexproxy-console-node-20261119-haiku55-c1aca62d`, Linux amd64, CGO=0, binary SHA256 `51bd8d673e01c8bc466e4d8f51a09d5158c80e0e422751aaad17a59f3593c380`. The running and installed files, public management page over HTTPS, local health, unauthorized API rejection, launch arguments including `--local-model`, config, neighboring services, three account identities/pool memberships and 12 fixed pool egress bindings were verified. The `toth2-claude-205` isolated pool listed Haiku 5.5. One live Messages request through this pool succeeded with HTTP 200, returned model `claude-haiku-5-5` and used four output tokens.
+
+BAWG new-api v1.0.0-rc.51 added Haiku 5.5 to the existing Claude channels 6–8 (203, 204 and 205) and their three enabled routing records in one SQLite transaction. Other fields on those channels were verified in the same transaction. Its running process reloaded the routes at 00:58:55 Asia/Shanghai, with no service restart. The single inference probe went directly through the 205 pool. The remaining checks were read-only.
+
+The focused tests, macOS full test suite with two documented secondary-loopback exclusions, targeted race checks and Linux cross-build passed. GitHub reported no CI run for the source commit. Recovery for the binary is `LC_ALL=C python rollout.py rollback` in TOTH2's `/opt/codexproxy/releases/20261119-haiku55-c1aca62d`. On BAWG, `python3 channels.py rollback` in `/opt/new-api/releases/20261119-toth2-haiku55` removes only the added model from the three channels and their enabled routing entries if they still match the recorded change. That directory also contains a consistent pre-change SQLite backup.
+
 ## TOTH2 and TOTH Console OAuth account lookup rollout - 2026-11-19
 
 This targeted deployment uses [`4abceda4`](https://github.com/vpromise/CodexProxy/commit/4abceda4a82f04d22db33fd5ba7f01603af94235) on `codex/console-node-v1`. The node resolves an OAuth enrollment to its verified runtime account and backing credential file. The fallback requires the enrollment's original ownership and egress binding, and rejects ambiguous matches. The capability response reports the effective direct-IP binding for compatible pool selection in Console [`3e80256b`](https://github.com/vpromise/CodexProxyConsole/commit/3e80256b32701a9fa0a7614ad7ed638a738f9d55). The reviewed upstream boundary stays at its prior entry.
