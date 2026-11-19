@@ -1,10 +1,53 @@
 # Upstream sync ledger
 
-Updated: 2026-11-19 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
+Updated: 2026-11-20 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
 
+
+## Current checkpoint - 2026-11-20
+
+Inspection at **2026-11-19T21:05:25Z** (2026-11-20 05:05:25 Asia/Shanghai). The official stable releases [v8.0.78](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.78) and [v8.0.79](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.79) resolve to lightweight-tag commits **`db7f177d6b0e51eb237daed718de4d25e7a893f5`** (published 2026-11-19T00:28:17Z) and **`6faa8d20b2673404cff70a2f2d9537ae0d0e684d`** (published 2026-11-19T13:11:56Z), respectively. Ancestral ranges `a5e8f69..db7f177` and `db7f177..6faa8d2` contain 11 and 5 commits: 15 non-merges plus one merge. Upstream main equals the latter tag. There are zero main-only commits and the only independent remerge diff is empty.
+
+Publication baseline is local and verified remote main `c389d26867b0de2e40aff7695a9a3c407afa6b86`. Previous in-scope fixes `0ac4f279`, `bb02ca52` and `e6bc523d` are ancestors of that remote head. There is no pending authorized code or push from those batches. The main checkout stays on `codex/self-service-oauth` `68988b5f`; its worktree and index are clean. No other feature or deployment branch is selected. The current references, repository identity and active task state were checked.
+
+### Complete dispositions
+
+| Source | Status | Local scope and evidence |
+| --- | --- | --- |
+| [`5002fe7`](https://github.com/router-for-me/CLIProxyAPI/commit/5002fe7230c2bc5479d8c4c5e89fc6d022f3febb) | discussion K2/U1 | Darwin pmset preflight defers Claude token exchange during maintenance wake and on unreadable power state, with new refresh outcome handling. The fork has single-flight and existing retry/backoff protection without this gate. Independent opt-in and headless handling require a lifecycle decision. |
+| [`9b4f3f3`](https://github.com/router-for-me/CLIProxyAPI/commit/9b4f3f30c603d1ebd72fe7e8cc0904fb15d8ff4c) | excluded provider path | Type-array preservation in Gemini-to-Claude tool conversion applies to the excluded Gemini input path. No native tool-schema patch is imported. |
+| [`65864c0`](https://github.com/router-for-me/CLIProxyAPI/commit/65864c04cadee16fab85d2cd4d9e4ccde12c9149) | excluded provider path | Complete function arguments on Interactions-to-Gemini stream stop; neither endpoint is supported here. |
+| [`9d60b36`](https://github.com/router-for-me/CLIProxyAPI/commit/9d60b36f3270751470d5dea07214c643e78822f4) | excluded provider path | Argument deltas, IDs and terminal ordering in Interactions-to-Gemini streaming; no corresponding native executor. |
+| [`76bae1f`](https://github.com/router-for-me/CLIProxyAPI/commit/76bae1fe4160964d8f2e0a68e26639e272622ea2) | excluded fixture absent | The Unix reload test and loader_unix_reload_plugin CGo fixture are absent in the fork. This fixes duplicate constructors in that test fixture, without a demonstrated native loader defect here. |
+| [`61a4c5d`](https://github.com/router-for-me/CLIProxyAPI/commit/61a4c5d02caf5cdbf4fb89f39af87b93c3db688b) | excluded V8 migration path absent | Warning emission follows actual V8 archived-YAML writes instead of read-only projections. The version-8 management/config code is absent locally. Retain the existing V7 configuration contract. |
+| [`d0ee9ca`](https://github.com/router-for-me/CLIProxyAPI/commit/d0ee9ca7e127d05ee4c9a8dbaeca9429adabacab) | equivalent to upstream opt-out for this scope | Local Claude authorization and refresh already omit org:create_api_key. Upstream adds a V8 option whose default includes the organization privilege. Current least-privilege behavior needs no port; optional broader scope requires a separate consumer and authorization. |
+| [`bd2e0a9`](https://github.com/router-for-me/CLIProxyAPI/commit/bd2e0a98a669dc3d9c66f085032e42960bb8adc6) | conditional U8 | Optional leading response-interceptor Kind distinguishes execution, catalog/detail and count_tokens. Local SDK request lacks it; actual plugin consumer and serialization compatibility decide scope. |
+| [`56ab154`](https://github.com/router-for-me/CLIProxyAPI/commit/56ab15490a05a19432defbeeaff31751acde9a3a) | excluded provider path | Behavior change moves Interactions system instructions to a developer message. Native Codex instructions remain per the existing contract. The added native preservation tests are not a new repair. |
+| [`88ef67a`](https://github.com/router-for-me/CLIProxyAPI/commit/88ef67a178ace952f82897ce6950dac9720830d4) | excluded catalog | Gemini 4 Neon XHigh is Antigravity, outside the native Codex/Claude registry. |
+| [`db7f177`](https://github.com/router-for-me/CLIProxyAPI/commit/db7f177d6b0e51eb237daed718de4d25e7a893f5) | discussion K4/U3 | HTTP/WS session instruction baselines, validation, expiry, carry/replay rules and optional KV. The local per-request instructions and session/pool protections remain; no persistent prompt or new replay framework adopted. |
+| [`f2b0030`](https://github.com/router-for-me/CLIProxyAPI/commit/f2b003035dbebe3da500e68539da0cf9e459e249) | excluded provider path | Maps Antigravity Hub changelists to client versions. Native Codex/Claude constants are unaffected. |
+| [`edab775`](https://github.com/router-for-me/CLIProxyAPI/commit/edab77507bef6160762000a4106049b5646527cf) | discussion K3/U7/U8 | New Home scheduler capability, selection/retry inputs, continuity and externally attributed usage. There is a local Home boundary, but adopting the new contract needs a consumer and explicit fail-closed isolation/usage ownership. |
+| [`eff9e4c`](https://github.com/router-for-me/CLIProxyAPI/commit/eff9e4c3e4bf1b16fd14b69277103fb7d972a3c1) | merge accounted | PR 7693 has empty independent remerge diff; the component is counted above. |
+| [`d0c90bb`](https://github.com/router-for-me/CLIProxyAPI/commit/d0c90bb5c138f54ac6983d22a284ce881c5f8381) | excluded provider path | Forces HTTP/1.1 without ALPN in Antigravity probing; no native Codex/Claude transport change. |
+| [`6faa8d2`](https://github.com/router-for-me/CLIProxyAPI/commit/6faa8d20b2673404cff70a2f2d9537ae0d0e684d) | discussion U5 | GPT-6.2 Astra can reject uniqueItems (issue 7690). Local tool normalization is scoped and keeps the uniqueness constraint. Upstream removal on strict/non-strict tools can admit duplicates. Decide explicit error, opt-in or equivalent validation before any weakening. |
+
+Issue context 7639, 7647, 7650, 7651, 7655 and 7690, PR 7693, source diffs and local callers were reviewed. There is no new independent runtime backport in this batch. The commits above only advance the review checkpoint. Runtime remains Codex 0.154.0 and Claude 2.1.321 (SDK 0.128.0, Node v26.12.1, macOS arm64). No server, Release or tag changed.
+
+### Validation
+
+Documentation-only review. The previously tested Go, dependency, fixture and embed inputs were rechecked against the Nov 19 archived results. All **1853** source/test/build hashes match (manifest **`71704d97a3a0c88d6b8f3e4b245063539f1f829594cf58b7d1ab203f77fa59cd`**), including all **1245** independently checked compiler/test/embed files. The recorded Go 1.27.3 darwin/arm64 and CGO=1 still match. Reused source-matched results are three repetitions of the targeted regression, 69 tested and 23 no-test packages in the full suite, 8 race-checked packages and server compilation. No Go test or build was rerun for this ledger-only review. The archive records two excluded 127.0.0.2 bind tests and optional external capture/egress self-skips on macOS. No Linux or live-provider results are claimed.
+
+### Decision register amendments
+
+All 14 existing themes remain open; see the Nov 19 report and the prior register for untouched items. This review adds the following scopes without authorizing them.
+
+- **K2/U1 — macOS Claude refresh (`5002fe7`)**. Consider an opt-in gate for a proven maintenance wake on local Macs, with explicit behavior when pmset is unavailable or ambiguous. Preserve expired/valid access handling and cancellation/single-flight. Test interactive/maintenance/headless, probe timeout, no POST before readiness, normal POST after wake and settings rollback. Do not restore stale rotating credentials on rollback.
+- **K4/U3 — Codex instructions (`db7f177`)**. Decide whether selected client sessions can inherit instructions only from the same caller, pool and session. Start with bounded in-memory state once a consumer is known; ask separately about TTL, changed instructions, history replay and shared KV. Test caller/pool overlap, missing parent, HTTP/WS, simultaneous turns, eviction, empty instructions and reload. Roll back the feature gate and newly owned state.
+- **U5 — Codex uniqueItems (`6faa8d2`)**. Preserve current schemas unless an approved model/consumer needs a fallback. Prefer an explicit rejection for strict constraints. Any opt-in loosening requires scoped models and tool behavior for duplicates, or locally equivalent validation. Test arrays, refs/combinators, literal keys/data, reserved tools, strict/non-strict, HTTP/WS and repeated translation. Roll back only the compatibility policy.
+- **K3/U7/U8 — Home continuity (`edab775`)**. Establish Home deployment/protocol and accounting consumer, then consider read-only scheduler observation before dispatch. Decide separately on credential/pin transfer, replay and usage reporting. Test old/new protocol, same pool identity, missing Home, duplicate usage, cancel/failover and absence of cross-pool dispatch. Roll back capability and reporting independently, preserving native fences.
+- **U8 — plugin response type (`bd2e0a9`)**. Prefer additive metadata for a named consumer unless it specifically needs leading wire bytes. Decide SDK/RPC compatibility and affected response types. Test catalog, detail, count and execution with old/new plugins; roll back the additive field alone.
 
 ## Current checkpoint - 2026-11-19
 
