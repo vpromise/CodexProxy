@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -60,6 +61,41 @@ func (e *streamBootstrapError) Headers() http.Header {
 		return nil
 	}
 	return cloneHTTPHeader(e.headers)
+}
+
+// streamDiagnosticError keeps a bootstrap rejection on the direct error path.
+type streamDiagnosticError struct {
+	error
+	headers http.Header
+}
+
+func (e *streamDiagnosticError) Unwrap() error        { return e.error }
+func (e *streamDiagnosticError) Headers() http.Header { return cloneHTTPHeader(e.headers) }
+
+func withStreamDiagnosticHeaders(err error, headers http.Header) error {
+	connectionScoped := make(map[string]bool)
+	for _, value := range headers.Values("Connection") {
+		for _, name := range strings.Split(value, ",") {
+			connectionScoped[http.CanonicalHeaderKey(strings.TrimSpace(name))] = true
+		}
+	}
+
+	diagnostics := make(http.Header)
+	for _, name := range []string{"Request-Id", "X-Request-Id", "X-Trace-Id"} {
+		if values := headers.Values(name); len(values) > 0 && !connectionScoped[name] {
+			diagnostics[name] = append([]string(nil), values...)
+		}
+	}
+	if len(diagnostics) == 0 {
+		return err
+	}
+	var carrier interface{ Headers() http.Header }
+	if errors.As(err, &carrier) {
+		for name, values := range carrier.Headers() {
+			diagnostics[http.CanonicalHeaderKey(name)] = append([]string(nil), values...)
+		}
+	}
+	return &streamDiagnosticError{error: err, headers: diagnostics}
 }
 
 func streamErrorResult(headers http.Header, err error) *cliproxyexecutor.StreamResult {
@@ -419,7 +455,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 				}
 				m.recordExecutionResult(ctx, result, auth, ephemeralResult)
 				discardStreamChunks(streamResult.Chunks)
-				return nil, bootstrapErr
+				return nil, withStreamDiagnosticHeaders(bootstrapErr, streamResult.Headers)
 			}
 			if idx < len(execModels)-1 {
 				rerr := resultErrorFromError(bootstrapErr)

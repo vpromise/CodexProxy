@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,15 +18,16 @@ const openAICompatPoolProviderKey = "openai-compatible-pool"
 type openAICompatPoolExecutor struct {
 	id string
 
-	mu                sync.Mutex
-	executeModels     []string
-	countModels       []string
-	streamModels      []string
-	executePayloads   map[string][]byte
-	executeErrors     map[string]error
-	countErrors       map[string]error
-	streamFirstErrors map[string]error
-	streamPayloads    map[string][]cliproxyexecutor.StreamChunk
+	mu                 sync.Mutex
+	executeModels      []string
+	countModels        []string
+	streamModels       []string
+	executePayloads    map[string][]byte
+	executeErrors      map[string]error
+	countErrors        map[string]error
+	streamFirstErrors  map[string]error
+	streamErrorHeaders http.Header
+	streamPayloads     map[string][]cliproxyexecutor.StreamChunk
 }
 
 func (e *openAICompatPoolExecutor) Identifier() string { return e.id }
@@ -62,7 +64,11 @@ func (e *openAICompatPoolExecutor) ExecuteStream(ctx context.Context, auth *Auth
 	if err != nil {
 		ch <- cliproxyexecutor.StreamChunk{Err: err}
 		close(ch)
-		return &cliproxyexecutor.StreamResult{Headers: http.Header{"X-Model": {req.Model}}, Chunks: ch}, nil
+		headers := e.streamErrorHeaders
+		if headers == nil {
+			headers = http.Header{"X-Model": {req.Model}}
+		}
+		return &cliproxyexecutor.StreamResult{Headers: headers, Chunks: ch}, nil
 	}
 	if !hasCustomChunks {
 		ch <- cliproxyexecutor.StreamChunk{Payload: []byte(req.Model)}
@@ -812,9 +818,19 @@ func TestManagerExecute_OpenAICompatAliasPoolBlockedAuthDoesNotConsumeRetryBudge
 func TestManagerExecuteStream_OpenAICompatAliasPoolStopsOnInvalidBootstrap(t *testing.T) {
 	alias := "claude-opus-4.66"
 	invalidErr := &Error{HTTPStatus: http.StatusBadRequest, Message: "invalid_request_error: malformed payload"}
+	headers := http.Header{
+		"X-Request-Id": {"req-first"},
+		"X-Trace-Id":   {"trace-first"},
+		"Retry-After":  {"600"},
+		"Set-Cookie":   {"private=fixture"},
+		"Content-Type": {"text/event-stream"},
+		"Connection":   {"Request-Id"},
+		"Request-Id":   {"connection-only"},
+	}
 	executor := &openAICompatPoolExecutor{
-		id:                openAICompatPoolProviderKey,
-		streamFirstErrors: map[string]error{"deepseek-v3.1": invalidErr},
+		id:                 openAICompatPoolProviderKey,
+		streamFirstErrors:  map[string]error{"deepseek-v3.1": invalidErr},
+		streamErrorHeaders: headers,
 	}
 	m := newOpenAICompatPoolTestManager(t, alias, []internalconfig.OpenAICompatibilityModel{
 		{Name: "deepseek-v3.1", Alias: alias},
@@ -825,7 +841,7 @@ func TestManagerExecuteStream_OpenAICompatAliasPoolStopsOnInvalidBootstrap(t *te
 	if err == nil {
 		t.Fatal("expected invalid request error")
 	}
-	if err != invalidErr {
+	if !errors.Is(err, invalidErr) || statusCodeFromError(err) != http.StatusBadRequest {
 		t.Fatalf("error = %v, want %v", err, invalidErr)
 	}
 	if streamResult != nil {
@@ -833,5 +849,18 @@ func TestManagerExecuteStream_OpenAICompatAliasPoolStopsOnInvalidBootstrap(t *te
 	}
 	if got := executor.StreamModels(); len(got) != 1 || got[0] != "deepseek-v3.1" {
 		t.Fatalf("stream calls = %v, want only first upstream model", got)
+	}
+	var headerError interface{ Headers() http.Header }
+	if !errors.As(err, &headerError) {
+		t.Fatalf("error %T has no upstream response headers", err)
+	}
+	headers["X-Request-Id"][0] = "changed-upstream"
+	got := headerError.Headers()
+	if len(got) != 2 || got.Get("X-Request-Id") != "req-first" || got.Get("X-Trace-Id") != "trace-first" {
+		t.Fatalf("error response headers = %v, want only the original diagnostic headers", got)
+	}
+	got["X-Trace-Id"][0] = "changed-caller"
+	if got := headerError.Headers().Get("X-Trace-Id"); got != "trace-first" {
+		t.Fatalf("error trace ID = %q after the caller changed its copy", got)
 	}
 }
