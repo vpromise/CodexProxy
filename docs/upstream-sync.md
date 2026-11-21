@@ -88,6 +88,10 @@ The previous 14 themes and the individual v8.0.80 decisions remain open.
 - **U4** — `7a5dee5` Haiku helper recognition. Decide whether a configured custom Claude endpoint needs the missing-beta exception. Validate input evidence with a minimal capture/fixture, distinguish false positives and verify messages/stream/count. Roll back the classifier condition.
 - **K1/K5/U8** — `6960763` API instance identity, config writes and remote store mirror. Decide consumer, standalone identity and migration scope independently, including fail-closed secret transformation and concurrent stores. Test read/write role, restart, read-only/old config, Home overlays, compare-and-swap, remote conflict and restore. Roll back new metadata/schema adapters while preserving the latest safe config and credentials.
 
+### Verified publication
+
+The verified local adaptation of `486624c`, `cdd6ae6` and the Codex-only count portion of `1ef770d` was pushed to [`vpromise/CodexProxy:main`](https://github.com/vpromise/CodexProxy/commit/7baed513efcfa8458ca761f4210552b573fdb4a5). GitHub API and SSH confirmed `7baed513efcfa8458ca761f4210552b573fdb4a5` at 2026-11-21T21:07:36Z. Actions runs, check runs and commit statuses were all zero for this SHA. Current workflows trigger on pull requests or tag pushes. The local results above apply to the published code. No server deployment, Release or tag was performed.
+
 ## Current checkpoint - 2026-11-21
 
 Inspection at **2026-11-20T20:56:55Z** (2026-11-21 04:56:55 Asia/Shanghai). Official stable [v8.0.80](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.80) was published 2026-11-20T14:54:23Z. Its lightweight tag and upstream main both resolve to **`f5c5681a8361c9da53e93c60b6507816eee7468b`**. The ancestral range `6faa8d2..f5c5681` contains 28 commits, all non-merges, with zero main-only commits.
