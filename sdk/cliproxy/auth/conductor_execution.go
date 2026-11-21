@@ -318,15 +318,23 @@ func mergeRequestHeaders(current, updates http.Header, clear []string) http.Head
 		out = make(http.Header)
 	}
 	for _, key := range clear {
-		out.Del(key)
+		deleteRequestHeaderFold(out, key)
 	}
 	for key, values := range updates {
-		out.Del(key)
+		deleteRequestHeaderFold(out, key)
 		for _, value := range values {
 			out.Add(key, value)
 		}
 	}
 	return out
+}
+
+func deleteRequestHeaderFold(headers http.Header, key string) {
+	for existing := range headers {
+		if strings.EqualFold(existing, key) {
+			delete(headers, existing)
+		}
+	}
 }
 
 func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, maxRetryCredentials int, retryRound int, defaultRequestRetry int, admissionWaitStates ...*localCredentialAdmissionWaitState) (cliproxyexecutor.Response, error) {
