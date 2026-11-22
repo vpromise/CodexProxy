@@ -73,6 +73,10 @@ Prior decisions remain open. This release adds the following scopes to the exist
 - **K3/U8 — Scheduler plugin decline (`254d0c2`).** Decide which named plugins may delegate, order among them and whether a decline crosses priority tiers. Test every decline/accept/reject combination and no cross-pool routing. Revert the chaining and priority visibility.
 - **6eb8554 dependency batch.** Evaluate relevant Go modules individually with a concrete compatibility/security need. Verify module sums, compiler matrix, HTTP/TLS transport and any consumers. No dependency changes are required by the selected fix.
 
+### Verified publication
+
+The paired Claude tool-result cache marker adaptation of `8cab158` was pushed normally to [`vpromise/CodexProxy:main`](https://github.com/vpromise/CodexProxy/commit/8c2cb41cc83eb43c50560bb6d87549f43df663fc). GitHub API and SSH confirmed `8c2cb41cc83eb43c50560bb6d87549f43df663fc` at 2026-11-22T21:05:43Z. Actions runs, check runs and commit statuses were all zero for this SHA. Current workflows trigger on pull requests or tag pushes. The local results above cover the verified source. No server deployment, Release or tag was performed.
+
 ## Current checkpoint - 2026-11-22
 
 Inspection at **2026-11-21T20:59:52Z** (2026-11-22 04:59:52 Asia/Shanghai). Official stable [v8.1.0](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.0) was published 2026-11-21T19:03:36Z. The lightweight tag and upstream main both resolve to **`6960763455c4ac3d4828fb1736aa5de2183ccecf`**. The ancestral range `f5c5681..6960763` contains 47 non-merge commits and no main-only commits.
