@@ -1,8 +1,77 @@
 # Upstream sync ledger
 
-Updated: 2026-11-22 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
+Updated: 2026-11-23 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
+
+## Current checkpoint - 2026-11-23
+
+Inspection at **2026-11-22T21:00:09Z** (2026-11-23 05:00:09 Asia/Shanghai). Official stable [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) was published 2026-11-22T16:10:30Z. The lightweight tag and upstream main both resolve to **`6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`**. The ancestral range `6960763..6eb8554` contains 36 commits, including one merge whose remerge diff is empty, and no main-only commits.
+
+Fork baseline `334f7b5f9f43958b3178c957dbd334eedd8e5607` matched GitHub and SSH. Selected prior fixes `7baed513` and `dac4eba5` are in remote main ancestry. No approved pending publication was found in the ledger, main or registered worktrees. The primary checkout remains `codex/self-service-oauth` at `68988b5f`, with a clean tracked working tree and index; the ignored historical ledger is outside the batch. Candidate and baseline were detached worktrees.
+
+### Complete dispositions
+
+| Source | Status | Local scope and evidence |
+| --- | --- | --- |
+| [`cad3ae5`](https://github.com/router-for-me/CLIProxyAPI/commit/cad3ae5d6a0867ea19864a4fd276dc12231767b0) | excluded provider | Gemini schema rewrite guards direct const, enum and additionalProperties passes. Claude schema normalization uses a separate code path. |
+| [`c9e6e2e`](https://github.com/router-for-me/CLIProxyAPI/commit/c9e6e2e3143ad53fd85b0ff3e90631d6c3a6122c) | excluded provider | Gemini tuple and non-object item schema conversion; retain the fork's native JSON schema semantics. |
+| [`679166b`](https://github.com/router-for-me/CLIProxyAPI/commit/679166b87ed4ac6246444d09cb4aaf9802a81bcd) | excluded provider | xAI WebSocket state eviction. Codex WebSocket state has a separate owner and lifecycle. |
+| [`753bfa1`](https://github.com/router-for-me/CLIProxyAPI/commit/753bfa19bf071b4f5bdd8dbfd37ac5ff7ad301af) | excluded provider | Antigravity probe metadata and model-publication fence. The touched manager selection hunk supports that probe path. |
+| [`e0cc1cf`](https://github.com/router-for-me/CLIProxyAPI/commit/e0cc1cf876fda937031bc85ccc8821cf758e2d8b) | excluded provider | Preserves Antigravity's NONE tool mode for Claude-branded models. The native Claude executor does not use this mapper. |
+| [`94b164b`](https://github.com/router-for-me/CLIProxyAPI/commit/94b164bf167808be6e66785255987b07e768dcb2) | excluded provider | Antigravity CountTokens cooldown, 429 and schema behavior. The supported Codex and Claude count paths do not use it. |
+| [`cbfc90a`](https://github.com/router-for-me/CLIProxyAPI/commit/cbfc90ade8738bd5dd36f61e2663c68ed7f33bca) | excluded provider | Copilot static model lookup. |
+| [`feadc90`](https://github.com/router-for-me/CLIProxyAPI/commit/feadc90b98011f528048b3674210e830b0da4574) | excluded provider and V8 API | Copilot OAuth in management V8; outside both fork scopes. |
+| [`8cab158`](https://github.com/router-for-me/CLIProxyAPI/commit/8cab158fe4322f0b725c007c1cb865e45fb4e4ed) | partially adapted; standalone pending U3/U5 | The paired Responses tool-output branch preserves the last valid converted-part marker, falling back to the item's marker. Standalone output placement and orphan-result repair are separate contracts; existing fork tool IDs, content validation and cache policy are retained. |
+| [`254d0c2`](https://github.com/router-for-me/CLIProxyAPI/commit/254d0c2c0ccb4159381130bb7bb92985190c7ac0) | discussion K3/U8 | Chains further scheduler plugins after decline and changes candidate visibility across priority tiers. Local decline/delegation and account isolation require an explicit plugin and tier-order contract. |
+| [`d2086b4`](https://github.com/router-for-me/CLIProxyAPI/commit/d2086b4c1723ae38ddf88213acb002a8a4bf6b29) | excluded provider | Gates Antigravity credit refresh/project discovery on config and disabled state. |
+| [`d214f88`](https://github.com/router-for-me/CLIProxyAPI/commit/d214f881b0de5053741bf17b46a62aeda2370eca) | excluded provider | Antigravity management OAuth project lookup and failure handling. |
+| [`b2151d6`](https://github.com/router-for-me/CLIProxyAPI/commit/b2151d6432bc9ec187fd6f0c10aa1c309781b3da) | excluded provider | The shared thinking hunk specializes Antigravity behavior after rejecting a Claude-branded budget. Keep the native canonical pipeline. |
+| [`737ba4c`](https://github.com/router-for-me/CLIProxyAPI/commit/737ba4c60dfa5209f572e637506ac36532cc914c) | excluded provider | Default minimum credit amount in Antigravity credit parsing. |
+| [`c71aa82`](https://github.com/router-for-me/CLIProxyAPI/commit/c71aa824e56ab2d2c00de5d6982fa8b9b2ece668) | discussion U3/U4 | Local replay currently retains the last adjacent thinking block. Upstream recognizes same-response increasing block indexes encoded in reasoning item IDs. Confirm replay provenance and mixed/signed history semantics before treating a caller-supplied ID as an ordering signal. |
+| [`acf238f`](https://github.com/router-for-me/CLIProxyAPI/commit/acf238f6a98398245d62234e25c4f6f832e102ea) | excluded provider; reverted | Antigravity Cloud Code project header, reverted in the same release by ca43428. |
+| [`14e12fb`](https://github.com/router-for-me/CLIProxyAPI/commit/14e12fb5d38c9c6bb0559d8feb09c4a3e60d0a0d) | excluded provider | Credential/subagent-scoped incoming Antigravity session synthesis. Native affinity is handled independently. |
+| [`7f22743`](https://github.com/router-for-me/CLIProxyAPI/commit/7f22743a07286969644e420d420ea180f5bf35dd) | discussion U4/U5 | Local translation keeps reasoning.encrypted_content and requested search sources. Upstream broadens the include allowlist and restores Platform-only fields by backend. Confirm explicitly supported backend capability instead of deriving it for arbitrary custom hosts. |
+| [`28b281d`](https://github.com/router-for-me/CLIProxyAPI/commit/28b281d5327320788b1da8854bb2c883802af3be) | excluded provider | Gemini thought signatures on Devin/Interactions replay; unrelated to existing native Claude signature policy. |
+| [`3988a38`](https://github.com/router-for-me/CLIProxyAPI/commit/3988a3897e9fe404aa644cc96d628d5f464157d3) | excluded provider | Antigravity replay cache keys and session isolation. |
+| [`127c50b`](https://github.com/router-for-me/CLIProxyAPI/commit/127c50bc764d0d46b5bdaa8edfbdd13e0dd9315a) | excluded provider | Antigravity reasoning level enum case. |
+| [`dd0d80c`](https://github.com/router-for-me/CLIProxyAPI/commit/dd0d80c8477d8100e95c6eb87b7f652d78b21e5d) | excluded provider | Canonical session metadata in the Antigravity credits path. No native Home change selected. |
+| [`f9ac9ff`](https://github.com/router-for-me/CLIProxyAPI/commit/f9ac9ffc37348da3abccd40ec40aac4dbefd7d46) | discussion K4/U7 | Common header-derived session keys gain subagent identity and fallback changes in an upstream session helper absent from this fork's layout. Local selector owns affinity keys. Decide when subagents should or should not inherit the parent key. |
+| [`55e5a7e`](https://github.com/router-for-me/CLIProxyAPI/commit/55e5a7ead8dbe52afaf1cf68be45934ccffab5a3) | excluded provider | Switches generated Antigravity session IDs to signed int64. No native session conversion. |
+| [`ca43428`](https://github.com/router-for-me/CLIProxyAPI/commit/ca43428b982cf94348e98d41e4cfaff5c30ea487) | excluded provider | Reverts the Antigravity project header change acf238f. |
+| [`fb989e5`](https://github.com/router-for-me/CLIProxyAPI/commit/fb989e5fcbdaa2242fc3cc2ceb2b3848ab90f528) | excluded provider | Antigravity CountTokens request.model and request.stream fields. |
+| [`327b4c6`](https://github.com/router-for-me/CLIProxyAPI/commit/327b4c61da1ac8e3d42ee3fc4c30ef8f2dcfe303) | excluded provider | Antigravity replay-state persistence on caller cancellation. |
+| [`ec25cc8`](https://github.com/router-for-me/CLIProxyAPI/commit/ec25cc830ac7be57a9c575e53da3845a0ec552c3) | excluded provider | Antigravity in-band errors and transport cleanup after credential responses. |
+| [`f89d408`](https://github.com/router-for-me/CLIProxyAPI/commit/f89d408e758e203f6cd48e0a09d8ece8982fb55c) | excluded provider | Unifies Devin and Copilot published routes, including shared registry/routing and helper plumbing for those providers. No standalone native repair identified. |
+| [`08098d2`](https://github.com/router-for-me/CLIProxyAPI/commit/08098d246e0e1520e8c95a2283baa9c6ea181333) | excluded provider | Antigravity multimodal field names in its translators. |
+| [`2813400`](https://github.com/router-for-me/CLIProxyAPI/commit/28134004043194c06f1fa9b40332e8a2d6bf684d) | excluded provider | Separates native search from chat tools in Antigravity conversion. |
+| [`c6f1d62`](https://github.com/router-for-me/CLIProxyAPI/commit/c6f1d626a6ab5f0581e4f451a9f36248dafacd64) | merge accounted | PR 7900 imports the Devin/Copilot registry branch. Remerge diff is empty and the constituent commit is listed above. |
+| [`555bdb4`](https://github.com/router-for-me/CLIProxyAPI/commit/555bdb4bcb54da4fe69cc6dccb8469c3a46eb92e) | excluded provider | Antigravity non-stream replay commits move behind checked translation. |
+| [`16bf182`](https://github.com/router-for-me/CLIProxyAPI/commit/16bf182f2088ded53476847d621ed95c58d88e38) | excluded provider | Antigravity credit bookkeeping by credential; common hooks serve the removed provider. |
+| [`8a8c234`](https://github.com/router-for-me/CLIProxyAPI/commit/8a8c234339642fa5de8121d46db117fa4f310783) | excluded provider | Gemini 4 Neon bundled registry entry. |
+| [`6eb8554`](https://github.com/router-for-me/CLIProxyAPI/commit/6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6) | deferred dependency batch | Upstream V8 changes moego, several Go x modules and the go-billy dependency classification. Local V7 uses gjson/sjson here and its own pinned versions. Nothing selected depends on the bumps. |
+
+### Selected adaptation
+
+The paired Responses-to-Claude tool-output path now places an explicit `ephemeral` marker on the outer `tool_result`. A marker on the last convertible part takes precedence, with an item-level marker as fallback. The marker keeps its TTL. The implementation preserves raw-ID pairing and output structure, and existing executor cache-count, TTL and native Claude validation policy remains in effect. The upstream standalone placement and orphan-repair expansion remain separate. Defaults on tested source are Codex 0.154.0 and Claude 2.1.321 / SDK 0.128.0 / Node v26.12.1.
+
+### Validation
+
+- Baseline `334f7b5f` with the test overlay reproduced missing item markers and missing nested-part markers. The candidate preserves both cases and leaves invalid marker types absent. Tests check last valid marker precedence and TTL, flat text and compound tool output, no nested markers, and paired tool-use ID.
+- Focused regressions passed three repeats across Claude Responses translation, common translation, native executors and executor helpers. Full `go test -mod=readonly -p=4 -count=1 -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...` passed 69 test packages; 23 packages had no test files. Fresh macOS probe verified `127.0.0.1` and reproduced errno 49 on `127.0.0.2` for the two exact exclusions. No Linux, live inference or external TLS-capture validation was performed.
+- Race tests passed in seven packages: `internal/translator/claude/openai/responses`, `internal/translator/common`, `internal/runtime/executor`, `internal/runtime/executor/helps`, `sdk/api/handlers/claude`, `sdk/api/handlers/openai` and `sdk/cliproxy/auth`. `go build -mod=readonly -p=4 -o <task>/codexproxy ./cmd/server` passed with Go 1.27.3 darwin/arm64 CGO=1; binary SHA-256 `964ff2482a3e626e7fa652f2ba72b9f33848e0c881387946f50438420cdf76fe`.
+- The candidate manifest `9c84aa31a6c0553d75dff1048ec04485ce3334e01c8cdcec434ac1688f02c654` covers 1,856 source and fixture files. All 1,248 enumerated local compiler/test/embed inputs match the manifest. Staged Go changes match the verified patch.
+
+### Decision register amendments
+
+Prior decisions remain open. This release adds the following scopes to the existing register.
+
+- **U3/U5 — Standalone or orphan tool output markers (`8cab158`).** Local standalone outputs become user content; no new marker is attached there. Establish placement on a real caller case, including blank parts and TTL precedence, while preserving pairing and avoiding larger or more expensive cache scopes. Test empty, orphan, mixed-media and paired output; revert only standalone placement.
+- **U3/U4 — Signed adjacent thinking (`c71aa82`).** The fork emits response/block IDs and historically retains only the last adjacent thinking block on replay. Choose the scope and trustworthy signal for same-response grouping. Test duplicate/reversed indexes, mixed turn/account histories, absent IDs, both translation directions and tool boundaries. Revert the grouping condition, preserving original signatures.
+- **U4/U5 — Codex Responses include (`7f22743`).** Decide which explicitly configured backend and optional output fields to support. Keep the first-party default, existing encrypted-reasoning field and identical HTTP/WS and compact contracts. Test Platform, first-party, custom, malformed and unknown includes, duplicate entries, and retention limits; revert the per-backend addition.
+- **K4/U7 — Subagent session keys (`f9ac9ff`).** Decide whether a caller's explicit subagent may have an independent scoped key or inherit an eligible parent. Test authenticated scope and pool, missing subagent, opaque IDs, reload and simultaneous parent/subagent requests. Roll back only newly scoped key logic; leave existing bindings intact.
+- **K3/U8 — Scheduler plugin decline (`254d0c2`).** Decide which named plugins may delegate, order among them and whether a decline crosses priority tiers. Test every decline/accept/reject combination and no cross-pool routing. Revert the chaining and priority visibility.
+- **6eb8554 dependency batch.** Evaluate relevant Go modules individually with a concrete compatibility/security need. Verify module sums, compiler matrix, HTTP/TLS transport and any consumers. No dependency changes are required by the selected fix.
 
 ## Current checkpoint - 2026-11-22
 

@@ -508,7 +508,14 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 				callID := util.SanitizeClaudeToolID(rawID)
 				toolResult := []byte(`{"type":"tool_result","tool_use_id":"","content":""}`)
 				toolResult, _ = sjson.SetBytes(toolResult, "tool_use_id", callID)
-				toolResult = applyResponsesToolResultContent(toolResult, output)
+				toolResult, cacheControl := applyResponsesToolResultContent(toolResult, output)
+				if !cacheControl.Exists() {
+					cacheControl = responsesToolResultCacheControl(outputItem)
+				}
+				if cacheControl.Exists() {
+					// Claude accepts the marker on tool_result, outside its content.
+					toolResult, _ = sjson.SetRawBytes(toolResult, "cache_control", []byte(cacheControl.Raw))
+				}
 				if strings.EqualFold(strings.TrimSpace(outputItem.Get("status").String()), "incomplete") {
 					toolResult, _ = sjson.SetBytes(toolResult, "is_error", true)
 				}
@@ -902,7 +909,16 @@ func claudeThinkingSeparatorForToolUse(parts [][]byte) []byte {
 	return nil
 }
 
-func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) []byte {
+func responsesToolResultCacheControl(source gjson.Result) gjson.Result {
+	cacheControl := source.Get("cache_control")
+	if cacheControl.IsObject() && cacheControl.Get("type").String() == "ephemeral" {
+		return cacheControl
+	}
+	return gjson.Result{}
+}
+
+func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) ([]byte, gjson.Result) {
+	var cacheControl gjson.Result
 	if output.Exists() && output.IsArray() {
 		var partsJSON [][]byte
 		hasImage := false
@@ -910,6 +926,9 @@ func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) []b
 		droppedEmptyPart := false
 		output.ForEach(func(_, part gjson.Result) bool {
 			if partJSON := convertResponsesContentPartToClaude(part); len(partJSON) > 0 {
+				if marker := responsesToolResultCacheControl(part); marker.Exists() {
+					cacheControl = marker
+				}
 				if !contentPartHasVisibleContent(partJSON) {
 					droppedEmptyPart = true
 					return true
@@ -928,24 +947,24 @@ func applyResponsesToolResultContent(toolResult []byte, output gjson.Result) []b
 		if len(partsJSON) == 0 {
 			if droppedEmptyPart {
 				toolResult, _ = sjson.SetBytes(toolResult, "content", "")
-				return toolResult
+				return toolResult, cacheControl
 			}
 			toolResult, _ = sjson.SetBytes(toolResult, "content", output.Raw)
-			return toolResult
+			return toolResult, cacheControl
 		}
 		if len(partsJSON) == 1 && !hasImage && !hasFile {
 			textPart := gjson.ParseBytes(partsJSON[0])
 			if textPart.Get("type").String() == "text" {
 				toolResult, _ = sjson.SetBytes(toolResult, "content", textPart.Get("text").String())
-				return toolResult
+				return toolResult, cacheControl
 			}
 		}
 		toolResult, _ = sjson.DeleteBytes(toolResult, "content")
 		toolResult, _ = sjson.SetRawBytes(toolResult, "content", common.JoinRawArray(partsJSON))
-		return toolResult
+		return toolResult, cacheControl
 	}
 	toolResult, _ = sjson.SetBytes(toolResult, "content", output.String())
-	return toolResult
+	return toolResult, cacheControl
 }
 
 func convertResponsesContentPartToClaude(part gjson.Result) []byte {
