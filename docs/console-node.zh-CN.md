@@ -1,6 +1,6 @@
 # 独立 Console 节点适配
 
-此分支为 CodexProxyConsole 增加可选、独立私网 TLS1.3 mTLS 节点接口。默认关闭，不替换原管理登录、单节点自助邀请或推理端口。完整控制台项目位于同级 `CodexProxyConsole`，协议事实来源为该项目 `api/node/v1/README.md`；双方共享能力 fixture。
+CodexProxy 为 CodexProxyConsole 提供可选的独立私网 TLS 1.3 mTLS 节点接口。默认关闭，不替换原管理登录、单节点自助邀请或推理端口。完整控制台项目位于同级 `CodexProxyConsole`，节点协议见该项目的 `api/node/v1/README.md`。
 
 新配置为 `console-node`：enabled、稳定 node-id、安装实例 instance-id、私网 listen、节点 cert/key、Console client-ca 和 leaf SHA256、统一 public-origin、版本化 egress-profiles。请使用控制台提供的离线证书 CLI 和配置示例。只支持原生 Claude/Codex、文件凭据及已有隔离号池，不自动开启全局隔离或改动原账号权限。
 
@@ -14,6 +14,8 @@
 
 操作先持久化 uncertain 回执，变更后写安全结果；同 ID 改参数拒绝。邀请链接只创建时显示；丢回包先查询/撤销，再新建，不从摘要恢复 bearer。不确定单池 key 操作只能读取仍存在的原 key，不能重建管理员删掉的 key。日志/回执不含 callback、code、refresh token、PKCE 或原始邀请 bearer。
 
+节点声明 `invitation_deletion` 能力后，Console 可以通过 `DELETE /v1/enrollments/:id` 删除该节点上已过期或已撤销且未持有凭据的邀请。操作回执继续保留。
+
 验证覆盖节点原生授权闭环、审批/启用/过期/重新授权、换主体拒绝、过时 revision、mTLS、配置变更、能力契约、HTTP/WS 固定源地址与失败拒绝、删除及不确定回执。CodexProxy 全量测试、相关竞态与编译和 Console 的独立验证见同级项目 `docs/validation.zh-CN.md`。
 
-本分支只完成本地代码与离线模拟验证，未推送/合并 main、未部署、未进行真实 provider exchange/refresh/inference，也未改生产 new-api。实际公网 E、浏览器登录 IP、真实客户端两级亲和与流/续轮须按控制台部署说明分层验收。关闭适配后纳管账号会停止通过新 guard；回滚须保留当前凭据并明确管理绑定，不能还原旧 token。
+实际公网出口、浏览器登录 IP、真实客户端两级亲和与流式续轮须按控制台部署说明分层验收。关闭适配后纳管账号会停止通过节点绑定校验。回滚时保留当前凭据并明确管理绑定。

@@ -17,6 +17,7 @@ refresh, account isolation, fingerprint settings and scheduling are unchanged.
 5. Acceptance creates a **disabled** credential in Auth Files. Assign the intended
    account pool and review the existing access-isolation policies **before enabling**
    the credential. No pool, API-key binding or routing policy is changed automatically.
+6. Use **Delete invitation** to remove expired or revoked invitations from the list.
 
 Duplicate identities are rejected without modifying existing credentials. This is
 deliberate: use the original administrator login flow to renew an existing account.
@@ -84,8 +85,8 @@ An expired authorization flow also requires a new invitation.
 - There is a 5,000-record limit, including historical records. No automatic deletion
   or background refresh of pending credentials occurs. Review promptly: access
   tokens can expire while awaiting review. Once accepted and enabled, existing
-  account refresh rules apply. Archive closed records administratively, with the
-  server stopped and a backup, if the record limit is reached.
+  account refresh rules apply. Remove expired or revoked invitations from the
+  management panel to reclaim space.
 
 ## Hosting
 
@@ -113,6 +114,8 @@ Management endpoints use the existing management authentication:
   safe record and the one-time-displayed `invitation_token`. API TTL range: 1–168 hours.
 - `POST /v0/management/oauth-intake/:id/accept`: import disabled or resume an import.
 - `POST /v0/management/oauth-intake/:id/reject`: reject pending or revoke an invitation.
+- `DELETE /v0/management/oauth-intake/:id`: permanently delete an expired or revoked
+  invitation with no stored credentials or imported auth file.
 
 Public session endpoints require `Authorization: Bearer <invitation_token>`:
 
