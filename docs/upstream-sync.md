@@ -23,6 +23,10 @@ Streaming executors must honor their attempt context when reading or sending. Bu
 - The first full run and race run caught early release of a Home selection after a terminal error. The final candidate preserves the active Home drain contract. The complete full and race suites were rerun. All seven affected packages passed race testing, with the three WebSocket allocation checks passing in the ordinary run. The new lifetime and existing Home stream cases passed 50 race-instrumented repetitions.
 - `go build -mod=readonly -p=4 -o <temporary-output> ./cmd/server` passed. The input manifest covered 1,862 workspace files, including source, tests and embedded assets, excluding this ledger. The before and after SHA-256 was `c6d5ccfc159a708f4452d8fc9492d99062b43c3f959266c07b1288b0ead4518c`. Validation used local fixtures and did not exercise Linux or a production deployment.
 
+### Publication receipt
+
+Published [`5a9feea4`](https://github.com/vpromise/CodexProxy/commit/5a9feea436af0a26a4b5e279afad48508a497063) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `bf8b13ba003767bfd19dfdb87f1fdade39816684`. Git transport and the GitHub branch API both returned the implementation SHA. GitHub reported zero workflow runs, check runs and commit statuses for the SHA at 2026-11-23T17:48:33+08:00. Current workflow triggers cover pull requests or tags. Deployment status is unchanged.
+
 ## Authorized follow-up in the 2026-11-23 review — account cooldown order
 
 Completed the narrow account-level behavior approved for K3 original item 100. [CPA `35af74f9`](https://github.com/router-for-me/CLIProxyAPI/commit/35af74f92721b67c2eb704d0809f26b034946f56) motivated the follow-up. The verified fork base is `a242cd676d5d1fe25c8ba96946521bf6bdce0683`. The reviewed CPA checkpoint remains v8.1.1.
