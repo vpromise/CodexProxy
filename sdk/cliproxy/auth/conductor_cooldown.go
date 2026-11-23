@@ -745,6 +745,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 
 	var authSnapshot *Auth
 	cooldownStateChanged := false
+	signInBlockChanged := false
 	now := time.Now()
 
 	m.mu.Lock()
@@ -772,7 +773,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 		}
 
 		appliesAvailability := !auth.Disabled && auth.Status != StatusDisabled && resultMatchesAvailabilityEpoch(result, auth)
-		signInBlockChanged := appliesAvailability && !result.Success && result.claudeAccessRejected && !shouldSkipCredentialCooldown(result.Error) &&
+		signInBlockChanged = appliesAvailability && !result.Success && result.claudeAccessRejected && !shouldSkipCredentialCooldown(result.Error) &&
 			auth.claudeRefreshState == claudeRefreshSignInRequired && result.authSnapshot != nil &&
 			sameCredentialSnapshot(result.authSnapshot, auth)
 		if signInBlockChanged {
@@ -998,6 +999,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 		}
 	}
 	m.mu.Unlock()
+	if signInBlockChanged {
+		m.persistClaudeSignIn(ctx, authSnapshot)
+	}
 	_ = m.persist(ctx, authSnapshot)
 	if m.scheduler != nil && authSnapshot != nil {
 		m.scheduler.upsertAuth(authSnapshot)

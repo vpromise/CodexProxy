@@ -575,11 +575,13 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 			if requiresSignIn {
 				current.claudeRefreshState = claudeRefreshSignInRequired
 				current.NextRefreshAfter = time.Time{}
+				snapshot := current.Clone()
 				if m.scheduler != nil {
-					m.scheduler.upsertAuth(current)
+					m.scheduler.upsertAuth(snapshot)
 				}
 				m.mu.Unlock()
 				m.queueRefreshReschedule(id)
+				m.persistClaudeSignIn(ctx, snapshot)
 				return nil, err
 			}
 			preserveAvailability := authAvailabilityChanged(base, current) || authHasActiveCooldown(current, now)

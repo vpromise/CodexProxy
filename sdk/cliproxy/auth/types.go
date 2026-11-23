@@ -109,7 +109,7 @@ type Auth struct {
 	availabilityEpoch uint64
 	// accountCooldown records when the running manager observed the timed account block.
 	accountCooldown accountCooldownObservation
-	// claudeRefreshState belongs to the current credential material and exists only in memory.
+	// claudeRefreshState belongs to the current credential material. Local stores can restore it.
 	claudeRefreshState claudeOAuthRefreshState
 	recentRequests     recentRequestRing `json:"-"`
 	indexAssigned      bool              `json:"-"`

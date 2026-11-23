@@ -273,6 +273,11 @@ func (s *FileTokenStore) Delete(ctx context.Context, id string) error {
 	if err = os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("auth filestore: delete failed: %w", err)
 	}
+	if statePath := claudeSignInPath(s.baseDirSnapshot(), path); statePath != "" {
+		if errRemove := os.Remove(statePath); errRemove != nil && !os.IsNotExist(errRemove) {
+			log.WithField("auth_id", id).WithError(errRemove).Warn("cannot remove local Claude sign-in state")
+		}
+	}
 	return nil
 }
 

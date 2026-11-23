@@ -461,6 +461,7 @@ func (m *Manager) Load(ctx context.Context) error {
 		auth.EnsureIndex()
 		previous := previousAuths[auth.ID]
 		retainClaudeRefreshState(previous, auth, CredentialsChanged(previous, auth))
+		restoreClaudeSignIn(m.store, auth)
 		m.authEpochs[auth.ID]++
 		auth.RegistrationEpoch = m.authEpochs[auth.ID]
 		auth.CredentialVersion = 1
