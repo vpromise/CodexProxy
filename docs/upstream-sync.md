@@ -17,7 +17,9 @@ For a success without a resolved model, a live account deadline can be cleared o
 - `go test -mod=readonly -p=4 -race -count=1 -json ./sdk/cliproxy/auth ./sdk/cliproxy` and `go build -mod=readonly -trimpath -p=4 -o <temporary-output> ./cmd/server` passed. Source-only local validation did not exercise Linux or production.
 - The identical pre/post manifest covered 1,862 workspace files and 1,253 Go compiler, test and embed inputs, with no unlisted inputs. The manifest SHA-256 before this ledger edit is `d5982c4b1bd8120e93ed813c47fa66f4057a9ffa289ddb9b920371cc1d86ff03`.
 
-Publication is recorded in the receipt after GitHub readback.
+### Publication receipt
+
+Published [`668af56f`](https://github.com/vpromise/CodexProxy/commit/668af56f1cb9bb49aa6f8068865a510b13fb163f) to the fork's `main` with a normal fast-forward push. The implementation tree is `fcd3cde4c9b81d0ae63a9ff10acf6fb5638fcaed`. Git transport and GitHub API both returned the implementation SHA. At 2026-11-23T17:26:54+08:00, GitHub reported zero workflow runs, check runs and commit statuses for that SHA. The workflow definitions run on pull-request events or tags. This follow-up published source only.
 
 
 ## Authorized follow-up in the 2026-11-23 review
