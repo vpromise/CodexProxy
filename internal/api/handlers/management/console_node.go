@@ -155,6 +155,7 @@ func (h *Handler) NewConsoleNodeServer(cfg *config.Config) (*http.Server, error)
 	engine.GET("/v1/enrollments", n.list)
 	engine.POST("/v1/enrollments", n.create)
 	engine.GET("/v1/enrollments/:id", n.get)
+	engine.DELETE("/v1/enrollments/:id", n.deleteInvitation)
 	engine.POST("/v1/enrollments/:id/:action", n.action)
 	engine.GET("/v1/operations/:id", n.operation)
 	engine.POST("/v1/channel-keys", n.channelKey)
@@ -199,7 +200,7 @@ func (n *consoleNode) capabilities(c *gin.Context) {
 		}
 		profiles = append(profiles, profile)
 	}
-	c.JSON(200, gin.H{"protocol": "console-node/v1", "node_id": n.cfg.NodeID, "instance_id": n.cfg.InstanceID, "profiles": profiles, "features": []string{"enrollment", "disabled_import", "pool_assignment", "versioned_enable", "operation_receipts", "scoped_channel_keys", "owner_renewal"}})
+	c.JSON(200, gin.H{"protocol": "console-node/v1", "node_id": n.cfg.NodeID, "instance_id": n.cfg.InstanceID, "profiles": profiles, "features": []string{"enrollment", "disabled_import", "pool_assignment", "versioned_enable", "operation_receipts", "scoped_channel_keys", "owner_renewal", "invitation_deletion"}})
 }
 func digestJSON(v any) string {
 	raw, _ := json.Marshal(v)
@@ -243,10 +244,16 @@ func (n *consoleNode) read(id string) (*selfServiceRecord, error) {
 	selfServiceMu.Lock()
 	defer selfServiceMu.Unlock()
 	r, err := selfServiceRead(n.authDir+".self-service-oauth", id)
-	if err == nil && (r.Console == nil || r.Console.NodeID != n.cfg.NodeID || r.Console.InstanceID != n.cfg.InstanceID) {
+	if err == nil && !n.ownsInvitation(r) {
 		return nil, os.ErrNotExist
 	}
 	return r, err
+}
+func (n *consoleNode) ownsInvitation(r *selfServiceRecord) bool {
+	return r.Console != nil && r.Console.NodeID == n.cfg.NodeID && r.Console.InstanceID == n.cfg.InstanceID
+}
+func (n *consoleNode) deleteInvitation(c *gin.Context) {
+	deleteSelfServiceInvitation(c, n.authDir+".self-service-oauth", n.ownsInvitation)
 }
 func (n *consoleNode) get(c *gin.Context) {
 	r, err := n.read(c.Param("id"))
@@ -266,7 +273,7 @@ func (n *consoleNode) list(c *gin.Context) {
 	}
 	out := []consoleEnrollment{}
 	for _, r := range rows {
-		if r.Console != nil && r.Console.NodeID == n.cfg.NodeID && r.Console.InstanceID == n.cfg.InstanceID {
+		if n.ownsInvitation(r) {
 			out = append(out, n.summary(r))
 		}
 	}

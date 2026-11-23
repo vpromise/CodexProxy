@@ -26,4 +26,6 @@ export const selfServiceOAuthApi = {
     apiClient.post<{ record: SelfServiceRecord }>(`/oauth-intake/${encodeURIComponent(id)}/accept`),
   reject: (id: string) =>
     apiClient.post<{ record: SelfServiceRecord }>(`/oauth-intake/${encodeURIComponent(id)}/reject`),
+  remove: (id: string) =>
+    apiClient.delete<{ deleted: boolean }>(`/oauth-intake/${encodeURIComponent(id)}`),
 };

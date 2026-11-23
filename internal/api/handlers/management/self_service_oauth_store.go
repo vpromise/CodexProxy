@@ -165,7 +165,7 @@ func selfServiceAuthenticate(dir, token string) (*selfServiceRecord, error) {
 	if err != nil || subtle.ConstantTimeCompare(expected, digest[:]) != 1 {
 		return nil, os.ErrNotExist
 	}
-	if record.Status == "revoked" || time.Now().After(record.ExpiresAt) {
+	if record.Status == "revoked" || !time.Now().Before(record.ExpiresAt) {
 		return nil, os.ErrNotExist
 	}
 	return record, nil
@@ -176,4 +176,16 @@ func (r *selfServiceRecord) clearFlow() {
 	r.Verifier = ""
 	r.Challenge = ""
 	r.AuthURL = ""
+}
+
+func (r *selfServiceRecord) invitationStatus() string {
+	if (r.Status == "invited" || r.Status == "authorizing") && !time.Now().Before(r.ExpiresAt) {
+		return "expired"
+	}
+	return r.Status
+}
+
+func (r *selfServiceRecord) canDeleteInvitation() bool {
+	status := r.invitationStatus()
+	return (status == "expired" || status == "revoked") && r.FileName == "" && len(r.Credentials) == 0
 }

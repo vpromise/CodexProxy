@@ -18,6 +18,7 @@
     "versioned_enable",
     "operation_receipts",
     "scoped_channel_keys",
-    "owner_renewal"
+    "owner_renewal",
+    "invitation_deletion"
   ]
 }

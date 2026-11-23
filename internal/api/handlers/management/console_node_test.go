@@ -334,6 +334,44 @@ func TestConsoleUncertainDeletedKeyDoesNotRecreate(t *testing.T) {
 	}
 }
 
+func TestConsoleNodeDeletesOnlyItsOwnInactiveInvitations(t *testing.T) {
+	h, srv, cert := nodeTestServer(t)
+	id := strings.Repeat("d", 32)
+	body := gin.H{"operation_id": id, "provider": "claude", "profile_id": "egress"}
+	if code, _ := nodeCall(t, srv, cert, "POST", "/v1/enrollments", body, ""); code != 200 {
+		t.Fatalf("create: %d", code)
+	}
+	path := "/v1/enrollments/" + id
+	if code, _ := nodeCall(t, srv, cert, "DELETE", path, nil, ""); code != 409 {
+		t.Fatalf("delete active invitation: %d", code)
+	}
+	_, standalone, dir := intakeInvite(t, h, "claude")
+	standalone.Status = "revoked"
+	if err := selfServiceWrite(dir, standalone); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := nodeCall(t, srv, cert, "DELETE", "/v1/enrollments/"+standalone.ID, nil, ""); code != 404 {
+		t.Fatalf("node can delete standalone invitation: %d", code)
+	}
+	record, err := selfServiceRead(dir, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Status = "revoked"
+	if err := selfServiceWrite(dir, record); err != nil {
+		t.Fatal(err)
+	}
+	if code, data := nodeCall(t, srv, cert, "DELETE", path, nil, ""); code != 200 || data["deleted"] != true {
+		t.Fatalf("delete revoked invitation: %d", code)
+	}
+	if code, data := nodeCall(t, srv, cert, "DELETE", path, nil, ""); code != 404 || data["error"] != "invitation_not_found" {
+		t.Fatalf("delete retry: %d", code)
+	}
+	if code, _ := nodeCall(t, srv, cert, "GET", "/v1/operations/"+id, nil, ""); code != 200 {
+		t.Fatalf("creation receipt unavailable: %d", code)
+	}
+}
+
 func TestConsoleNodeCapabilityContract(t *testing.T) {
 	_, srv, cert := nodeTestServer(t)
 	code, result := nodeCall(t, srv, cert, "GET", "/v1/capabilities", nil, "")
