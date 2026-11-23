@@ -500,7 +500,8 @@ func TestManagerExecuteStream_OpenAICompatAliasPoolRetriesOnEmptyBootstrap(t *te
 	executor := &openAICompatPoolExecutor{
 		id: openAICompatPoolProviderKey,
 		streamPayloads: map[string][]cliproxyexecutor.StreamChunk{
-			"deepseek-v3.1": {},
+			"deepseek-v3.1": {{}, {Payload: []byte{}}},
+			"glm-5":         {{}, {Payload: []byte("glm-5")}, {}},
 		},
 	}
 	m := newOpenAICompatPoolTestManager(t, alias, []internalconfig.OpenAICompatibilityModel{
@@ -524,6 +525,9 @@ func TestManagerExecuteStream_OpenAICompatAliasPoolRetriesOnEmptyBootstrap(t *te
 	}
 	got := executor.StreamModels()
 	want := []string{"deepseek-v3.1", "glm-5"}
+	if len(got) != len(want) {
+		t.Fatalf("stream calls = %v, want %v", got, want)
+	}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("stream call %d model = %q, want %q", i, got[i], want[i])

@@ -264,8 +264,10 @@ func TestManagerClaudeStreamTailCancellationIsAvailabilityNeutral(t *testing.T) 
 	if chunk := <-stream.Chunks; chunk.Err != nil || string(chunk.Payload) != "first" {
 		t.Fatalf("first chunk = %#v", chunk)
 	}
-	cancel()
+	// Supply the upstream cancellation marker before disconnecting. The manager
+	// can record a ready marker, but must not wait for one on a stalled stream.
 	source <- cliproxyexecutor.StreamChunk{Err: claudeRequestScopedCancellation{}}
+	cancel()
 	close(source)
 	for range stream.Chunks {
 	}

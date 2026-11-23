@@ -48,7 +48,7 @@ func TestWrapStreamResultEmitsForceMappedTailOnce(t *testing.T) {
 	const completed = `"type":"response.completed"`
 	input := `data: {"type":"response.created","response":{"model":"upstream-model"}}` + "\n\n" +
 		`data: {"type":"response.completed","response":{"model":"upstream-model"}}` + "\n" + partial
-	buffered := []cliproxyexecutor.StreamChunk{{Payload: []byte(input)}}
+	first := cliproxyexecutor.StreamChunk{Payload: []byte(input)}
 	remaining := make(chan cliproxyexecutor.StreamChunk)
 	close(remaining)
 
@@ -57,7 +57,8 @@ func TestWrapStreamResultEmitsForceMappedTailOnce(t *testing.T) {
 	manager := NewManager(nil, nil, nil)
 	credential := &Auth{ID: "fixture", Provider: "codex", Status: StatusActive}
 	alias := OAuthModelAliasResult{ForceMapping: true, OriginalAlias: "local-alias"}
-	result := manager.wrapStreamResult(ctx, credential, "codex", "local-alias", "local-alias", nil, buffered, remaining, alias, false, cliproxyexecutor.Options{}, time.Now(), false)
+	outcome := Result{AuthID: credential.ID, Provider: "codex", Model: "local-alias", RouteModel: "local-alias", AttemptStartedAt: time.Now()}
+	result := manager.wrapStreamResult(ctx, credential, outcome, nil, first, remaining, alias, false, func() {})
 
 	var output strings.Builder
 	for {

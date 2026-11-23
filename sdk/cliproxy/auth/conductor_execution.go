@@ -195,6 +195,9 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 		if errStream == nil {
 			return result, nil
 		}
+		if errCtx := ctx.Err(); errCtx != nil {
+			return nil, errCtx
+		}
 		if m.HomeEnabled() && retryRoundPending {
 			if wait, okWait := pendingHomeRetryRoundDelay(errStream, maxWait, &homeRetryLimit, pinnedAuthIDFromMetadata(opts.Metadata) == ""); okWait && m.homeRetryAllowed(attempt-1, homeRetryLimit) {
 				if retryRoundWaited {
@@ -799,6 +802,9 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 	var lastErr error
 	var roundTiming homeRetryRoundTiming
 	for {
+		if errCtx := ctx.Err(); errCtx != nil {
+			return nil, errCtx
+		}
 		allowSameAuthRetry := homeMode && homeSameAuthRetryPending && lastHomeAuthID != "" && homeSameAuthRetries[lastHomeAuthID] == 0
 		if maxRetryCredentials > 0 && len(attempted) >= maxRetryCredentials && !allowSameAuthRetry {
 			if lastErr != nil {
@@ -972,6 +978,14 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 		} else {
 			auth, errPrepare = m.prepareRequestAuth(execCtx, executor, auth)
 		}
+		if errCtx := ctx.Err(); errCtx != nil {
+			releaseAdmission()
+			if selection != nil {
+				releaseAttempt()
+				selection.End("attempt_canceled")
+			}
+			return nil, errCtx
+		}
 		if errPrepare != nil {
 			if selection != nil {
 				excludeAuth := shouldExcludeHomeAuthAfterStreamError(execCtx, auth, errPrepare)
@@ -1026,7 +1040,7 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 			models = models[:1]
 			pooled = false
 		}
-		streamResult, errStream := m.executeStreamWithModelPool(execCtx, executor, auth, provider, execReq, execOpts, routeModel, streamExecutionModel, models, pooled, aliasResult, routing, !homeMode || selection != nil, selection != nil, unauthorizedRefreshTried)
+		streamResult, errStream := m.executeStreamWithModelPool(execCtx, executor, auth, provider, execReq, execOpts, routeModel, streamExecutionModel, models, pooled, aliasResult, routing, !homeMode || selection != nil, selection != nil, unauthorizedRefreshTried, releaseAdmission)
 		if errStream != nil {
 			releaseAdmission()
 			if selection != nil {
@@ -1074,11 +1088,6 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 				homeAuthCount++
 			}
 			continue
-		}
-		if admission != nil {
-			streamResult = wrapLocalCredentialAdmissionStream(execCtx, streamResult, releaseAdmission)
-		} else {
-			releaseAdmission()
 		}
 		if selection != nil {
 			if m.retainHomeWebsocketSelection(ctx, opts, routeModel, selection) {

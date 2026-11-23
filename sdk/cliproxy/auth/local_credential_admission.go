@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 )
 
 const (
@@ -97,37 +95,6 @@ func newLocalCredentialBusyError(retryAfter time.Duration) error {
 		retryAfter = time.Second
 	}
 	return &localCredentialBusyError{retryAfter: retryAfter}
-}
-
-func wrapLocalCredentialAdmissionStream(ctx context.Context, result *cliproxyexecutor.StreamResult, release func()) *cliproxyexecutor.StreamResult {
-	if release == nil {
-		return result
-	}
-	if result == nil || result.Chunks == nil {
-		release()
-		return result
-	}
-	out := make(chan cliproxyexecutor.StreamChunk)
-	go func() {
-		defer close(out)
-		defer release()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case chunk, ok := <-result.Chunks:
-				if !ok {
-					return
-				}
-				select {
-				case out <- chunk:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-	return &cliproxyexecutor.StreamResult{Headers: result.Headers, Chunks: out}
 }
 
 func (l *localCredentialAdmission) configure(settings localCredentialAdmissionSettings) {
