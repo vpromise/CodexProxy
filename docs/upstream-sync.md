@@ -30,6 +30,10 @@ The recovery queue lives in the process and invokes only local file operations. 
 
 Crash-durable token recovery would need an authorized storage and retention design. Earlier K3/U2 quota and classification, U3 cross-request Claude state, and optional model, catalog, Home and plugin topics retain the conditions in the decision register and subsequent entries.
 
+### Publication receipt
+
+Published [`c17124a1`](https://github.com/vpromise/CodexProxy/commit/c17124a17ee2260a29c795dcb27674f87b426088) to `vpromise/CodexProxy/main` by a normal fast-forward push. The implementation tree is `3a271642dd00ab7e8e83b4fc65689f0c10edc972`. The SSH ref and GitHub branch API both read back the same implementation SHA at 2026-11-23T21:38:31+08:00. Actions runs, check runs and commit statuses for that SHA all returned zero. Repository workflows trigger on pull requests or tags. The publication applies to GitHub source.
+
 ## Authorized follow-up in the 2026-11-23 review — local Codex OAuth credential persistence
 
 Completed the approved K1/U1 local persistence scope on fork base `06d8dcb782cffa30642fbb37ed2a98398a364335`. Adapted the file sync ordering from [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25). The released review boundary remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
