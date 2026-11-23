@@ -29,6 +29,10 @@ The local file store persists the confirmed Claude OAuth sign-in state in a priv
 
 The Codex-specific decisions below remain paused at the user's direction. Shared refresh queue ownership remains a separate policy, and the macOS maintenance-wake proposal `5002fe7` remains conditional on a relevant host and reproduction.
 
+### Publication receipt
+
+Published [`23bac07a`](https://github.com/vpromise/CodexProxy/commit/23bac07a727ebc43134cfe4c432aa8f1b3b017d2) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `1b3f89e4f2fe45787c3300e57c340a88043cc794`. Git transport and the GitHub branch API matched the implementation SHA at 2026-11-23T21:54:40+08:00. GitHub reported zero workflow runs, check runs and statuses. The repository workflows trigger on pull requests or tag pushes. This publication covers GitHub source.
+
 ## Authorized follow-up in the 2026-11-23 review — recover a failed Codex OAuth refresh save
 
 Completed the approved disk recovery follow-up to [`89e809b3`](https://github.com/vpromise/CodexProxy/commit/89e809b3101ebcaf39613ce5fb8cdb487b9a3f2b) on verified fork base `0e02021e0bb3d42a5ad0c0eb6bd8520a14539402`. The CPA checkpoint recheck at 2026-11-23T21:36:23+08:00 found [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6` and upstream main at `0d251842d2539194ebd55ef0cdcf9c08f9c4908a`. This follow-up covers the fork's recovery behavior after the published atomic save. The reviewed range remains `6960763..6eb8554`.
