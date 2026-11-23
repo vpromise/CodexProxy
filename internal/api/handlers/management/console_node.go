@@ -33,11 +33,12 @@ import (
 // consoleNode is the private, versioned control adapter. It never exposes a
 // general management proxy and owns no second provider refresh implementation.
 type consoleNode struct {
-	h            *Handler
-	cfg          config.ConsoleNodeConfig
-	authDir, dir string
-	legacy       *gin.Engine
-	mu           sync.Mutex
+	h             *Handler
+	cfg           config.ConsoleNodeConfig
+	authDir, dir  string
+	legacy        *gin.Engine
+	mu            sync.Mutex
+	subscriptions consoleSubscriptions
 }
 type consoleOperation struct {
 	ID           string `json:"id"`
@@ -63,18 +64,20 @@ type consoleEnrollment struct {
 	Account        *consoleAccount `json:"account,omitempty"`
 }
 type consoleAccount struct {
-	OAuth         bool     `json:"oauth"`
-	EnrollmentID  string   `json:"enrollment_id,omitempty"`
-	Provider      string   `json:"provider"`
-	Principal     string   `json:"principal,omitempty"`
-	Email         string   `json:"email,omitempty"`
-	LocalIdentity string   `json:"local_identity,omitempty"`
-	Disabled      bool     `json:"disabled"`
-	Registered    bool     `json:"registered"`
-	Managed       bool     `json:"managed"`
-	Revision      string   `json:"revision"`
-	ProfileID     string   `json:"profile_id,omitempty"`
-	Pools         []string `json:"pools"`
+	OAuth                  bool     `json:"oauth"`
+	EnrollmentID           string   `json:"enrollment_id,omitempty"`
+	Provider               string   `json:"provider"`
+	Principal              string   `json:"principal,omitempty"`
+	Email                  string   `json:"email,omitempty"`
+	LocalIdentity          string   `json:"local_identity,omitempty"`
+	Disabled               bool     `json:"disabled"`
+	Registered             bool     `json:"registered"`
+	Managed                bool     `json:"managed"`
+	Revision               string   `json:"revision"`
+	ProfileID              string   `json:"profile_id,omitempty"`
+	Pools                  []string `json:"pools"`
+	SubscriptionPlan       string   `json:"subscription_plan,omitempty"`
+	SubscriptionObservedAt string   `json:"subscription_observed_at,omitempty"`
 }
 
 // NewConsoleNodeServer is opt-in and returns a dedicated mutual-TLS listener.
@@ -224,12 +227,24 @@ func consolePrincipal(meta map[string]any, provider string) string {
 	return ""
 }
 func (n *consoleNode) inventory(c *gin.Context) {
-	cfg := n.h.snapshotAuthFileRuntime().cfg
+	runtime := n.h.snapshotAuthFileRuntime()
+	cfg := runtime.cfg
 	accounts := []consoleAccount{}
-	for _, a := range n.h.snapshotAuthFileRuntime().manager.List() {
+	var targets []consoleSubscriptionTarget
+	for _, a := range runtime.manager.List() {
 		if a.Provider == "claude" || a.Provider == "codex" {
-			accounts = append(accounts, n.account(a))
+			account := n.account(a)
+			if c.Query("subscriptions") == "1" {
+				if target, ok := newConsoleSubscriptionTarget(cfg, a, account); ok {
+					target.index = len(accounts)
+					targets = append(targets, target)
+				}
+			}
+			accounts = append(accounts, account)
 		}
+	}
+	if c.Query("subscriptions") == "1" {
+		n.annotateSubscriptions(targets, accounts)
 	}
 	pools := []map[string]any{}
 	for _, p := range cfg.AccessIsolation.Pools {
