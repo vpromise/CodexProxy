@@ -10,6 +10,33 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+func TestConvertClaudeRequestToCodexParameterlessToolHistory(t *testing.T) {
+	for _, tc := range []struct{ name, input, want string }{
+		{"omitted", "", "{}"},
+		{"empty object", `,"input":{}`, "{}"},
+		{"explicit object", `,"input":{"count":9007199254740993}`, `{"count":9007199254740993}`},
+		{"explicit null", `,"input":null`, "null"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []byte(`{"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"call_time","name":"get_time"` + tc.input +
+				`}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_time","content":"12:00"}]}]}`)
+			out, errConvert := ConvertClaudeRequestToCodexChecked("test-model", input, false)
+			if errConvert != nil {
+				t.Fatal(errConvert)
+			}
+			call := gjson.GetBytes(out, `input.#(type=="function_call")`)
+			args := call.Get("arguments")
+			if args.Type != gjson.String || args.String() != tc.want {
+				t.Fatalf("arguments = %s, want string %q", args.Raw, tc.want)
+			}
+			result := gjson.GetBytes(out, `input.#(type=="function_call_output")`)
+			if call.Get("call_id").String() != "call_time" || result.Get("call_id").String() != "call_time" {
+				t.Fatal("tool call and result lost their shared ID")
+			}
+		})
+	}
+}
+
 func TestConvertClaudeRequestToCodex_SystemMessageScenarios(t *testing.T) {
 	tests := []struct {
 		name             string

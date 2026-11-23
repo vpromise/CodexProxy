@@ -150,8 +150,7 @@ func (a *Applier) Apply(body []byte, config thinking.ThinkingConfig, modelInfo *
 		}
 
 		// Ensure max_tokens > thinking.budget_tokens (Anthropic API constraint).
-		result = a.normalizeClaudeBudget(result, config.Budget, modelInfo)
-		return result, nil
+		return a.normalizeClaudeBudget(result, config.Budget, modelInfo)
 
 	case thinking.ModeAuto:
 		// For Claude 4.6 models, auto maps to adaptive thinking with upstream defaults.
@@ -182,17 +181,7 @@ func (a *Applier) Apply(body []byte, config thinking.ThinkingConfig, modelInfo *
 
 // normalizeClaudeBudget applies Claude-specific constraints to ensure max_tokens > budget_tokens.
 // Anthropic API requires this constraint; violating it returns a 400 error.
-func (a *Applier) normalizeClaudeBudget(body []byte, budgetTokens int, modelInfo *registry.ModelInfo) []byte {
-	if budgetTokens <= 0 {
-		return body
-	}
-
-	// Ensure the request satisfies Claude constraints:
-	//  1) Determine effective max_tokens (request overrides model default)
-	//  2) If budget_tokens >= max_tokens, reduce budget_tokens to max_tokens-1
-	//  3) If the adjusted budget falls below the model minimum, leave the request unchanged
-	//  4) If max_tokens came from model default, write it back into the request
-
+func (a *Applier) normalizeClaudeBudget(body []byte, budgetTokens int, modelInfo *registry.ModelInfo) ([]byte, error) {
 	effectiveMax, setDefaultMax := a.effectiveMaxTokens(body, modelInfo)
 	if setDefaultMax && effectiveMax > 0 {
 		body, _ = sjson.SetBytes(body, "max_tokens", effectiveMax)
@@ -208,17 +197,19 @@ func (a *Applier) normalizeClaudeBudget(body []byte, budgetTokens int, modelInfo
 	if modelInfo != nil && modelInfo.Thinking != nil {
 		minBudget = modelInfo.Thinking.Min
 	}
-	if minBudget > 0 && adjustedBudget > 0 && adjustedBudget < minBudget {
-		// If enforcing the max_tokens constraint would push the budget below the model minimum,
-		// leave the request unchanged.
-		return body
-	}
-
 	if adjustedBudget != budgetTokens {
+		if adjustedBudget == 0 || adjustedBudget < minBudget {
+			// Preserve the caller's output limit and the selected model's
+			// existing rejection of unsupported manual thinking.
+			if errMode := thinking.ValidateClaudeModelRequest(body, modelInfo); errMode != nil {
+				return body, errMode
+			}
+			return a.Apply(body, thinking.ThinkingConfig{Mode: thinking.ModeNone}, modelInfo)
+		}
 		body, _ = sjson.SetBytes(body, "thinking.budget_tokens", adjustedBudget)
 	}
 
-	return body
+	return body, nil
 }
 
 // effectiveMaxTokens returns the max tokens to cap thinking:
