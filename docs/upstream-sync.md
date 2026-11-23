@@ -21,6 +21,10 @@ The auth watcher distinguishes replaced inodes from genuine removals. A file-bac
 
 Automatic disk-only recovery of a newly issued token after a failed refresh save remains a separate credential lifecycle decision. A preserved older JSON file can contain a refresh token already rotated by the provider.
 
+### Publication receipt
+
+Published [`89e809b3`](https://github.com/vpromise/CodexProxy/commit/89e809b3101ebcaf39613ce5fb8cdb487b9a3f2b) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `cd554539ebefb481231e0e36eb09642815de7b05`. Git transport and the GitHub branch API both returned the implementation SHA. At 2026-11-23T21:03:45+08:00 GitHub reported zero workflow runs, check runs and commit statuses for the SHA. The repository workflows trigger on pull requests or tags. This publication updated source on GitHub.
+
 ## Authorized follow-up in the 2026-11-23 review — graceful shutdown timer
 
 Completed K4 original item 7 on verified fork base `367ee66ce7c8152b4fb13ad7905500af84dc1889`. Adapted the shutdown timer placement from [CPA `759c57c2`](https://github.com/router-for-me/CLIProxyAPI/commit/759c57c2612def05dd15558ffbeb40c25f56f448) and [issue 6094](https://github.com/router-for-me/CLIProxyAPI/issues/6094). The reviewed CPA boundary remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
