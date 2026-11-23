@@ -19,6 +19,10 @@ The fork adaptation uses authenticated reasoning item references and a dedicated
 
 Production enablement requires a selected pool, authorized replica key distribution and a dedicated store. Bare `previous_response_id` reconstruction and restoring server-held signatures after a switch to an unrelated upstream account remain outside this repair.
 
+### Publication receipt
+
+Published [`8145da90`](https://github.com/vpromise/CodexProxy/commit/8145da9089036d788f1f4fe4a9c4c1e38bccb0fd) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `4d2f6736ae970044379389595ed5b87d43816263`. Git transport and the GitHub branch API both returned the implementation SHA. At 2026-11-23T19:42:22+08:00 GitHub reported zero workflow runs, check runs and commit statuses for this SHA. The repository workflows trigger on pull requests or tags. Server deployment was outside the scope of this publication.
+
 ## Authorized follow-up in the 2026-11-23 review — stream startup and cancellation
 
 This closes approved item 4 (K3/K4) on fork base `ddd070c58cccc3d3f8dfc2ce9e20cde5b5d108d6`. The CPA checkpoint remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`. This follow-up reviewed five recorded commits.
