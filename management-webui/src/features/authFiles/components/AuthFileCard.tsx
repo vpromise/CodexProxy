@@ -225,6 +225,13 @@ export function AuthFileCard(props: AuthFileCardProps) {
         </p>
       )}
 
+      {file.requiresSignIn && (
+        <div className={styles.warning}>
+          <IconInfo className={styles.warningIcon} size={14} />
+          <span>{t('auth_files.oauth_sign_in_required')}</span>
+        </div>
+      )}
+
       {rawStatusMessage && hasStatusWarning && (
         <div className={styles.warning} title={rawStatusMessage}>
           <IconInfo className={styles.warningIcon} size={14} />
@@ -313,6 +320,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
                   disabled={
                     disableControls ||
                     file.disabled ||
+                    file.requiresSignIn === true ||
                     statusUpdating[file.name] === true ||
                     isManualRefreshing
                   }

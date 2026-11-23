@@ -68,6 +68,12 @@ const formatJsonObject = (value?: Record<string, unknown>): string => {
 
 const isClaudeLikeBrand = (brand: ProviderBrand): boolean => brand === 'claude';
 
+const optionalBooleanSelection = (value?: boolean) =>
+  value === undefined ? 'inherit' : String(value);
+
+const parseOptionalBooleanSelection = (value: string) =>
+  value === 'inherit' ? undefined : value === 'true';
+
 function buildInitialForm(
   brand: ProviderBrand,
   resource: ProviderResource | null,
@@ -81,7 +87,6 @@ function buildInitialForm(
       proxyUrl: '',
       prefix: '',
       disabled: false,
-      disableCooling: false,
       priority: undefined,
       weight: undefined,
       models: [emptyModel()],
@@ -89,7 +94,7 @@ function buildInitialForm(
       excludedModelsText: '',
       websockets: brand === 'codex' ? false : undefined,
       cloak: isClaudeLikeBrand(brand)
-        ? { mode: '', strictMode: false, sensitiveWordsText: '', cacheUserId: false }
+        ? { mode: '', strictMode: false, sensitiveWordsText: '' }
         : undefined,
       fingerprintProfile: isClaudeLikeBrand(brand) ? '' : undefined,
       testModel: '',
@@ -107,7 +112,7 @@ function buildInitialForm(
       proxyUrl: '',
       prefix: cfg.prefix ?? '',
       disabled: cfg.disabled === true,
-      disableCooling: cfg.disableCooling === true,
+      disableCooling: cfg.disableCooling,
       priority: cfg.priority,
       models: cfg.models?.length
         ? cfg.models.map((m) => ({
@@ -151,7 +156,7 @@ function buildInitialForm(
     proxyUrl: cfg.proxyUrl ?? '',
     prefix: cfg.prefix ?? '',
     disabled,
-    disableCooling: cfg.disableCooling === true,
+    disableCooling: cfg.disableCooling,
     priority: cfg.priority,
     weight: cfg.weight,
     models: cfg.models?.length
@@ -174,7 +179,7 @@ function buildInitialForm(
           mode: (cfg as ProviderKeyConfig).cloak?.mode ?? '',
           strictMode: (cfg as ProviderKeyConfig).cloak?.strictMode === true,
           sensitiveWordsText: (cfg as ProviderKeyConfig).cloak?.sensitiveWords?.join('\n') ?? '',
-          cacheUserId: (cfg as ProviderKeyConfig).cloak?.cacheUserId === true,
+          cacheUserId: (cfg as ProviderKeyConfig).cloak?.cacheUserId,
         }
       : undefined,
     fingerprintProfile: isClaudeLikeBrand(brand)
@@ -359,7 +364,6 @@ export function BaseProviderForm({
           mode: '',
           strictMode: false,
           sensitiveWordsText: '',
-          cacheUserId: false,
         }),
         [key]: value,
       },
@@ -716,19 +720,24 @@ export function BaseProviderForm({
         ) : null}
 
         {supportsDisableCooling ? (
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              className={styles.checkboxBox}
-              checked={form.disableCooling ?? false}
+          <div className={styles.field}>
+            <label className={styles.label} id={`${fid}-cooling-label`}>
+              {t('providersPage.form.coolingPolicy')}
+            </label>
+            <Select
+              value={optionalBooleanSelection(form.disableCooling)}
+              options={[
+                { value: 'inherit', label: t('providersPage.form.coolingInherit') },
+                { value: 'false', label: t('providersPage.form.coolingEnabled') },
+                { value: 'true', label: t('providersPage.form.coolingDisabled') },
+              ]}
               disabled={mutating}
-              onChange={(e) => updateField('disableCooling', e.target.checked)}
+              ariaLabelledBy={`${fid}-cooling-label`}
+              onChange={(value) =>
+                updateField('disableCooling', parseOptionalBooleanSelection(value))
+              }
             />
-            <span className={styles.checkboxText}>
-              <span>{t('providersPage.form.disableCooling')}</span>
-              <small>{t('providersPage.form.disableCoolingHint')}</small>
-            </span>
-          </label>
+          </div>
         ) : null}
       </div>
 
@@ -952,19 +961,24 @@ export function BaseProviderForm({
                 <span>{t('providersPage.form.cloakStrict')}</span>
               </span>
             </label>
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                className={styles.checkboxBox}
-                checked={form.cloak.cacheUserId}
+            <div className={styles.field}>
+              <label className={styles.label} id={`${fid}-cache-user-id-label`}>
+                {t('providersPage.form.cloakCacheUserId')}
+              </label>
+              <Select
+                value={optionalBooleanSelection(form.cloak.cacheUserId)}
+                options={[
+                  { value: 'inherit', label: t('providersPage.form.useDefault') },
+                  { value: 'true', label: t('common.yes') },
+                  { value: 'false', label: t('common.no') },
+                ]}
                 disabled={mutating}
-                onChange={(e) => updateCloak('cacheUserId', e.target.checked)}
+                ariaLabelledBy={`${fid}-cache-user-id-label`}
+                onChange={(value) =>
+                  updateCloak('cacheUserId', parseOptionalBooleanSelection(value))
+                }
               />
-              <span className={styles.checkboxText}>
-                <span>{t('providersPage.form.cloakCacheUserId')}</span>
-                <small>{t('providersPage.form.cloakCacheUserIdHint')}</small>
-              </span>
-            </label>
+            </div>
             <div className={styles.field}>
               <label className={styles.label}>{t('providersPage.form.cloakSensitiveWords')}</label>
               <textarea

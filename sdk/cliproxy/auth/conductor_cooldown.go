@@ -769,7 +769,15 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 			auth.Failed++
 		}
 
-		if auth.Disabled || auth.Status == StatusDisabled || !resultMatchesAvailabilityEpoch(result, auth) {
+		appliesAvailability := !auth.Disabled && auth.Status != StatusDisabled && resultMatchesAvailabilityEpoch(result, auth)
+		signInBlockChanged := appliesAvailability && !result.Success && result.claudeAccessRejected && !shouldSkipCredentialCooldown(result.Error) &&
+			auth.claudeRefreshState == claudeRefreshSignInRequired && result.authSnapshot != nil &&
+			sameCredentialSnapshot(result.authSnapshot, auth)
+		if signInBlockChanged {
+			auth.claudeRefreshState = claudeRefreshAccessRejected
+		}
+
+		if !appliesAvailability {
 			// In-flight outcomes cannot restore availability state cleared by disable.
 		} else if result.Success && result.SkipQuotaObservation {
 			// Auxiliary requests such as count_tokens share a credential and model
@@ -979,6 +987,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 		}
 
 		authSnapshot = auth.Clone()
+		if signInBlockChanged && m.scheduler != nil {
+			m.scheduler.upsertAuth(authSnapshot)
+		}
 		if trackCooldownState {
 			cooldownRecordsAfter := m.cooldownStateRecordsForAuthLocked(auth, now)
 			cooldownStateChanged = !cooldownStateRecordsEqual(cooldownRecordsBefore, cooldownRecordsAfter)

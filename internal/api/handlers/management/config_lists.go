@@ -172,16 +172,10 @@ func (h *Handler) PutClaudeKeys(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "failed to read body"})
 		return
 	}
-	var arr []config.ClaudeKey
-	if err = json.Unmarshal(data, &arr); err != nil {
-		var obj struct {
-			Items []config.ClaudeKey `json:"items"`
-		}
-		if err2 := json.Unmarshal(data, &obj); err2 != nil || len(obj.Items) == 0 {
-			c.JSON(400, gin.H{"error": "invalid body"})
-			return
-		}
-		arr = obj.Items
+	arr, err := decodeProviderConfigList[config.ClaudeKey](data)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid body"})
+		return
 	}
 	for i := range arr {
 		normalizeClaudeKey(&arr[i])
@@ -201,19 +195,20 @@ func (h *Handler) PutClaudeKeys(c *gin.Context) {
 }
 func (h *Handler) PatchClaudeKey(c *gin.Context) {
 	type claudeKeyPatch struct {
-		APIKey                  *string                          `json:"api-key"`
-		FingerprintProfile      *string                          `json:"fingerprint-profile"`
-		Weight                  json.RawMessage                  `json:"weight"`
-		Prefix                  *string                          `json:"prefix"`
-		BaseURL                 *string                          `json:"base-url"`
-		ProxyURL                *string                          `json:"proxy-url"`
-		Models                  *[]config.ClaudeModel            `json:"models"`
-		Headers                 *map[string]string               `json:"headers"`
-		ExcludedModels          *[]string                        `json:"excluded-models"`
-		RebuildMidSystemMessage *bool                            `json:"rebuild-mid-system-message"`
-		DisableCooling          json.RawMessage                  `json:"disable-cooling"`
-		RequestRetry            *int                             `json:"request-retry"`
-		RequestScopedErrors     *[]config.RequestScopedErrorRule `json:"request-scoped-errors"`
+		Cloak                   providerPatchField[*claudeCloakConfigPatch] `json:"cloak"`
+		APIKey                  *string                                     `json:"api-key"`
+		FingerprintProfile      *string                                     `json:"fingerprint-profile"`
+		Weight                  json.RawMessage                             `json:"weight"`
+		Prefix                  *string                                     `json:"prefix"`
+		BaseURL                 *string                                     `json:"base-url"`
+		ProxyURL                *string                                     `json:"proxy-url"`
+		Models                  *[]config.ClaudeModel                       `json:"models"`
+		Headers                 providerPatchField[map[string]string]       `json:"headers"`
+		ExcludedModels          *[]string                                   `json:"excluded-models"`
+		RebuildMidSystemMessage *bool                                       `json:"rebuild-mid-system-message"`
+		DisableCooling          json.RawMessage                             `json:"disable-cooling"`
+		RequestRetry            providerPatchField[*int]                    `json:"request-retry"`
+		RequestScopedErrors     *[]config.RequestScopedErrorRule            `json:"request-scoped-errors"`
 	}
 	var body struct {
 		Index *int            `json:"index"`
@@ -276,8 +271,11 @@ func (h *Handler) PatchClaudeKey(c *gin.Context) {
 	if body.Value.Models != nil {
 		entry.Models = append([]config.ClaudeModel(nil), (*body.Value.Models)...)
 	}
-	if body.Value.Headers != nil {
-		entry.Headers = config.NormalizeHeaders(*body.Value.Headers)
+	if body.Value.Cloak.present {
+		entry.Cloak = body.Value.Cloak.value.apply(entry.Cloak)
+	}
+	if body.Value.Headers.present {
+		entry.Headers = config.NormalizeHeaders(body.Value.Headers.value)
 	}
 	if body.Value.ExcludedModels != nil {
 		entry.ExcludedModels = config.NormalizeExcludedModels(*body.Value.ExcludedModels)
@@ -288,8 +286,8 @@ func (h *Handler) PatchClaudeKey(c *gin.Context) {
 	if !applyDisableCoolingPatch(c, body.Value.DisableCooling, &entry.DisableCooling) {
 		return
 	}
-	if body.Value.RequestRetry != nil {
-		entry.RequestRetry = body.Value.RequestRetry
+	if body.Value.RequestRetry.present {
+		entry.RequestRetry = body.Value.RequestRetry.value
 	}
 	if body.Value.RequestScopedErrors != nil {
 		entry.RequestScopedErrors = append([]config.RequestScopedErrorRule(nil), *body.Value.RequestScopedErrors...)
@@ -364,16 +362,10 @@ func (h *Handler) PutOpenAICompat(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "failed to read body"})
 		return
 	}
-	var arr []config.OpenAICompatibility
-	if err = json.Unmarshal(data, &arr); err != nil {
-		var obj struct {
-			Items []config.OpenAICompatibility `json:"items"`
-		}
-		if err2 := json.Unmarshal(data, &obj); err2 != nil || len(obj.Items) == 0 {
-			c.JSON(400, gin.H{"error": "invalid body"})
-			return
-		}
-		arr = obj.Items
+	arr, err := decodeProviderConfigList[config.OpenAICompatibility](data)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid body"})
+		return
 	}
 	filtered := make([]config.OpenAICompatibility, 0, len(arr))
 	for i := range arr {
@@ -391,23 +383,26 @@ func (h *Handler) PutOpenAICompat(c *gin.Context) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	h.cfg.OpenAICompatibility = filtered
 	h.cfg.SanitizeOpenAICompatibility()
-	h.persistLocked(c)
+	if !h.persistLocked(c) {
+		h.cfg = previous
+	}
 }
 func (h *Handler) PatchOpenAICompat(c *gin.Context) {
 	type openAICompatPatch struct {
-		Name                  *string                             `json:"name"`
-		Prefix                *string                             `json:"prefix"`
-		Disabled              *bool                               `json:"disabled"`
-		DisableCooling        json.RawMessage                     `json:"disable-cooling"`
-		BaseURL               *string                             `json:"base-url"`
-		APIKeyEntries         *[]config.OpenAICompatibilityAPIKey `json:"api-key-entries"`
-		Models                *[]config.OpenAICompatibilityModel  `json:"models"`
-		Headers               *map[string]string                  `json:"headers"`
-		SupportPromptCacheKey *bool                               `json:"support-prompt-cache-key"`
-		RequestRetry          *int                                `json:"request-retry"`
-		RequestScopedErrors   *[]config.RequestScopedErrorRule    `json:"request-scoped-errors"`
+		Name                  *string                               `json:"name"`
+		Prefix                *string                               `json:"prefix"`
+		Disabled              *bool                                 `json:"disabled"`
+		DisableCooling        json.RawMessage                       `json:"disable-cooling"`
+		BaseURL               *string                               `json:"base-url"`
+		APIKeyEntries         *[]config.OpenAICompatibilityAPIKey   `json:"api-key-entries"`
+		Models                *[]config.OpenAICompatibilityModel    `json:"models"`
+		Headers               providerPatchField[map[string]string] `json:"headers"`
+		SupportPromptCacheKey *bool                                 `json:"support-prompt-cache-key"`
+		RequestRetry          providerPatchField[*int]              `json:"request-retry"`
+		RequestScopedErrors   *[]config.RequestScopedErrorRule      `json:"request-scoped-errors"`
 	}
 	var body struct {
 		Name  *string            `json:"name"`
@@ -421,6 +416,7 @@ func (h *Handler) PatchOpenAICompat(c *gin.Context) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	previous := h.cfg.CloneForRuntime()
 	targetIndex := -1
 	if body.Index != nil && *body.Index >= 0 && *body.Index < len(h.cfg.OpenAICompatibility) {
 		targetIndex = *body.Index
@@ -452,15 +448,17 @@ func (h *Handler) PatchOpenAICompat(c *gin.Context) {
 	if !applyDisableCoolingPatch(c, body.Value.DisableCooling, &entry.DisableCooling) {
 		return
 	}
-	if body.Value.RequestRetry != nil {
-		entry.RequestRetry = body.Value.RequestRetry
+	if body.Value.RequestRetry.present {
+		entry.RequestRetry = body.Value.RequestRetry.value
 	}
 	if body.Value.BaseURL != nil {
 		trimmed := strings.TrimSpace(*body.Value.BaseURL)
 		if trimmed == "" {
 			h.cfg.OpenAICompatibility = append(h.cfg.OpenAICompatibility[:targetIndex], h.cfg.OpenAICompatibility[targetIndex+1:]...)
 			h.cfg.SanitizeOpenAICompatibility()
-			h.persistLocked(c)
+			if !h.persistLocked(c) {
+				h.cfg = previous
+			}
 			return
 		}
 		entry.BaseURL = trimmed
@@ -477,8 +475,8 @@ func (h *Handler) PatchOpenAICompat(c *gin.Context) {
 	if body.Value.Models != nil {
 		entry.Models = append([]config.OpenAICompatibilityModel(nil), (*body.Value.Models)...)
 	}
-	if body.Value.Headers != nil {
-		entry.Headers = config.NormalizeHeaders(*body.Value.Headers)
+	if body.Value.Headers.present {
+		entry.Headers = config.NormalizeHeaders(body.Value.Headers.value)
 	}
 	if body.Value.SupportPromptCacheKey != nil {
 		entry.SupportPromptCacheKey = *body.Value.SupportPromptCacheKey
@@ -489,7 +487,9 @@ func (h *Handler) PatchOpenAICompat(c *gin.Context) {
 	normalizeOpenAICompatibilityEntry(&entry)
 	h.cfg.OpenAICompatibility[targetIndex] = entry
 	h.cfg.SanitizeOpenAICompatibility()
-	h.persistLocked(c)
+	if !h.persistLocked(c) {
+		h.cfg = previous
+	}
 }
 
 func (h *Handler) DeleteOpenAICompat(c *gin.Context) {
@@ -809,16 +809,10 @@ func (h *Handler) PutCodexKeys(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "failed to read body"})
 		return
 	}
-	var arr []config.CodexKey
-	if err = json.Unmarshal(data, &arr); err != nil {
-		var obj struct {
-			Items []config.CodexKey `json:"items"`
-		}
-		if err2 := json.Unmarshal(data, &obj); err2 != nil || len(obj.Items) == 0 {
-			c.JSON(400, gin.H{"error": "invalid body"})
-			return
-		}
-		arr = obj.Items
+	arr, err := decodeProviderConfigList[config.CodexKey](data)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid body"})
+		return
 	}
 	// Filter out codex entries with empty base-url (treat as removed)
 	filtered := make([]config.CodexKey, 0, len(arr))
@@ -842,18 +836,18 @@ func (h *Handler) PutCodexKeys(c *gin.Context) {
 }
 func (h *Handler) PatchCodexKey(c *gin.Context) {
 	type codexKeyPatch struct {
-		APIKey              *string                          `json:"api-key"`
-		Weight              json.RawMessage                  `json:"weight"`
-		Prefix              *string                          `json:"prefix"`
-		BaseURL             *string                          `json:"base-url"`
-		ProxyURL            *string                          `json:"proxy-url"`
-		AlphaSearch         *bool                            `json:"alpha-search"`
-		Models              *[]config.CodexModel             `json:"models"`
-		Headers             *map[string]string               `json:"headers"`
-		ExcludedModels      *[]string                        `json:"excluded-models"`
-		DisableCooling      json.RawMessage                  `json:"disable-cooling"`
-		RequestRetry        *int                             `json:"request-retry"`
-		RequestScopedErrors *[]config.RequestScopedErrorRule `json:"request-scoped-errors"`
+		APIKey              *string                               `json:"api-key"`
+		Weight              json.RawMessage                       `json:"weight"`
+		Prefix              *string                               `json:"prefix"`
+		BaseURL             *string                               `json:"base-url"`
+		ProxyURL            *string                               `json:"proxy-url"`
+		AlphaSearch         *bool                                 `json:"alpha-search"`
+		Models              *[]config.CodexModel                  `json:"models"`
+		Headers             providerPatchField[map[string]string] `json:"headers"`
+		ExcludedModels      *[]string                             `json:"excluded-models"`
+		DisableCooling      json.RawMessage                       `json:"disable-cooling"`
+		RequestRetry        providerPatchField[*int]              `json:"request-retry"`
+		RequestScopedErrors *[]config.RequestScopedErrorRule      `json:"request-scoped-errors"`
 	}
 	var body struct {
 		Index *int           `json:"index"`
@@ -920,8 +914,8 @@ func (h *Handler) PatchCodexKey(c *gin.Context) {
 	if body.Value.Models != nil {
 		entry.Models = append([]config.CodexModel(nil), (*body.Value.Models)...)
 	}
-	if body.Value.Headers != nil {
-		entry.Headers = config.NormalizeHeaders(*body.Value.Headers)
+	if body.Value.Headers.present {
+		entry.Headers = config.NormalizeHeaders(body.Value.Headers.value)
 	}
 	if body.Value.ExcludedModels != nil {
 		entry.ExcludedModels = config.NormalizeExcludedModels(*body.Value.ExcludedModels)
@@ -929,8 +923,8 @@ func (h *Handler) PatchCodexKey(c *gin.Context) {
 	if !applyDisableCoolingPatch(c, body.Value.DisableCooling, &entry.DisableCooling) {
 		return
 	}
-	if body.Value.RequestRetry != nil {
-		entry.RequestRetry = body.Value.RequestRetry
+	if body.Value.RequestRetry.present {
+		entry.RequestRetry = body.Value.RequestRetry.value
 	}
 	if body.Value.RequestScopedErrors != nil {
 		entry.RequestScopedErrors = append([]config.RequestScopedErrorRule(nil), *body.Value.RequestScopedErrors...)
@@ -996,6 +990,69 @@ func (h *Handler) DeleteCodexKey(c *gin.Context) {
 }
 
 // Shared scoped-provider patch helpers
+// providerPatchField preserves the distinction between an omitted field and an
+// explicit null. Null resets the field to the zero value of T.
+type providerPatchField[T any] struct {
+	present bool
+	value   T
+}
+
+func (f *providerPatchField[T]) UnmarshalJSON(data []byte) error {
+	var value T
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	f.present = true
+	f.value = value
+	return nil
+}
+
+type claudeCloakConfigPatch struct {
+	Mode           providerPatchField[string]   `json:"mode"`
+	StrictMode     providerPatchField[bool]     `json:"strict-mode"`
+	SensitiveWords providerPatchField[[]string] `json:"sensitive-words"`
+	CacheUserID    providerPatchField[*bool]    `json:"cache-user-id"`
+}
+
+func (p *claudeCloakConfigPatch) apply(existing *config.CloakConfig) *config.CloakConfig {
+	if p == nil {
+		return nil
+	}
+	var next config.CloakConfig
+	if existing != nil {
+		next = *existing
+	}
+	if p.Mode.present {
+		next.Mode = p.Mode.value
+	}
+	if p.StrictMode.present {
+		next.StrictMode = p.StrictMode.value
+	}
+	if p.SensitiveWords.present {
+		next.SensitiveWords = p.SensitiveWords.value
+	}
+	if p.CacheUserID.present {
+		next.CacheUserID = p.CacheUserID.value
+	}
+	return &next
+}
+
+// decodeProviderConfigList accepts a bare array or an items wrapper. Use an
+// explicit empty array to clear the section.
+func decodeProviderConfigList[T any](data []byte) ([]T, error) {
+	var items []T
+	if err := json.Unmarshal(data, &items); err == nil && items != nil {
+		return items, nil
+	}
+	var wrapper struct {
+		Items []T `json:"items"`
+	}
+	if err := json.Unmarshal(data, &wrapper); err != nil || wrapper.Items == nil {
+		return nil, fmt.Errorf("expected a provider configuration array")
+	}
+	return wrapper.Items, nil
+}
+
 func applyDisableCoolingPatch(c *gin.Context, raw json.RawMessage, target **bool) bool {
 	if len(raw) == 0 {
 		return true

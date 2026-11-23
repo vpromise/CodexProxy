@@ -44,6 +44,33 @@ func NewOAuthHTTPStatusError(operation string, status int, errorType, message st
 	}
 }
 
+// RefreshTokenExpiredError is returned when the Claude refresh endpoint
+// explicitly rejects the supplied refresh token as expired.
+type RefreshTokenExpiredError struct{}
+
+func (*RefreshTokenExpiredError) Error() string   { return "Claude OAuth refresh token expired" }
+func (*RefreshTokenExpiredError) StatusCode() int { return http.StatusBadRequest }
+
+type accessTokenRejection struct{ error }
+
+func (e accessTokenRejection) Unwrap() error { return e.error }
+
+// MarkAccessTokenRejection records verified provenance without changing an
+// execution error's status, response body, or wrapping chain.
+func MarkAccessTokenRejection(err error) error {
+	if err == nil {
+		return nil
+	}
+	return accessTokenRejection{err}
+}
+
+// IsAccessTokenRejection reports that the actual Claude OAuth access token
+// accompanied a first-party model request rejected with HTTP 401.
+func IsAccessTokenRejection(err error) bool {
+	var rejected accessTokenRejection
+	return errors.As(err, &rejected)
+}
+
 // IsOAuthProfileScopeError reports only explicit profile-scope rejections.
 // A bare 403 is ambiguous: it may come from a proxy or an organization policy
 // and must remain retryable.

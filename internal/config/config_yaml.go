@@ -238,6 +238,18 @@ func mergeNodePreserve(dst, src *yaml.Node, path ...[]string) {
 			copyNodeShallow(dst, src)
 		}
 		mergeMappingPreserve(dst, src, currentPath)
+		if len(currentPath) == 2 && isProviderConfigSection(currentPath[0]) {
+			switch {
+			case currentPath[1] == "headers":
+				pruneMissingMapKeys(dst, src)
+			case currentPath[0] == "claude-api-key" && currentPath[1] == "cloak":
+				for _, key := range []string{"mode", "strict-mode", "cache-user-id", "sensitive-words"} {
+					if findMapKeyIndex(src, key) < 0 {
+						removeMapKey(dst, key)
+					}
+				}
+			}
+		}
 	case yaml.SequenceNode:
 		// Preserve explicit null style if dst was null and src is empty sequence
 		if dst.Kind == yaml.ScalarNode && dst.Tag == "!!null" && len(src.Content) == 0 {
@@ -249,7 +261,7 @@ func mergeNodePreserve(dst, src *yaml.Node, path ...[]string) {
 			dst.Tag = "!!seq"
 			dst.Content = nil
 		}
-		reorderSequenceForMerge(dst, src)
+		reorderSequenceForMerge(dst, src, currentPath)
 		// Update elements in place
 		minContent := len(dst.Content)
 		if len(src.Content) < minContent {
@@ -322,7 +334,32 @@ func isKnownDefaultValue(path []string, node *yaml.Node) bool {
 		return false
 	}
 
-	// First check if it's a zero value
+	// These pointer-backed overrides are emitted only when explicitly set.
+	if len(path) == 2 && isProviderConfigSection(path[0]) && node != nil {
+		switch path[1] {
+		case "disable-cooling":
+			if node.Tag == "!!bool" {
+				return false
+			}
+		case "request-retry":
+			if node.Tag == "!!int" {
+				return false
+			}
+		case "cloak":
+			if path[0] == "claude-api-key" && node.Kind == yaml.MappingNode {
+				return false
+			}
+		case "max-in-flight", "queue-capacity", "queue-timeout-seconds":
+			if path[0] == "claude-api-key" && node.Tag == "!!int" {
+				return false
+			}
+		}
+	}
+	if len(path) == 3 && path[0] == "claude-api-key" && path[1] == "cloak" &&
+		path[2] == "cache-user-id" && node != nil && node.Tag == "!!bool" {
+		return false
+	}
+
 	if isZeroValueNode(node) {
 		return true
 	}
@@ -357,6 +394,15 @@ func isKnownDefaultValue(path []string, node *yaml.Node) bool {
 	return false
 }
 
+func isProviderConfigSection(key string) bool {
+	switch key {
+	case "claude-api-key", "codex-api-key", "openai-compatibility":
+		return true
+	default:
+		return false
+	}
+}
+
 // pruneKnownDefaultsInNewNode removes default-valued descendants from a new node
 // before it is appended into the destination YAML tree.
 func pruneKnownDefaultsInNewNode(path []string, node *yaml.Node) {
@@ -381,7 +427,8 @@ func pruneKnownDefaultsInNewNode(path []string, node *yaml.Node) {
 
 			pruneKnownDefaultsInNewNode(childPath, valueNode)
 			if (valueNode.Kind == yaml.MappingNode || valueNode.Kind == yaml.SequenceNode) &&
-				len(valueNode.Content) == 0 {
+				len(valueNode.Content) == 0 &&
+				!(len(childPath) == 2 && childPath[0] == "claude-api-key" && childPath[1] == "cloak") {
 				continue
 			}
 
@@ -486,7 +533,7 @@ func copyNodeShallow(dst, src *yaml.Node) {
 	}
 }
 
-func reorderSequenceForMerge(dst, src *yaml.Node) {
+func reorderSequenceForMerge(dst, src *yaml.Node, path []string) {
 	if dst == nil || src == nil {
 		return
 	}
@@ -500,7 +547,7 @@ func reorderSequenceForMerge(dst, src *yaml.Node) {
 	used := make([]bool, len(original))
 	ordered := make([]*yaml.Node, len(src.Content))
 	for i := range src.Content {
-		if idx := matchSequenceElement(original, used, src.Content[i]); idx >= 0 {
+		if idx := matchSequenceElement(original, used, src.Content[i], path); idx >= 0 {
 			ordered[i] = original[idx]
 			used[idx] = true
 		}
@@ -508,19 +555,19 @@ func reorderSequenceForMerge(dst, src *yaml.Node) {
 	dst.Content = ordered
 }
 
-func matchSequenceElement(original []*yaml.Node, used []bool, target *yaml.Node) int {
+func matchSequenceElement(original []*yaml.Node, used []bool, target *yaml.Node, path []string) int {
 	if target == nil {
 		return -1
 	}
 	switch target.Kind {
 	case yaml.MappingNode:
-		id := sequenceElementIdentity(target)
+		id := sequenceElementIdentity(target, path)
 		if id != "" {
 			for i := range original {
 				if used[i] || original[i] == nil || original[i].Kind != yaml.MappingNode {
 					continue
 				}
-				if sequenceElementIdentity(original[i]) == id {
+				if sequenceElementIdentity(original[i], path) == id {
 					return i
 				}
 			}
@@ -551,9 +598,14 @@ func matchSequenceElement(original []*yaml.Node, used []bool, target *yaml.Node)
 	return -1
 }
 
-func sequenceElementIdentity(node *yaml.Node) string {
+func sequenceElementIdentity(node *yaml.Node, path []string) string {
 	if node == nil || node.Kind != yaml.MappingNode {
 		return ""
+	}
+	if len(path) == 1 && (path[0] == "claude-api-key" || path[0] == "codex-api-key") {
+		if key := mappingScalarValue(node, "api-key"); key != "" {
+			return "api-key=" + key + "\x00base-url=" + mappingScalarValue(node, "base-url")
+		}
 	}
 	identityKeys := []string{"id", "name", "alias", "api-key", "api_key", "apikey", "key", "provider", "model"}
 	for _, k := range identityKeys {

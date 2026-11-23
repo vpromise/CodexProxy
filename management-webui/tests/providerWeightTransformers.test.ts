@@ -103,6 +103,52 @@ describe('provider credential weight normalization', () => {
     ]);
   });
 
+  test('sends both kinds of false distinctly from inherited and empty provider settings', async () => {
+    const writes: unknown[] = [];
+    apiClient.get = (async () => ({
+      'claude-api-key': [
+        {
+          'api-key': 'fixture',
+          'base-url': 'https://a.example.com',
+          'disable-cooling': true,
+          cloak: { mode: 'auto', 'strict-mode': true, 'cache-user-id': true },
+        },
+        {
+          'api-key': 'fixture',
+          'base-url': 'https://b.example.com',
+          'disable-cooling': true,
+        },
+      ],
+    })) as typeof apiClient.get;
+    apiClient.put = (async (_url: string, data?: unknown) => {
+      writes.push(data);
+      return undefined;
+    }) as typeof apiClient.put;
+
+    const previous = { apiKey: 'fixture', baseUrl: 'https://a.example.com' };
+    await providersApi.updateClaudeConfig(previous.apiKey, previous.baseUrl, {
+      ...previous,
+      disableCooling: false,
+      cloak: { mode: 'auto', strictMode: false, cacheUserId: false },
+    });
+    await providersApi.updateClaudeConfig(previous.apiKey, previous.baseUrl, {
+      ...previous,
+      cloak: {},
+    });
+
+    const [explicit, inherited] = writes as Array<Array<Record<string, unknown>>>;
+    expect(explicit[0]).toMatchObject({
+      'disable-cooling': false,
+      cloak: { mode: 'auto', 'strict-mode': false, 'cache-user-id': false },
+    });
+    expect(explicit[1]).toMatchObject({
+      'base-url': 'https://b.example.com',
+      'disable-cooling': true,
+    });
+    expect(inherited[0]).not.toHaveProperty('disable-cooling');
+    expect(inherited[0]?.cloak).toEqual({});
+  });
+
   test('preserves explicit false cooling overrides during unrelated edits', async () => {
     const writes: unknown[] = [];
     apiClient.get = (async (url: string) =>

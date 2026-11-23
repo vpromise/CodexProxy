@@ -343,7 +343,14 @@ func (h *Handler) buildAuthFileEntryLocked(auth *coreauth.Auth) gin.H {
 	}
 	entry["success"] = auth.Success
 	entry["failed"] = auth.Failed
-	entry["recent_requests"] = auth.RecentRequestsSnapshot(time.Now())
+	now := time.Now()
+	if auth.RequiresSignIn() {
+		entry["requires_sign_in"] = true
+		if auth.SignInBlocksDispatch(now) {
+			entry["unavailable"] = true
+		}
+	}
+	entry["recent_requests"] = auth.RecentRequestsSnapshot(now)
 	entry["quota"] = quotaObservationPayloadForProvider(auth.Provider, auth.Quota)
 	if modelQuotas := modelQuotaObservationPayload(auth.Provider, auth.ModelStates); len(modelQuotas) > 0 {
 		entry["model_quotas"] = modelQuotas

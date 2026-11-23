@@ -176,9 +176,7 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
     if (cacheUserId !== undefined) {
       cloak.cacheUserId = cacheUserId;
     }
-    if (Object.keys(cloak).length) {
-      config.cloak = cloak;
-    }
+    config.cloak = cloak;
   }
   const fingerprintProfile = record?.['fingerprint-profile'];
   if (typeof fingerprintProfile === 'string' && fingerprintProfile.trim()) {

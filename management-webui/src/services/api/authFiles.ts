@@ -261,6 +261,7 @@ const normalizeAuthFileEntry = (entry: AuthFileEntry): AuthFileEntry => {
     successCount: normalizeUsageTotal(entry.success),
     failureCount: normalizeUsageTotal(entry.failed),
     ...(statusMessage ? { statusMessage } : {}),
+    requiresSignIn: (entry['requires_sign_in'] ?? entry.requiresSignIn) === true,
     ...(modified > 0 ? { modified } : {}),
     priority,
     weight,

@@ -54,6 +54,8 @@ type Result struct {
 	CredentialVersion uint64
 	// authSnapshot retains the selected registration for stale-result event reporting.
 	authSnapshot *Auth
+	// claudeAccessRejected marks a verified upstream rejection of the selected Claude OAuth access token.
+	claudeAccessRejected bool
 	// Provider is copied for convenience when emitting hooks.
 	Provider string
 	// Model is the upstream model identifier used for the request.

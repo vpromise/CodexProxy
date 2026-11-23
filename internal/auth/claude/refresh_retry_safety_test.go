@@ -5,9 +5,50 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
+
+func TestClaudeRefreshClassifiesOnlyExplicitExpiredGrant(t *testing.T) {
+	const expiredGrant = `{"error":"invalid_grant","error_description":"Refresh token expired"}`
+	for _, tc := range []struct {
+		name       string
+		body       string
+		status     int
+		otherRoute bool
+		want       bool
+	}{
+		{name: "expired", body: expiredGrant, status: http.StatusBadRequest, want: true},
+		{name: "generic", body: `{"error":"invalid_grant","error_description":"Bad request"}`, status: http.StatusBadRequest},
+		{name: "other text", body: `{"error":"invalid_grant","message":"Refresh token expired"}`, status: http.StatusBadRequest},
+		{name: "different grant", body: `{"error":"invalid_request","error_description":"Refresh token expired"}`, status: http.StatusBadRequest},
+		{name: "other status", body: expiredGrant, status: http.StatusUnauthorized},
+		{name: "other route", body: expiredGrant, status: http.StatusBadRequest, otherRoute: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			auth := &ClaudeAuth{httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				resp := jsonResponse(req, tc.body)
+				resp.StatusCode = tc.status
+				if tc.otherRoute {
+					resp.Request = req.Clone(req.Context())
+					resp.Request.URL = &url.URL{Scheme: "https", Host: "example.test", Path: "/v1/oauth/token"}
+				}
+				return resp, nil
+			})}}
+			_, err := auth.RefreshTokensWithRetry(t.Context(), "expired-refresh-fixture-"+tc.name, 3)
+			var signIn *RefreshTokenExpiredError
+			if calls != 1 || err == nil || errors.As(err, &signIn) != tc.want {
+				t.Fatalf("calls=%d classified=%v err=%v, want one attempt with expiry=%v", calls, signIn != nil, err, tc.want)
+			}
+			if tc.want && strings.Contains(err.Error(), "error_description") {
+				t.Fatalf("typed error carried the raw response body: %v", err)
+			}
+		})
+	}
+}
 
 func TestClaudeRefreshDoesNotReplayAmbiguousOutcome(t *testing.T) {
 	for _, kind := range []string{"transport", "body-read", "decode", "invalid-grant"} {

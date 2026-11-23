@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { isProblemAuthFile } from '../src/features/authFiles/constants';
 import { normalizeAuthFilesResponse } from '../src/services/api/authFiles';
 import type { AuthFilesResponse } from '../src/types/authFile';
 
@@ -6,6 +7,18 @@ const responseWithRawFiles = (files: Array<Record<string, unknown>>): AuthFilesR
   ({ files }) as unknown as AuthFilesResponse;
 
 describe('auth-files response normalization', () => {
+  test('surfaces reauthorization separately from the problem-file deletion filter', () => {
+    const { files } = normalizeAuthFilesResponse(
+      responseWithRawFiles([
+        { name: 'still-serving.json', status: 'active', requires_sign_in: true },
+        { name: 'recovered.json', status: 'active' },
+        { name: 'expired.json', status: 'error', unavailable: true, requires_sign_in: true },
+      ])
+    );
+
+    expect(files.map((file) => file.requiresSignIn)).toEqual([true, false, true]);
+    expect(files.filter(isProblemAuthFile).map((file) => file.name)).toEqual(['expired.json']);
+  });
   test('normalizes WRR weights while preserving zero and negative values', () => {
     const result = normalizeAuthFilesResponse(
       responseWithRawFiles([

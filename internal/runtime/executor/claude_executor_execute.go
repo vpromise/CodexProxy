@@ -388,6 +388,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	}
 	helps.RecordAPIResponseMetadata(ctx, e.cfg, httpResp.StatusCode, httpResp.Header.Clone())
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		defer recordClaudeAccessTokenRejection(auth, httpResp, &err)
 		if errLimit := validateClaudeResponseContentLength(httpResp, claudeMaxErrorResponseBytes, "error"); errLimit != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, errLimit)
 			if errClose := httpResp.Body.Close(); errClose != nil {

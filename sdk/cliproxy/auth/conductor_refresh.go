@@ -12,9 +12,38 @@ import (
 	"sync"
 	"time"
 
+	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	internalconfig "github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	log "github.com/sirupsen/logrus"
 )
+
+type claudeOAuthRefreshState uint8
+
+const (
+	claudeRefreshSignInRequired claudeOAuthRefreshState = iota + 1
+	claudeRefreshAccessRejected
+)
+
+// RequiresSignIn reports a confirmed terminal Claude OAuth refresh failure for
+// this credential. A still-valid access token can continue to serve requests.
+func (a *Auth) RequiresSignIn() bool {
+	return a != nil && a.claudeRefreshState != 0
+}
+
+// SignInBlocksDispatch reports whether the credential needs sign-in and has
+// exhausted its remaining access token.
+func (a *Auth) SignInBlocksDispatch(now time.Time) bool {
+	return a.RequiresSignIn() &&
+		(a.claudeRefreshState == claudeRefreshAccessRejected || !a.HasValidAccessToken(now))
+}
+
+func retainClaudeRefreshState(previous, next *Auth, credentialsChanged bool) {
+	if previous.RequiresSignIn() && !credentialsChanged && next.AuthKind() == AuthKindOAuth {
+		next.claudeRefreshState = previous.claudeRefreshState
+	} else {
+		next.claudeRefreshState = 0
+	}
+}
 
 // RefreshEvaluator allows runtime state to override refresh decisions.
 type RefreshEvaluator interface {
@@ -117,7 +146,7 @@ func (m *Manager) shouldRefresh(a *Auth, now time.Time) bool {
 	if a == nil || a.Disabled || a.Status == StatusDisabled {
 		return false
 	}
-	if hasUnauthorizedAuthFailure(a) {
+	if a.RequiresSignIn() || hasUnauthorizedAuthFailure(a) {
 		return false
 	}
 	if !a.NextRefreshAfter.IsZero() && now.Before(a.NextRefreshAfter) {
@@ -324,7 +353,7 @@ func lookupMetadataTime(meta map[string]any, keys ...string) (time.Time, bool) {
 func (m *Manager) markRefreshPending(id string, now time.Time) bool {
 	m.mu.Lock()
 	auth, ok := m.auths[id]
-	if !ok || auth == nil || auth.Disabled || auth.Status == StatusDisabled {
+	if !ok || auth == nil || auth.Disabled || auth.Status == StatusDisabled || auth.RequiresSignIn() {
 		m.mu.Unlock()
 		return false
 	}
@@ -511,9 +540,13 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 
 	// Another request may already have refreshed this credential.
 	if failedAccessToken != "" {
-		if currentToken := authAccessToken(auth); currentToken != "" && currentToken != failedAccessToken {
+		if currentToken := authAccessToken(auth); currentToken != "" && currentToken != failedAccessToken &&
+			!auth.SignInBlocksDispatch(time.Now()) {
 			return auth.Clone(), nil
 		}
+	}
+	if auth.RequiresSignIn() {
+		return nil, &claudeauth.RefreshTokenExpiredError{}
 	}
 
 	base := auth.Clone()
@@ -526,6 +559,9 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 	now := time.Now()
 	if err != nil {
 		unauthorized := isUnauthorizedError(err)
+		var expiredRefresh *claudeauth.RefreshTokenExpiredError
+		requiresSignIn := strings.EqualFold(base.Provider, "claude") && base.AuthKind() == AuthKindOAuth &&
+			errors.As(err, &expiredRefresh)
 		shouldReschedule := false
 		m.mu.Lock()
 		if current := m.auths[id]; current != nil {
@@ -535,6 +571,16 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 			}
 			current.Generation++
 			current.UpdatedAt = now
+			if requiresSignIn {
+				current.claudeRefreshState = claudeRefreshSignInRequired
+				current.NextRefreshAfter = time.Time{}
+				if m.scheduler != nil {
+					m.scheduler.upsertAuth(current)
+				}
+				m.mu.Unlock()
+				m.queueRefreshReschedule(id)
+				return nil, err
+			}
 			preserveAvailability := authAvailabilityChanged(base, current) || authHasActiveCooldown(current, now)
 			if !preserveAvailability {
 				current.LastError = refreshErrorFromError(err)

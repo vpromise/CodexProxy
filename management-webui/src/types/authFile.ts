@@ -27,6 +27,7 @@ export interface AuthFileItem {
   unavailable?: boolean;
   status?: string;
   statusMessage?: string;
+  requiresSignIn?: boolean;
   lastRefresh?: string | number;
   modified?: number;
   priority?: number;

@@ -107,8 +107,10 @@ type Auth struct {
 
 	// availabilityEpoch invalidates in-flight availability effects after an explicit reset.
 	availabilityEpoch uint64
-	recentRequests    recentRequestRing `json:"-"`
-	indexAssigned     bool              `json:"-"`
+	// claudeRefreshState belongs to the current credential material and exists only in memory.
+	claudeRefreshState claudeOAuthRefreshState
+	recentRequests     recentRequestRing `json:"-"`
+	indexAssigned      bool              `json:"-"`
 }
 
 const (

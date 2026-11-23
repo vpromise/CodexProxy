@@ -1447,6 +1447,26 @@ func doClaudeUpstreamRequest(client *http.Client, req *http.Request) (*http.Resp
 	return client.Do(req)
 }
 
+// recordClaudeAccessTokenRejection uses the final HTTP request so overrides and
+// redirects cannot attribute another credential's 401 to the selected OAuth token.
+func recordClaudeAccessTokenRejection(auth *cliproxyauth.Auth, resp *http.Response, err *error) {
+	if *err == nil || resp.StatusCode != http.StatusUnauthorized || auth.AuthKind() != cliproxyauth.AuthKindOAuth {
+		return
+	}
+	req := resp.Request
+	if req == nil || !isAnthropicUpstreamURL(req.URL) ||
+		req.Method != http.MethodPost || req.URL.EscapedPath() != "/v1/messages" ||
+		(req.Host != "" && !strings.EqualFold(req.Host, req.URL.Host)) ||
+		helps.HeaderValueCaseInsensitive(req.Header, "X-Api-Key") != "" {
+		return
+	}
+	accessToken := claudeauth.ReadMetadataString(&auth.Metadata, "access_token")
+	values := req.Header.Values("Authorization")
+	if accessToken != "" && len(values) == 1 && values[0] == "Bearer "+accessToken {
+		*err = claudeauth.MarkAccessTokenRejection(*err)
+	}
+}
+
 // claudeWireHeaderCasing maps Go's canonical header name to the exact casing
 // Claude Code 2.1.321 puts on the wire. Only the names that differ are listed;
 // the other headers already survive canonicalisation unchanged.

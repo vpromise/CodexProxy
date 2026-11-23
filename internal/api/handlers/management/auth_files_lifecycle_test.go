@@ -6,15 +6,78 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	fileauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
+
+type managementExpiredClaudeExecutor struct{ coreauth.ProviderExecutor }
+
+func (managementExpiredClaudeExecutor) Identifier() string { return "claude" }
+
+func (managementExpiredClaudeExecutor) Refresh(context.Context, *coreauth.Auth) (*coreauth.Auth, error) {
+	return nil, &claudeauth.RefreshTokenExpiredError{}
+}
+
+func TestAuthFilesClaudeSignInNoticeDoesNotInvalidateAccessOrAllowManualExpiry(t *testing.T) {
+	manager := coreauth.NewManager(nil, nil, nil)
+	manager.RegisterExecutor(managementExpiredClaudeExecutor{})
+	ctx := t.Context()
+	dir := t.TempDir()
+	const file = "claude-expired-refresh.json"
+	expiry := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	a := &coreauth.Auth{
+		ID: file, FileName: file, Provider: "claude", Status: coreauth.StatusActive,
+		Attributes: map[string]string{"path": filepath.Join(dir, file)},
+		Metadata: map[string]any{
+			"access_token": "fixture-access", "refresh_token": "fixture-refresh",
+			"expired": expiry, "refresh_interval_seconds": 1,
+		},
+	}
+	if _, errRegister := manager.Register(ctx, a); errRegister != nil {
+		t.Fatal(errRegister)
+	}
+	manager.StartAutoRefresh(ctx, time.Millisecond)
+	t.Cleanup(manager.StopAutoRefresh)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	current, _ := manager.GetByID(file)
+	for !current.RequiresSignIn() {
+		select {
+		case <-deadline.C:
+			t.Fatal("background refresh did not record sign-in state")
+		case <-ticker.C:
+			current, _ = manager.GetByID(file)
+		}
+	}
+	handler := NewHandlerWithoutConfigFilePath(&config.Config{AuthDir: dir}, manager)
+	authEntry := handler.buildAuthFileEntry(current)
+	if authEntry["requires_sign_in"] != true || authEntry["unavailable"] != false || authEntry["status_message"] != "" {
+		t.Fatalf("management warning changed access availability or status: %+v", authEntry)
+	}
+
+	response := httptest.NewRecorder()
+	request, _ := gin.CreateTestContext(response)
+	request.Request = httptest.NewRequest(http.MethodPatch, "/v0/management/auth-files/fields",
+		strings.NewReader(`{"name":"claude-expired-refresh.json","expired":"1999-01-01T00:00:00Z"}`))
+	handler.PatchAuthFileFields(request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"requires_sign_in"`) {
+		t.Fatalf("manual refresh response=%d %s", response.Code, response.Body.String())
+	}
+	current, _ = manager.GetByID(file)
+	if current.Metadata["expired"] != expiry || !current.HasValidAccessToken(time.Now()) {
+		t.Fatal("manual refresh invalidated the still-valid access token")
+	}
+}
 
 type lifecycleBlockingFileStore struct {
 	*fileauth.FileTokenStore

@@ -108,24 +108,21 @@ const buildProviderKeyConfig = (
     models: models.length ? models : undefined,
     headers: Object.keys(headers).length ? headers : undefined,
     excludedModels: buildExcludedModels(input.excludedModelsText, input.disabled, brand),
-    disableCooling:
-      input.disableCooling === true
-        ? true
-        : existing?.disableCooling !== undefined
-          ? false
-          : undefined,
+    disableCooling: input.disableCooling,
     authIndex: existing?.authIndex,
   };
   if (brand === 'codex') next.websockets = input.websockets;
   if (brand === 'claude') {
     next.fingerprintProfile = input.fingerprintProfile?.trim() || undefined;
     if (input.cloak) {
-      next.cloak = {
-        mode: input.cloak.mode.trim() || undefined,
-        strictMode: input.cloak.strictMode,
-        sensitiveWords: parseTextList(input.cloak.sensitiveWordsText),
-        cacheUserId: input.cloak.cacheUserId === true,
-      };
+      const mode = input.cloak.mode.trim();
+      const { strictMode, cacheUserId } = input.cloak;
+      const sensitiveWords = parseTextList(input.cloak.sensitiveWordsText);
+      if (mode || strictMode || sensitiveWords.length || cacheUserId !== undefined) {
+        next.cloak = { mode: mode || undefined, strictMode, sensitiveWords, cacheUserId };
+      } else if (existing?.cloak && Object.keys(existing.cloak).length === 0) {
+        next.cloak = {};
+      }
     }
   }
   return next;
@@ -158,12 +155,7 @@ const buildOpenAIConfig = (
     prefix: input.prefix.trim() || undefined,
     apiKeyEntries,
     disabled: input.disabled,
-    disableCooling:
-      input.disableCooling === true
-        ? true
-        : existing?.disableCooling !== undefined
-          ? false
-          : undefined,
+    disableCooling: input.disableCooling,
     headers: Object.keys(headers).length ? headers : undefined,
     models: models.length ? models : undefined,
     priority: input.priority,

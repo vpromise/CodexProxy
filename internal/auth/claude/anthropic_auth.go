@@ -133,6 +133,13 @@ func isClaudeRefreshRetryable(err error) bool {
 	return false
 }
 
+func isExpiredRefreshGrant(body []byte) bool {
+	var grant OAuthError
+	return json.Unmarshal(body, &grant) == nil &&
+		strings.TrimSpace(grant.Code) == "invalid_grant" &&
+		strings.EqualFold(strings.TrimSpace(grant.Description), "refresh token expired")
+}
+
 // tokenResponse represents the response structure from Anthropic's OAuth token endpoint.
 // It contains access token, refresh token, and associated user/organization information.
 type tokenResponse struct {
@@ -577,6 +584,11 @@ func (o *ClaudeAuth) refreshTokensSingleFlight(ctx context.Context, refreshToken
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest && resp.Request != nil && resp.Request.URL != nil &&
+			resp.Request.Method == http.MethodPost && resp.Request.URL.String() == RefreshTokenURL &&
+			isExpiredRefreshGrant(body) {
+			return nil, &RefreshTokenExpiredError{}
+		}
 		message := string(body)
 		if resp.StatusCode == http.StatusTooManyRequests {
 			retryAfter := parseClaudeRetryAfter(resp)

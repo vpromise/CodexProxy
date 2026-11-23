@@ -101,6 +101,8 @@ func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
 	if existing, exists := m.auths[auth.ID]; exists && existing != nil && existing.RegistrationEpoch > m.authEpochs[auth.ID] {
 		m.authEpochs[auth.ID] = existing.RegistrationEpoch
 	}
+	previous := m.auths[auth.ID]
+	retainClaudeRefreshState(previous, auth, CredentialsChanged(previous, auth))
 	m.authEpochs[auth.ID]++
 	auth.RegistrationEpoch = m.authEpochs[auth.ID]
 	auth.CredentialVersion = 1
@@ -241,9 +243,11 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 	}
 	auth.RegistrationEpoch = existing.RegistrationEpoch
 	auth.CredentialVersion = existing.CredentialVersion
-	if CredentialsChanged(existing, auth) {
+	credentialsChanged := CredentialsChanged(existing, auth)
+	if credentialsChanged {
 		auth.CredentialVersion++
 	}
+	retainClaudeRefreshState(existing, auth, credentialsChanged)
 	if !auth.indexAssigned && auth.Index == "" {
 		auth.Index = existing.Index
 		auth.indexAssigned = existing.indexAssigned
@@ -265,7 +269,7 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 		if mode == updateModeReplace {
 			preserveIncomingAuthCooldown(existing, auth, now)
 		}
-		if CredentialsChanged(existing, auth) {
+		if credentialsChanged {
 			cooldownStateChanged = clearUnauthorizedAuthState(auth, now)
 		}
 	}
@@ -425,6 +429,8 @@ func (m *Manager) Load(ctx context.Context) error {
 			continue
 		}
 		auth.EnsureIndex()
+		previous := previousAuths[auth.ID]
+		retainClaudeRefreshState(previous, auth, CredentialsChanged(previous, auth))
 		m.authEpochs[auth.ID]++
 		auth.RegistrationEpoch = m.authEpochs[auth.ID]
 		auth.CredentialVersion = 1

@@ -233,6 +233,8 @@ func applyAuthDisabledState(auth *coreauth.Auth, disabled bool) {
 }
 
 // PatchAuthFileFields updates arbitrary metadata fields of an auth file.
+var errAuthFileSignInRequired = errors.New("Claude OAuth refresh token expired. Sign in again.")
+
 func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 	if h.authManager == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core auth manager unavailable"})
@@ -313,10 +315,19 @@ func (h *Handler) PatchAuthFileFields(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errPatch.Error()})
 		return
 	}
+	_, setsExpiry := req["expired"]
+	manualRefresh := setsExpiry && len(req) == 1 && !requestRetryPatch.Set
 	updatedAuth, errUpdate := h.authManager.PatchAuth(ctx, targetAuth.ID, targetAuth.RegistrationEpoch, func(latest *coreauth.Auth) error {
+		if manualRefresh && latest.RequiresSignIn() {
+			return errAuthFileSignInRequired
+		}
 		return applyAuthFileFieldsPatch(latest, req, requestRetryPatch)
 	})
 	if errUpdate != nil {
+		if errors.Is(errUpdate, errAuthFileSignInRequired) {
+			c.JSON(http.StatusConflict, gin.H{"error": errUpdate.Error(), "code": "requires_sign_in"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update auth"})
 		return
 	}

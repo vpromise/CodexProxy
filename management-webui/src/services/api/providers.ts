@@ -241,12 +241,12 @@ const mergeProviderKeyPayload = (
   const next = mergeKnownFields(raw, payload, knownFields);
   const models = mergeModelPayloads(raw, payload.models);
   if (models) next.models = models;
+  const rawCloak = isRecord(raw) ? raw.cloak : undefined;
   if (isRecord(payload.cloak)) {
-    next.cloak = mergeKnownFields(
-      isRecord(raw) ? raw.cloak : undefined,
-      payload.cloak,
-      CLOAK_FIELDS
-    );
+    next.cloak = mergeKnownFields(rawCloak, payload.cloak, CLOAK_FIELDS);
+  } else if (isRecord(rawCloak)) {
+    const extraFields = cloneWithoutKnownFields(rawCloak, CLOAK_FIELDS);
+    if (Object.keys(extraFields).length) next.cloak = extraFields;
   }
   return next;
 };
@@ -339,12 +339,10 @@ const serializeProviderKey = (config: ProviderKeyConfig) => {
     if (config.cloak.sensitiveWords && config.cloak.sensitiveWords.length) {
       cloakPayload['sensitive-words'] = config.cloak.sensitiveWords;
     }
-    if (config.cloak.cacheUserId) {
-      cloakPayload['cache-user-id'] = true;
+    if (config.cloak.cacheUserId !== undefined) {
+      cloakPayload['cache-user-id'] = config.cloak.cacheUserId;
     }
-    if (Object.keys(cloakPayload).length) {
-      payload.cloak = cloakPayload;
-    }
+    payload.cloak = cloakPayload;
   }
   if (config.fingerprintProfile?.trim()) {
     payload['fingerprint-profile'] = config.fingerprintProfile.trim();

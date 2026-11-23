@@ -78,7 +78,7 @@ export interface CloakInput {
   mode: string;
   strictMode: boolean;
   sensitiveWordsText: string;
-  cacheUserId: boolean;
+  cacheUserId?: boolean;
 }
 
 export interface ProviderEntryFormInput {
