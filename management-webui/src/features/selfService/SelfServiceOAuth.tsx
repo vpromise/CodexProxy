@@ -19,7 +19,7 @@ export function SelfServiceOAuth() {
   const [records, setRecords] = useState<SelfServiceRecord[]>([]);
   const [provider, setProvider] = useState<'claude' | 'codex'>('claude');
   const [label, setLabel] = useState('');
-  const [invitation, setInvitation] = useState('');
+  const [invitation, setInvitation] = useState<{ id: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -41,7 +41,10 @@ export function SelfServiceOAuth() {
     setBusy(true);
     try {
       const result = await selfServiceOAuthApi.create(provider, label.trim());
-      setInvitation(`${normalizeApiBase(apiBase)}/oauth-enroll#${result.invitation_token}`);
+      setInvitation({
+        id: result.record.id,
+        url: `${normalizeApiBase(apiBase)}/oauth-enroll#${result.invitation_token}`,
+      });
       setLabel('');
       await load();
     } catch (error) {
@@ -51,16 +54,20 @@ export function SelfServiceOAuth() {
     }
   }
 
-  async function act(record: SelfServiceRecord, accept: boolean) {
+  async function act(record: SelfServiceRecord, action: 'accept' | 'reject' | 'remove') {
     setBusy(true);
     try {
-      if (accept) {
+      if (action === 'accept') {
         await selfServiceOAuthApi.accept(record.id);
         notifyAuthFilesChanged();
         showNotification(t('self_service.accepted_hint'), 'success');
-      } else {
+      } else if (action === 'reject') {
         await selfServiceOAuthApi.reject(record.id);
+      } else {
+        await selfServiceOAuthApi.remove(record.id);
+        showNotification(t('self_service.deleted'), 'success');
       }
+      setInvitation((current) => (current?.id === record.id ? null : current));
       await load();
     } catch (error) {
       showNotification(getErrorMessage(error), 'error');
@@ -106,11 +113,11 @@ export function SelfServiceOAuth() {
       </div>
       {invitation && (
         <div className={styles.invitation}>
-          <Input label={t('self_service.link')} value={invitation} readOnly />
+          <Input label={t('self_service.link')} value={invitation.url} readOnly />
           <Button
             variant="secondary"
             onClick={() =>
-              void copyToClipboard(invitation).then((copied) =>
+              void copyToClipboard(invitation.url).then((copied) =>
                 showNotification(
                   t(copied ? 'self_service.copied' : 'self_service.copy_failed'),
                   copied ? 'success' : 'error'
@@ -120,7 +127,7 @@ export function SelfServiceOAuth() {
           >
             {t('self_service.copy')}
           </Button>
-          <Button variant="ghost" onClick={() => setInvitation('')}>
+          <Button variant="ghost" onClick={() => setInvitation(null)}>
             {t('self_service.hide')}
           </Button>
         </div>
@@ -154,7 +161,7 @@ export function SelfServiceOAuth() {
                     showConfirmation({
                       title: t('self_service.accept'),
                       message: t('self_service.accept_confirm'),
-                      onConfirm: () => act(record, true),
+                      onConfirm: () => act(record, 'accept'),
                     })
                   }
                 >
@@ -173,7 +180,7 @@ export function SelfServiceOAuth() {
                       title: t('self_service.reject'),
                       message: t('self_service.reject_confirm'),
                       variant: 'danger',
-                      onConfirm: () => act(record, false),
+                      onConfirm: () => act(record, 'reject'),
                     })
                   }
                 >
@@ -182,6 +189,23 @@ export function SelfServiceOAuth() {
               )}
               {record.status === 'accepted' && (
                 <Link to="/auth-files">{t('self_service.accounts')}</Link>
+              )}
+              {['expired', 'revoked'].includes(record.status) && (
+                <Button
+                  disabled={busy}
+                  variant="danger"
+                  size="sm"
+                  onClick={() =>
+                    showConfirmation({
+                      title: t('self_service.delete'),
+                      message: t('self_service.delete_confirm'),
+                      variant: 'danger',
+                      onConfirm: () => act(record, 'remove'),
+                    })
+                  }
+                >
+                  {t('self_service.delete')}
+                </Button>
               )}
             </div>
           </article>

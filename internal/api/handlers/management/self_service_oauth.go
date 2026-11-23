@@ -34,11 +34,7 @@ type selfServiceSummary struct {
 }
 
 func selfServiceSummarize(r *selfServiceRecord) selfServiceSummary {
-	status := r.Status
-	if (status == "invited" || status == "authorizing") && time.Now().After(r.ExpiresAt) {
-		status = "expired"
-	}
-	return selfServiceSummary{r.ID, r.Provider, r.Label, status, r.CreatedAt, r.ExpiresAt, r.SubmittedAt, r.ReviewedAt, r.Email, r.AccountID, r.FileName}
+	return selfServiceSummary{r.ID, r.Provider, r.Label, r.invitationStatus(), r.CreatedAt, r.ExpiresAt, r.SubmittedAt, r.ReviewedAt, r.Email, r.AccountID, r.FileName}
 }
 
 func selfServiceHeaders(c *gin.Context) {
@@ -367,6 +363,40 @@ func (h *Handler) RejectSelfServiceOAuth(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"record": selfServiceSummarize(record)})
+}
+
+func (h *Handler) DeleteSelfServiceOAuth(c *gin.Context) {
+	selfServiceHeaders(c)
+	dir, err := h.selfServiceDir()
+	if err != nil {
+		c.JSON(503, gin.H{"error": "intake storage unavailable"})
+		return
+	}
+	deleteSelfServiceInvitation(c, dir, nil)
+}
+
+func deleteSelfServiceInvitation(c *gin.Context, dir string, owns func(*selfServiceRecord) bool) {
+	selfServiceMu.Lock()
+	defer selfServiceMu.Unlock()
+
+	id := c.Param("id")
+	record, err := selfServiceRead(dir, id)
+	switch {
+	case os.IsNotExist(err):
+		c.JSON(404, gin.H{"error": "invitation_not_found"})
+	case err != nil:
+		c.JSON(503, gin.H{"error": "intake storage unavailable"})
+	case owns != nil && !owns(record):
+		c.JSON(404, gin.H{"error": "invitation_not_found"})
+	case !record.canDeleteInvitation():
+		c.JSON(409, gin.H{"error": "invitation_not_deletable"})
+	default:
+		if err := os.Remove(filepath.Join(dir, id+".json")); err != nil {
+			c.JSON(503, gin.H{"error": "intake storage unavailable"})
+			return
+		}
+		c.JSON(200, gin.H{"deleted": true})
+	}
 }
 
 func selfServiceSameAccount(a, b map[string]any, provider string) bool {

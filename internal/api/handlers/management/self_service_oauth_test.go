@@ -109,6 +109,37 @@ func intakeMockExchange(_ context.Context, _ *config.Config, r *selfServiceRecor
 	return map[string]any{"type": r.Provider, "access_token": "PRIVATE-ACCESS", "refresh_token": "PRIVATE-REFRESH", "id_token": "PRIVATE-ID", "email": "owner@example.test", "account_uuid": "claude-owner", "account_id": "codex-owner", "expired": time.Now().Add(time.Hour).Format(time.RFC3339), "claude_device_ids": []any{"retained-device"}}, nil
 }
 
+func TestDeleteExpiredInvitationPreservesInFlightAndImportedRecords(t *testing.T) {
+	h := intakeTestHandler(t)
+	for _, tc := range []struct {
+		status      string
+		file        string
+		credentials map[string]any
+		want        int
+	}{
+		{status: "invited", want: http.StatusOK},
+		{status: "authorizing", want: http.StatusOK},
+		{status: "exchanging", want: http.StatusConflict},
+		{status: "pending", credentials: map[string]any{"type": "claude"}, want: http.StatusConflict},
+		{status: "importing", want: http.StatusConflict},
+		{status: "accepted", file: "account.json", want: http.StatusConflict},
+		{status: "revoked", file: "account.json", want: http.StatusConflict},
+		{status: "revoked", credentials: map[string]any{"type": "claude"}, want: http.StatusConflict},
+	} {
+		_, record, dir := intakeInvite(t, h, "claude")
+		record.Status, record.FileName, record.Credentials = tc.status, tc.file, tc.credentials
+		record.ExpiresAt = time.Now().Add(-time.Hour)
+		if err := selfServiceWrite(dir, record); err != nil {
+			t.Fatal(err)
+		}
+		response := intakeRequest(t, h.DeleteSelfServiceOAuth, "", "", record.ID)
+		_, err := selfServiceRead(dir, record.ID)
+		if response.Code != tc.want || (tc.want == http.StatusOK && !os.IsNotExist(err)) || (tc.want != http.StatusOK && err != nil) {
+			t.Fatalf("%s deletion: HTTP %d, storage error %v", tc.status, response.Code, err)
+		}
+	}
+}
+
 func TestSelfServiceOAuthSubmissionAndDisabledAcceptance(t *testing.T) {
 	for _, provider := range []string{"claude", "codex"} {
 		t.Run(provider, func(t *testing.T) {

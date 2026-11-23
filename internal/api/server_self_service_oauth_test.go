@@ -57,6 +57,23 @@ func TestSelfServiceOAuthRoutesKeepManagementAndInferencePrivate(t *testing.T) {
 	if r = request("POST", "/oauth-enroll/start", invite.Token, `{"consent":true}`); r.Code != 200 {
 		t.Fatalf("invited start: %d %s", r.Code, r.Body)
 	}
+	id, _, _ := strings.Cut(invite.Token, ".")
+	path := "/v0/management/oauth-intake/" + id
+	if r = request("DELETE", path, invite.Token, ""); r.Code != 401 && r.Code != 403 {
+		t.Fatalf("invitation bearer can delete records: %d", r.Code)
+	}
+	if r = request("DELETE", path, "test-management-key", ""); r.Code != 409 {
+		t.Fatalf("active invitation can be deleted: %d %s", r.Code, r.Body)
+	}
+	if r = request("POST", path+"/reject", "test-management-key", ""); r.Code != 200 {
+		t.Fatalf("revoke invitation: %d %s", r.Code, r.Body)
+	}
+	if r = request("DELETE", path, "test-management-key", ""); r.Code != 200 {
+		t.Fatalf("delete revoked invitation: %d %s", r.Code, r.Body)
+	}
+	if r = request("GET", "/v0/management/oauth-intake", "test-management-key", ""); r.Code != 200 || strings.Contains(r.Body.String(), id) {
+		t.Fatalf("deleted invitation still listed: %d %s", r.Code, r.Body)
+	}
 	// Existing login endpoints remain behind the original management middleware.
 	if r = request("GET", "/v0/management/anthropic-auth-url", "", ""); r.Code != 401 {
 		t.Fatalf("existing OAuth permission changed: %d", r.Code)

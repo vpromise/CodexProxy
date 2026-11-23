@@ -30,6 +30,7 @@ func (s *Server) registerManagementRoutes() {
 		mgmt.POST("/oauth-intake", s.mgmt.CreateSelfServiceOAuth)
 		mgmt.POST("/oauth-intake/:id/accept", s.mgmt.AcceptSelfServiceOAuth)
 		mgmt.POST("/oauth-intake/:id/reject", s.mgmt.RejectSelfServiceOAuth)
+		mgmt.DELETE("/oauth-intake/:id", s.mgmt.DeleteSelfServiceOAuth)
 		mgmt.GET("/config", s.mgmt.GetConfig)
 		mgmt.GET("/config.yaml", s.mgmt.GetConfigYAML)
 		mgmt.PUT("/config.yaml", s.mgmt.PutConfigYAML)
