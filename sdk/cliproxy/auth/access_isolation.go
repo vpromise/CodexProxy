@@ -73,6 +73,15 @@ func (s *AccessScope) LocalSessionKey(sessionID string) string {
 func (s *AccessScope) Allows(a *Auth) bool {
 	return !s.Enabled() || (!s.denied && a != nil && a.Provider == s.provider && s.members[AccountIdentity(a)])
 }
+
+// ClaudeReplayOwner returns the authenticated, currently authorized replay scope.
+func (s *AccessScope) ClaudeReplayOwner(a *Auth) (caller, pool, account string) {
+	if !s.Enabled() || s.caller == "" || s.provider != "claude" || !s.Allows(a) {
+		return "", "", ""
+	}
+	return s.caller, s.pool, AccountIdentity(a)
+}
+
 func (s *AccessScope) Error() error {
 	if s != nil && s.denied {
 		return &Error{Code: "access_denied", Message: "Client key is not authorized for an account pool", HTTPStatus: http.StatusForbidden}

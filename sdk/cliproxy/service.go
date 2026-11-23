@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/homeplugins"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
@@ -27,7 +28,8 @@ import (
 // and integration with various AI service providers.
 type Service struct {
 	// cfg holds the current application configuration.
-	cfg *config.Config
+	cfg                   *config.Config
+	claudeResponsesReplay *claudereplay.Store
 
 	// cfgMu protects concurrent access to the configuration.
 	cfgMu sync.RWMutex

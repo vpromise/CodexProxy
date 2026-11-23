@@ -21,6 +21,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	claudeauth "github.com/router-for-me/CLIProxyAPI/v7/internal/auth/claude"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/buildinfo"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
@@ -28,12 +29,24 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
 	"github.com/gin-gonic/gin"
 )
+
+func (e *ClaudeExecutor) prepareResponsesReplay(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, baseURL string, body []byte) ([]byte, *claudereplay.Turn, error) {
+	if e.responsesReplay == nil || opts.SourceFormat != sdktranslator.FormatOpenAIResponse ||
+		cliproxyexecutor.ResponseFormatOrSource(opts) != sdktranslator.FormatOpenAIResponse {
+		return body, nil, nil
+	}
+	caller, pool, account := cliproxyauth.AccessScopeFromContext(ctx).ClaudeReplayOwner(auth)
+	return e.responsesReplay.Prepare(ctx, claudereplay.Scope{
+		Caller: caller, Pool: pool, Account: account, Endpoint: strings.TrimRight(baseURL, "/"), Model: gjson.GetBytes(body, "model").String(),
+	}, req.Payload, body)
+}
 
 const (
 	claudeTokenCountingBeta          = "token-counting-2024-11-01"

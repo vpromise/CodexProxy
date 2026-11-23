@@ -309,6 +309,10 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 			return resp, errThread
 		}
 	}
+	bodyForUpstream, responsesReplay, errReplay := e.prepareResponsesReplay(ctx, auth, req, opts, baseURL, bodyForUpstream)
+	if errReplay != nil {
+		return resp, errReplay
+	}
 	cchBilling := ""
 	if cchSigning && !helps.ClaudeThreadContinues(bodyForUpstream) {
 		if !nativeHelperProfile || claudeBodyNeedsBillingFallback(bodyForUpstream) {
@@ -371,7 +375,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		URL:       url,
 		Method:    http.MethodPost,
 		Headers:   httpReq.Header.Clone(),
-		Body:      bodyForUpstream,
+		Body:      responsesReplay.RequestLogBody(bodyForUpstream),
 		Provider:  e.upstreamRequestLogProvider(),
 		AuthID:    authID,
 		AuthLabel: authLabel,
@@ -485,6 +489,9 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 				return resp, errState
 			}
 		}
+		if responsesReplay != nil {
+			collectCompletedClaudeResponsesReplay(ctx, responsesReplay, lines)
+		}
 		commitClaudeContinuity(diagnosticsState, claudeMessageIDFromSSE(data), helps.HeaderValueCaseInsensitive(httpResp.Header, "request-id"))
 		for i, line := range lines {
 			restoredLine, errRestore := restoreClaudeOAuthToolNamesFromStreamLine(line, oauthToolNamesReverseMap)
@@ -515,7 +522,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	cacheClaudeThinkingReplayResponse(ctx, replayScope, data)
 	var param any
 	out := sdktranslator.TranslateNonStream(
-		ctx,
+		responsesReplay.ResponseContext(ctx),
 		to,
 		responseFormat,
 		req.Model,

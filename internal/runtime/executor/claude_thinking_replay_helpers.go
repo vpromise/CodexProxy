@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	internalcache "github.com/router-for-me/CLIProxyAPI/v7/internal/cache"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	"github.com/tidwall/gjson"
@@ -195,10 +196,31 @@ type claudeThinkingReplayStreamAccumulator struct {
 	upstreamError bool
 	abandoned     bool
 	bytesUsed     int
+	maxBytes      int
+	ordered       bool
 }
 
 func newClaudeThinkingReplayStreamAccumulator() *claudeThinkingReplayStreamAccumulator {
-	return &claudeThinkingReplayStreamAccumulator{blocks: make(map[int]*claudeThinkingReplayStreamBlock)}
+	return &claudeThinkingReplayStreamAccumulator{
+		blocks: make(map[int]*claudeThinkingReplayStreamBlock), maxBytes: internalcache.ClaudeThinkingReplayCacheMaxBytesPerSession,
+	}
+}
+
+func newClaudeResponsesReplayCollector() *claudeThinkingReplayStreamAccumulator {
+	result := newClaudeThinkingReplayStreamAccumulator()
+	result.maxBytes = claudereplay.MaxContentBytes
+	result.ordered = true
+	return result
+}
+
+func collectCompletedClaudeResponsesReplay(ctx context.Context, turn *claudereplay.Turn, lines [][]byte) {
+	collector := newClaudeResponsesReplayCollector()
+	for _, line := range lines {
+		collector.observe(line)
+	}
+	if content, complete := collector.content(); complete {
+		turn.Complete(ctx, content)
+	}
 }
 
 func (a *claudeThinkingReplayStreamAccumulator) observe(chunk []byte) {
@@ -261,7 +283,7 @@ func (a *claudeThinkingReplayStreamAccumulator) observeBlockStart(root gjson.Res
 func (a *claudeThinkingReplayStreamAccumulator) observeBlockDelta(root gjson.Result) {
 	index := int(root.Get("index").Int())
 	block, ok := a.blocks[index]
-	if !ok {
+	if !ok || (a.ordered && block.finished) {
 		a.abandon()
 		return
 	}
@@ -278,6 +300,17 @@ func (a *claudeThinkingReplayStreamAccumulator) observeBlockDelta(root gjson.Res
 		if a.reserveBytes(len(suffix)) {
 			block.input.WriteString(suffix)
 			block.hasInputDelta = true
+		}
+	case "citations_delta":
+		citation := delta.Get("citation")
+		if !a.ordered || !citation.IsObject() || !a.reserveBytes(len(citation.Raw)) {
+			a.abandon()
+			return
+		}
+		var err error
+		block.raw, err = sjson.SetRawBytes(block.raw, "citations.-1", []byte(citation.Raw))
+		if err != nil {
+			a.abandon()
 		}
 	default:
 		a.abandon()
@@ -300,7 +333,7 @@ func (a *claudeThinkingReplayStreamAccumulator) appendBlockText(block *claudeThi
 
 func (a *claudeThinkingReplayStreamAccumulator) finishBlock(index int) {
 	block, ok := a.blocks[index]
-	if !ok {
+	if !ok || (a.ordered && block.finished) {
 		a.abandon()
 		return
 	}
@@ -312,7 +345,7 @@ func (a *claudeThinkingReplayStreamAccumulator) finishBlock(index int) {
 }
 
 func (a *claudeThinkingReplayStreamAccumulator) reserveBytes(count int) bool {
-	if count < 0 || a.bytesUsed > internalcache.ClaudeThinkingReplayCacheMaxBytesPerSession-count {
+	if count < 0 || a.bytesUsed > a.maxBytes-count {
 		a.abandon()
 		return false
 	}
@@ -336,7 +369,10 @@ func (a *claudeThinkingReplayStreamAccumulator) content() ([]byte, bool) {
 	}
 	sort.Ints(indexes)
 	parts := make([][]byte, 0, len(indexes))
-	for _, index := range indexes {
+	for position, index := range indexes {
+		if a.ordered && position != index {
+			return nil, false
+		}
 		block := a.blocks[index]
 		if !block.finished {
 			a.abandon()
@@ -363,7 +399,7 @@ func (a *claudeThinkingReplayStreamAccumulator) content() ([]byte, bool) {
 		parts = append(parts, raw)
 	}
 	content := helps.JoinRawJSONArray(parts)
-	if len(content) > internalcache.ClaudeThinkingReplayCacheMaxBytesPerSession {
+	if len(content) > a.maxBytes {
 		a.abandon()
 		return nil, false
 	}

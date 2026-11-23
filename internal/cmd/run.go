@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy"
@@ -56,7 +57,12 @@ func StartServiceWithPluginHost(cfg *config.Config, configPath string, localPass
 		}))
 	}
 
-	service, err := builder.Build()
+	replay, err := claudereplay.OpenFromEnv(runCtx)
+	if err != nil {
+		return err
+	}
+	defer replay.Close()
+	service, err := builder.WithClaudeResponsesReplay(replay).Build()
 	if err != nil {
 		log.Errorf("failed to build proxy service: %v", err)
 		return err
@@ -92,8 +98,15 @@ func StartServiceBackgroundWithPluginHost(cfg *config.Config, configPath string,
 	ctx, cancelFn := context.WithCancel(context.Background())
 	doneCh := make(chan struct{})
 
-	service, err := builder.Build()
+	replay, err := claudereplay.OpenFromEnv(ctx)
 	if err != nil {
+		log.Errorf("failed to open Claude replay store: %v", err)
+		close(doneCh)
+		return cancelFn, doneCh
+	}
+	service, err := builder.WithClaudeResponsesReplay(replay).Build()
+	if err != nil {
+		replay.Close()
 		log.Errorf("failed to build proxy service: %v", err)
 		close(doneCh)
 		return cancelFn, doneCh
@@ -101,6 +114,7 @@ func StartServiceBackgroundWithPluginHost(cfg *config.Config, configPath string,
 
 	go func() {
 		defer close(doneCh)
+		defer replay.Close()
 		if err := service.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Errorf("proxy service exited with error: %v", err)
 		}

@@ -9,6 +9,7 @@ import (
 
 	configaccess "github.com/router-for-me/CLIProxyAPI/v7/internal/access/config_access"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v7/sdk/access"
@@ -49,7 +50,8 @@ type Builder struct {
 	coreManager *coreauth.Manager
 
 	// cooldownStateStore overrides runtime cooldown persistence.
-	cooldownStateStore coreauth.CooldownStateStore
+	cooldownStateStore    coreauth.CooldownStateStore
+	claudeResponsesReplay *claudereplay.Store
 
 	// pluginHost owns dynamic plugin lifecycle and adapters.
 	pluginHost *pluginhost.Host
@@ -81,6 +83,13 @@ type Hooks struct {
 //   - *Builder: A new builder instance ready for configuration
 func NewBuilder() *Builder {
 	return &Builder{}
+}
+
+// WithClaudeResponsesReplay sets an explicitly configured short-lived store.
+// The caller retains ownership of the store's lifetime.
+func (b *Builder) WithClaudeResponsesReplay(replay *claudereplay.Store) *Builder {
+	b.claudeResponsesReplay = replay
+	return b
 }
 
 // WithConfig sets the configuration instance used by the service.
@@ -271,19 +280,20 @@ func (b *Builder) Build() (*Service, error) {
 	}
 
 	service := &Service{
-		cfg:                 b.cfg,
-		configPath:          b.configPath,
-		tokenProvider:       tokenProvider,
-		apiKeyProvider:      apiKeyProvider,
-		watcherFactory:      watcherFactory,
-		hooks:               b.hooks,
-		authManager:         authManager,
-		accessManager:       accessManager,
-		coreManager:         coreManager,
-		cooldownStateStore:  cooldownStateStore,
-		pluginHost:          pluginHost,
-		appliedRoutingState: appliedRoutingState,
-		serverOptions:       append([]api.ServerOption(nil), b.serverOptions...),
+		cfg:                   b.cfg,
+		configPath:            b.configPath,
+		tokenProvider:         tokenProvider,
+		apiKeyProvider:        apiKeyProvider,
+		watcherFactory:        watcherFactory,
+		hooks:                 b.hooks,
+		authManager:           authManager,
+		accessManager:         accessManager,
+		coreManager:           coreManager,
+		cooldownStateStore:    cooldownStateStore,
+		claudeResponsesReplay: b.claudeResponsesReplay,
+		pluginHost:            pluginHost,
+		appliedRoutingState:   appliedRoutingState,
+		serverOptions:         append([]api.ServerOption(nil), b.serverOptions...),
 	}
 	if b.postAuthHook != nil {
 		service.serverOptions = append(service.serverOptions, api.WithPostAuthHook(b.postAuthHook))

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	sigcompat "github.com/router-for-me/CLIProxyAPI/v7/internal/signature"
@@ -30,6 +31,7 @@ type ClaudeExecutor struct {
 	cfg                     *config.Config
 	threadBetas             *helps.ClaudeThreadBetaStore
 	threadAliases           *helps.ClaudeThreadAliasStore
+	responsesReplay         *claudereplay.Store
 	requestLogProvider      string
 	upstreamModelNormalizer func(string) string
 	oauthProfileFetcher     claudeOAuthProfileFetcher
@@ -149,6 +151,12 @@ func NewClaudeExecutor(cfg *config.Config) *ClaudeExecutor {
 	return &ClaudeExecutor{cfg: cfg, threadBetas: &helps.ClaudeThreadBetaStore{}, threadAliases: &helps.ClaudeThreadAliasStore{}}
 }
 
+func NewClaudeExecutorWithResponsesReplay(cfg *config.Config, replay *claudereplay.Store) *ClaudeExecutor {
+	exec := NewClaudeExecutor(cfg)
+	exec.responsesReplay = replay
+	return exec
+}
+
 var claudeThreadStoreInitMu sync.Mutex
 
 func (e *ClaudeExecutor) threadStores() (*helps.ClaudeThreadBetaStore, *helps.ClaudeThreadAliasStore) {
@@ -167,7 +175,7 @@ func (e *ClaudeExecutor) threadStores() (*helps.ClaudeThreadBetaStore, *helps.Cl
 // contains sync.Once and must never be copied after first use.
 func (e *ClaudeExecutor) WithConfig(cfg *config.Config) *ClaudeExecutor {
 	betas, aliases := e.threadStores()
-	return &ClaudeExecutor{cfg: cfg, threadBetas: betas, threadAliases: aliases, requestLogProvider: e.requestLogProvider, upstreamModelNormalizer: e.upstreamModelNormalizer, oauthProfileFetcher: e.oauthProfileFetcher}
+	return &ClaudeExecutor{cfg: cfg, threadBetas: betas, threadAliases: aliases, responsesReplay: e.responsesReplay, requestLogProvider: e.requestLogProvider, upstreamModelNormalizer: e.upstreamModelNormalizer, oauthProfileFetcher: e.oauthProfileFetcher}
 }
 
 func (e *ClaudeExecutor) claudeThreadScope(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, baseURL string) string {

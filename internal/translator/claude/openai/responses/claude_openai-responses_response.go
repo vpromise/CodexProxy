@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/claudereplay"
 	translatorcommon "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/common"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -711,7 +712,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 			st.ReasoningIndex = st.allocateOutputIndex()
 			st.ReasoningBuf.Reset()
 			st.ReasoningSignature = claudeReasoningCarrier(cb)
-			st.ReasoningItemID = fmt.Sprintf("rs_%s_%d", st.ResponseID, idx)
+			st.ReasoningItemID = claudereplay.ReasoningItemID(ctx, fmt.Sprintf("rs_%s_%d", st.ResponseID, idx), idx)
 			item := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{"id":"","type":"reasoning","status":"in_progress","encrypted_content":"","summary":[]}}`)
 			item, _ = sjson.SetBytes(item, "sequence_number", nextSeq())
 			item, _ = sjson.SetBytes(item, "output_index", st.ReasoningIndex)
@@ -1027,7 +1028,7 @@ func ConvertClaudeResponseToOpenAIResponses(ctx context.Context, modelName strin
 }
 
 // ConvertClaudeResponseToOpenAIResponsesNonStream aggregates Claude SSE into a single OpenAI Responses JSON.
-func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, _ *any) []byte {
+func ConvertClaudeResponseToOpenAIResponsesNonStream(ctx context.Context, _ string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, _ *any) []byte {
 	rawJSON, nativeModel := translatorcommon.ClaudeMessagesJSONToSSE(rawJSON)
 	// Aggregate Claude SSE lines into a single OpenAI Responses JSON (non-stream)
 	// We follow the same aggregation logic as the streaming variant but produce
@@ -1183,7 +1184,7 @@ func ConvertClaudeResponseToOpenAIResponsesNonStream(_ context.Context, _ string
 				}
 			case "thinking", "redacted_thinking":
 				item := newOutputItem("reasoning", idx)
-				item.id = fmt.Sprintf("rs_%s_%d", responseID, idx)
+				item.id = claudereplay.ReasoningItemID(ctx, fmt.Sprintf("rs_%s_%d", responseID, idx), idx)
 				item.signature = claudeReasoningCarrier(cb)
 			}
 

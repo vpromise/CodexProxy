@@ -277,7 +277,7 @@ func (s *Service) registerExecutorForAuth(a *coreauth.Auth, forceReplace bool) {
 				return
 			}
 		}
-		s.coreManager.RegisterExecutor(executor.NewClaudeExecutor(cfg))
+		s.coreManager.RegisterExecutor(executor.NewClaudeExecutorWithResponsesReplay(cfg, s.claudeResponsesReplay))
 	default:
 		providerKey := strings.ToLower(strings.TrimSpace(a.Provider))
 		if providerKey == "" {
