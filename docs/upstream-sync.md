@@ -4,6 +4,24 @@ Updated: 2026-11-23 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Authorized follow-up in the 2026-11-23 review — graceful shutdown timer
+
+Completed K4 original item 7 on verified fork base `367ee66ce7c8152b4fb13ad7905500af84dc1889`. Adapted the shutdown timer placement from [CPA `759c57c2`](https://github.com/router-for-me/CLIProxyAPI/commit/759c57c2612def05dd15558ffbeb40c25f56f448) and [issue 6094](https://github.com/router-for-me/CLIProxyAPI/issues/6094). The reviewed CPA boundary remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
+
+`Service.Run` now creates its independent 30-second context when deferred shutdown starts. It uses the existing HTTP listener shutdown and request draining sequence. The interval covers context-aware cleanup leading to API stop. Direct SDK shutdown can still use the caller's deadline. Configurable draining, forced HTTP closure and WebSocket shutdown policy in [CPA `73b86c7f`](https://github.com/router-for-me/CLIProxyAPI/commit/73b86c7fb9ab3fb4c02763fad214ba6614874d0f) remain separate decision scopes.
+
+### Verification
+
+- The subprocess regression exercises the CLI and native Claude `/v1/messages` using a loopback SSE fixture. The unchanged baseline exited on SIGTERM after 31 seconds of uptime while the stream was active and logged `context deadline exceeded`. The candidate delivered the final text and `message_stop` before clean exit. Focused SIGINT and occupied-port controls passed.
+- A second subprocess smoke test used the compiled server and an upstream that held the response open. The listener stopped accepting new connections about 0.031 seconds after SIGTERM. A repeated signal did not extend the interval. The process logged the HTTP deadline and exited after about 30.016 seconds.
+- Go 1.27.3 on macOS arm64 with CGO enabled. `go test -mod=readonly -p=6 -count=1 -timeout=110s -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...` returned zero with 70 successful package results and 23 packages with no tests. Fresh binding probes passed for 127.0.0.1 and returned errno 49 for 127.0.0.2. Two secondary-address subcases and opt-in PostgreSQL, public egress and TLS capture checks skipped.
+- Race testing passed in six packages, including the long-running subprocess regression. The three allocation checks skipped under race instrumentation and passed in the ordinary suite. `go build -mod=readonly -p=4 -trimpath -o <temporary-output> ./cmd/server` passed. Binary SHA-256 is `337519d83c07a4a7d4c895e9902b48ab9ac81bb267da718939d3e5aa08f50ed0`.
+- The identical validation manifest before and after testing covered 1,868 files excluding this ledger, including 1,259 local Go compiler, test and embed inputs. SHA-256 `53ec9f6db6c9aa0b3da8131bacb827078141fe646d24a3f0a801641cfe5e5e52`. The test processes used synthetic loopback traffic. Linux systemd rollout is outside this validation.
+
+### Open follow-up
+
+K1/U1 Codex OAuth file persistence remains a decision. A synthetic short write on the unchanged local writer returned an error and left invalid JSON in both the login storage path and the loaded credential refresh path. The latter had already installed the new snapshot in memory. The on-disk file could no longer be loaded. Scope under discussion is atomic private writes for these two file-backed paths, including distinct pre-rename failure and post-rename durability reporting. Remote store policy and retry or recovery ownership have separate approval scopes. [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25)
+
 ## Authorized follow-up in the 2026-11-23 review — signed Claude Responses replay
 
 Implemented the approved U3/U4 repair motivated by [CPA `c71aa82`](https://github.com/router-for-me/CLIProxyAPI/commit/c71aa824e56ab2d2c00de5d6982fa8b9b2ece668) and [issue 7831](https://github.com/router-for-me/CLIProxyAPI/issues/7831). Fork base `a5c953c594c4ab942efc3e82fae14a460d12798a` matched remote main. The CPA checkpoint remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`. The preceding offline diagnostic showed two correctly emitted signed blocks collapsing to the latter block on replay in both stream modes.

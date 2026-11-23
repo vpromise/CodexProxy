@@ -35,7 +35,12 @@ func TestServerExitHelper(t *testing.T) {
 
 func newServerExitCommand(t *testing.T, dir string, args ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	return newServerExitCommandWithTimeout(t, dir, 30*time.Second, args...)
+}
+
+func newServerExitCommandWithTimeout(t *testing.T, dir string, timeout time.Duration, args ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(cancel)
 	cmdArgs := append([]string{"-test.run=^TestServerExitHelper$", "--"}, args...)
 	command := exec.CommandContext(ctx, os.Args[0], cmdArgs...)
@@ -47,6 +52,7 @@ func newServerExitCommand(t *testing.T, dir string, args ...string) (*exec.Cmd, 
 		"PGSTORE_DSN=", "pgstore_dsn=",
 		"GITSTORE_GIT_URL=", "gitstore_git_url=",
 		"OBJECTSTORE_ENDPOINT=", "objectstore_endpoint=",
+		"CODEXPROXY_CLAUDE_REPLAY_POOLS=", "CODEXPROXY_CLAUDE_REPLAY_POSTGRES_DSN=", "CODEXPROXY_CLAUDE_REPLAY_KEY=",
 		"DEPLOY=", "WRITABLE_PATH=", "writable_path=",
 		"HTTP_PROXY=http://127.0.0.1:1", "HTTPS_PROXY=http://127.0.0.1:1",
 		"NO_PROXY=127.0.0.1,localhost",
@@ -229,6 +235,18 @@ func TestServerInterruptExitsSuccessfully(t *testing.T) {
 		done <- command.Wait()
 	}()
 
+	awaitServerExitListener(t, port, done, stdout, stderr)
+
+	if errSignal := command.Process.Signal(os.Interrupt); errSignal != nil {
+		t.Fatal(errSignal)
+	}
+	if errWait := <-done; errWait != nil {
+		t.Fatalf("expected a successful interrupt shutdown, got %v\nstdout:\n%s\nstderr:\n%s", errWait, stdout.String(), stderr.String())
+	}
+}
+
+func awaitServerExitListener(t *testing.T, port int, done <-chan error, stdout, stderr *bytes.Buffer) {
+	t.Helper()
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(10 * time.Millisecond)
@@ -247,12 +265,5 @@ func TestServerInterruptExitsSuccessfully(t *testing.T) {
 			t.Fatal("server did not start listening")
 		case <-ticker.C:
 		}
-	}
-
-	if errSignal := command.Process.Signal(os.Interrupt); errSignal != nil {
-		t.Fatal(errSignal)
-	}
-	if errWait := <-done; errWait != nil {
-		t.Fatalf("expected a successful interrupt shutdown, got %v\nstdout:\n%s\nstderr:\n%s", errWait, stdout.String(), stderr.String())
 	}
 }
