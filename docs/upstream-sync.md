@@ -18,6 +18,10 @@ Completed K4 original item 7 on verified fork base `367ee66ce7c8152b4fb13ad79055
 - Race testing passed in six packages, including the long-running subprocess regression. The three allocation checks skipped under race instrumentation and passed in the ordinary suite. `go build -mod=readonly -p=4 -trimpath -o <temporary-output> ./cmd/server` passed. Binary SHA-256 is `337519d83c07a4a7d4c895e9902b48ab9ac81bb267da718939d3e5aa08f50ed0`.
 - The identical validation manifest before and after testing covered 1,868 files excluding this ledger, including 1,259 local Go compiler, test and embed inputs. SHA-256 `53ec9f6db6c9aa0b3da8131bacb827078141fe646d24a3f0a801641cfe5e5e52`. The test processes used synthetic loopback traffic. Linux systemd rollout is outside this validation.
 
+### Publication receipt
+
+Published [`0a4abfb0`](https://github.com/vpromise/CodexProxy/commit/0a4abfb0f045e684b071b87de685cc5ee0dfada5) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `fe9d4596a713892f4827ee1695330f42765c499d`. Git transport and the GitHub branch API both returned the implementation SHA. At 2026-11-23T20:23:01+08:00 GitHub reported zero workflow runs, check runs and commit statuses for the SHA. The repository workflows trigger on pull requests or tags. This publication updated source on GitHub.
+
 ### Open follow-up
 
 K1/U1 Codex OAuth file persistence remains a decision. A synthetic short write on the unchanged local writer returned an error and left invalid JSON in both the login storage path and the loaded credential refresh path. The latter had already installed the new snapshot in memory. The on-disk file could no longer be loaded. Scope under discussion is atomic private writes for these two file-backed paths, including distinct pre-rename failure and post-rename durability reporting. Remote store policy and retry or recovery ownership have separate approval scopes. [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25)
