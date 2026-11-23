@@ -73,9 +73,8 @@ type Result struct {
 	// Options carries execution request options (headers, metadata, etc.) for result tracking.
 	Options cliproxyexecutor.Options
 	// AttemptStartedAt records when the upstream attempt that produced this
-	// result began. A successful attempt may only clear model state that was
-	// established no later than this timestamp. The zero value preserves the
-	// legacy behavior for external callers that construct Result directly.
+	// result began. Account-level successes need a timestamp to clear a live
+	// deadline. Model-level results with a zero timestamp retain legacy behavior.
 	AttemptStartedAt time.Time
 	// SkipQuotaObservation reports that this result must not replace the last
 	// observed watermark or clear generation availability. Count-tokens requests

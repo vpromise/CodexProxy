@@ -4,6 +4,22 @@ Updated: 2026-11-23 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Authorized follow-up in the 2026-11-23 review — account cooldown order
+
+Completed the narrow account-level behavior approved for K3 original item 100. [CPA `35af74f9`](https://github.com/router-for-me/CLIProxyAPI/commit/35af74f92721b67c2eb704d0809f26b034946f56) motivated the follow-up. The verified fork base is `a242cd676d5d1fe25c8ba96946521bf6bdce0683`. The reviewed CPA checkpoint remains v8.1.1.
+
+For a success without a resolved model, a live account deadline can be cleared only when the manager observed its establishment and the successful attempt started strictly after that observation. Older, simultaneous and un-timestamped results still count as successes while the existing deadline stays in place. Restored records have no runtime observation and expire at their existing deadline. The persisted cooldown format, attempts with a resolved model, independent credential-quota behavior, generation counters, credential and registration fences, and operator disable are preserved. This uses the existing attempt start timestamp and leaves the broader upstream dispatch sequence and the other K3 decisions outside this adaptation.
+
+### Verification
+
+- The regression tests failed on the unmodified base for old, un-timestamped and same-time successes and for a restored deadline. The newer-request control passed. The same regressions and adjacent credential, manual disable, monotonic cooldown and restoration tests passed five times on the candidate.
+- Go 1.27.3 on macOS arm64 with CGO enabled. `go test -mod=readonly -p=6 -count=1 -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...` passed across 69 packages with tests. Another 23 packages have no tests. The local `127.0.0.2` bind probe failed with errno 49, while `127.0.0.1` worked. Two secondary-address subcases and the opt-in external egress and TLS capture tests skipped.
+- `go test -mod=readonly -p=4 -race -count=1 -json ./sdk/cliproxy/auth ./sdk/cliproxy` and `go build -mod=readonly -trimpath -p=4 -o <temporary-output> ./cmd/server` passed. Source-only local validation did not exercise Linux or production.
+- The identical pre/post manifest covered 1,862 workspace files and 1,253 Go compiler, test and embed inputs, with no unlisted inputs. The manifest SHA-256 before this ledger edit is `d5982c4b1bd8120e93ed813c47fa66f4057a9ffa289ddb9b920371cc1d86ff03`.
+
+Publication is recorded in the receipt after GitHub readback.
+
+
 ## Authorized follow-up in the 2026-11-23 review
 
 Scope approved after the backlog reassessment. The tracked CPA boundary remains v8.1.1. The verified fork base is `0450ca45d0a725b171bf157444094d699384117b`.
@@ -3489,7 +3505,7 @@ The source/test/build baseline matches the morning's tested 1642-file manifest *
 | 97 | `5fc580b1` `7484a521` | K1 (priority): Deletion/recreation and incomplete-file retention policy still needs a precise choice. |
 | 98 | `9db0729f` `4e8a4125` | CLOSED (conditional): Archive operational beta/diagnostic override options. |
 | 99 | `f9437700` | K5 (priority): Remote initialization precedes secret hashing; conditional security issue retained. |
-| 100 | `35af74f9` | K3 (priority): Fresh diagnostic reproduces no-model old-success/new-cooldown clearing. |
+| 100 | `35af74f9` | CLOSED (2026-11-23): The no-model result path preserves active account deadlines against older, same-time and unstamped successes. A restored deadline expires normally. Other K3 cases are separate. |
 | 101 | `355fd10e` | CLOSED (conditional): Archive dynamic-library lifecycle as a mandatory plugin enablement gate, not a resolved bug. |
 | 102 | `911f49cb` `e13bc9a1` | CLOSED (policy): Reject automatic thinking-block loss/adaptive synthesis; keep explicit caller control. |
 | 103 | `b946d54e` | K3 (priority): Keep investigation only; do not confuse existing 401 recovery with credential-quota shadow persistence. |

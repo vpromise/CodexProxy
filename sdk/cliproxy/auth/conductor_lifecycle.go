@@ -108,6 +108,7 @@ func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
 	auth.CredentialVersion = 1
 	auth.Generation = 1
 	auth.availabilityEpoch = 1
+	auth.accountCooldown = accountCooldownObservation{}
 	authClone := auth.Clone()
 	m.auths[auth.ID] = authClone.Clone()
 	m.mu.Unlock()
@@ -257,6 +258,7 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 	auth.recentRequests = existing.recentRequests
 	auth.Generation = existing.Generation + 1
 	auth.availabilityEpoch = existing.availabilityEpoch
+	auth.accountCooldown = existing.accountCooldown
 	if (existing.Disabled || existing.Status == StatusDisabled) != (auth.Disabled || auth.Status == StatusDisabled) {
 		auth.availabilityEpoch++
 	}
@@ -436,6 +438,7 @@ func (m *Manager) Load(ctx context.Context) error {
 		auth.CredentialVersion = 1
 		auth.Generation = 1
 		auth.availabilityEpoch = 1
+		auth.accountCooldown = accountCooldownObservation{}
 		m.auths[auth.ID] = auth.Clone()
 	}
 

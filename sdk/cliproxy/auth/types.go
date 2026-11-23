@@ -107,6 +107,8 @@ type Auth struct {
 
 	// availabilityEpoch invalidates in-flight availability effects after an explicit reset.
 	availabilityEpoch uint64
+	// accountCooldown records when the running manager observed the timed account block.
+	accountCooldown accountCooldownObservation
 	// claudeRefreshState belongs to the current credential material and exists only in memory.
 	claudeRefreshState claudeOAuthRefreshState
 	recentRequests     recentRequestRing `json:"-"`

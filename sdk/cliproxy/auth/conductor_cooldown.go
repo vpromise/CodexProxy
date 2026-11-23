@@ -367,6 +367,7 @@ func (m *Manager) restoreCooldownRecordLocked(record CooldownStateRecord, now ti
 	}
 
 	if model == "" {
+		auth.accountCooldown = accountCooldownObservation{}
 		auth.Unavailable = true
 		auth.Status = StatusError
 		auth.NextRetryAfter = record.NextRetryAfter
@@ -403,6 +404,7 @@ func clearCooldownStateForAuth(auth *Auth, now time.Time) bool {
 	if auth == nil {
 		return false
 	}
+	auth.accountCooldown = accountCooldownObservation{}
 	changed := false
 	if auth.Unavailable || !auth.NextRetryAfter.IsZero() || !auth.NonUnauthorizedRetryAfter.IsZero() || auth.Quota.Exceeded || !auth.Quota.NextRecoverAt.IsZero() {
 		auth.Unavailable = false
@@ -799,7 +801,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 					}
 					auth.UpdatedAt = now
 				}
-			} else {
+			} else if resultMayClearAccountCooldown(result, auth, now) {
 				clearAuthStateOnSuccess(auth, now)
 			}
 		} else {
@@ -1408,6 +1410,7 @@ func clearAggregatedAvailability(auth *Auth) {
 	if auth == nil {
 		return
 	}
+	auth.accountCooldown = accountCooldownObservation{}
 	auth.Unavailable = false
 	auth.NextRetryAfter = time.Time{}
 	applyCooldownFields(&auth.Quota, QuotaState{})
@@ -1433,10 +1436,31 @@ func hasModelError(auth *Auth, now time.Time) bool {
 	return false
 }
 
+type accountCooldownObservation struct {
+	observedAt time.Time
+	deadline   time.Time
+}
+
+func resultMayClearAccountCooldown(result Result, auth *Auth, now time.Time) bool {
+	_, _, deadline := authAvailabilityBlock(auth, now)
+	if deadline.IsZero() {
+		return true
+	}
+
+	// UpdatedAt also changes for unrelated bookkeeping. Only an observation
+	// associated with the active deadline establishes when this block began.
+	observed := auth.accountCooldown
+	return deadline.Equal(observed.deadline) &&
+		!observed.observedAt.IsZero() &&
+		result.AttemptStartedAt.After(observed.observedAt) &&
+		!result.AttemptStartedAt.After(now)
+}
+
 func clearAuthStateOnSuccess(auth *Auth, now time.Time) {
 	if auth == nil {
 		return
 	}
+	auth.accountCooldown = accountCooldownObservation{}
 	auth.Unavailable = false
 	auth.Status = StatusActive
 	auth.StatusMessage = ""
@@ -2103,6 +2127,12 @@ func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Durati
 		if disableCooling && auth.NextRetryAfter.IsZero() && auth.Quota.NextRecoverAt.IsZero() {
 			auth.Unavailable = false
 			auth.Quota.Exceeded = false
+		}
+		_, _, deadline := authAvailabilityBlock(auth, now)
+		if deadline.IsZero() {
+			auth.accountCooldown = accountCooldownObservation{}
+		} else {
+			auth.accountCooldown = accountCooldownObservation{observedAt: now, deadline: deadline}
 		}
 	}()
 	auth.Unavailable = true
