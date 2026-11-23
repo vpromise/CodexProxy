@@ -4,6 +4,20 @@ import "context"
 
 type skipPersistContextKey struct{}
 type deferAPIKeyModelAliasRebuildContextKey struct{}
+type refreshPersistenceContextKey struct{}
+
+func withRefreshPersistence(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, refreshPersistenceContextKey{}, true)
+}
+
+// IsRefreshPersistence reports whether a token store is saving an OAuth
+// refresh result from the manager.
+func IsRefreshPersistence(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(refreshPersistenceContextKey{}) == true
+}
 
 // WithSkipPersist returns a derived context that disables persistence for Manager Update/Register calls.
 // It is intended for code paths that are reacting to file watcher events, where the file on disk is

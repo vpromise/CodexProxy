@@ -13,9 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/auth/codex"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/fileperm"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	log "github.com/sirupsen/logrus"
 )
 
 // PluginAuthParser parses auth JSON owned by plugin providers.
@@ -73,6 +75,8 @@ func (s *FileTokenStore) SetBaseDir(dir string) {
 }
 
 // Save persists token storage and metadata to the resolved auth file path.
+// A non-empty path with a Codex save error means the credentials were visible
+// on disk but the directory entry could not be confirmed durable.
 func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (string, error) {
 	if auth == nil {
 		return "", fmt.Errorf("auth filestore: auth is nil")
@@ -90,14 +94,14 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		return "", fmt.Errorf("auth filestore: missing file path attribute for %s", auth.ID)
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if auth.Disabled {
 		if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
 			return "", nil
 		}
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if err = fileperm.EnsurePrivateParent(path); err != nil {
 		return "", fmt.Errorf("auth filestore: create dir failed: %w", err)
@@ -108,6 +112,9 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		SetMetadata(map[string]any)
 	}
 
+	var replaced bool
+	var errSave error
+	var unchangedCodexFile bool
 	switch {
 	case auth.Storage != nil:
 		if auth.Metadata == nil {
@@ -117,8 +124,10 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		if setter, ok := auth.Storage.(metadataSetter); ok {
 			setter.SetMetadata(auth.Metadata)
 		}
-		if err = auth.Storage.SaveTokenToFile(path); err != nil {
-			return "", err
+		if storage, ok := auth.Storage.(*codex.CodexTokenStorage); ok {
+			replaced, errSave = storage.SaveLocalTokenToFile(path)
+		} else if errSave = auth.Storage.SaveTokenToFile(path); errSave != nil {
+			return "", errSave
 		}
 	case auth.Metadata != nil:
 		auth.Metadata["disabled"] = auth.Disabled
@@ -126,10 +135,30 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		if errMarshal != nil {
 			return "", fmt.Errorf("auth filestore: marshal metadata failed: %w", errMarshal)
 		}
-		if existing, errRead := os.ReadFile(path); errRead == nil {
-			if jsonEqual(existing, raw) {
-				break
-			}
+		existing, errRead := os.ReadFile(path)
+		if errRead != nil && !os.IsNotExist(errRead) {
+			return "", fmt.Errorf("auth filestore: read existing failed: %w", errRead)
+		}
+		provider := strings.TrimSpace(auth.Provider)
+		if provider == "" {
+			provider, _ = auth.Metadata["type"].(string)
+		}
+		codexOAuth := strings.EqualFold(strings.TrimSpace(provider), "codex") && auth.AuthKind() == cliproxyauth.AuthKindOAuth
+		if codexOAuth && auth.Attributes[cliproxyauth.AttributeSourceBackend] == cliproxyauth.AuthSourceFile && os.IsNotExist(errRead) {
+			// A file-backed snapshot can outlive an external rename between
+			// the manager's source check and this save.
+			return "", fmt.Errorf("auth filestore: Codex credential source disappeared: %w", errRead)
+		}
+		codexRefresh := codexOAuth && cliproxyauth.IsRefreshPersistence(ctx)
+		if errRead == nil && jsonEqual(existing, raw) {
+			unchangedCodexFile = codexRefresh
+			break
+		}
+		if codexRefresh {
+			replaced, errSave = fileperm.WritePrivateFileAtomic(path, raw, errRead == nil)
+			break
+		}
+		if errRead == nil {
 			file, errOpen := fileperm.OpenPrivateFile(path, os.O_WRONLY|os.O_TRUNC)
 			if errOpen != nil {
 				return "", fmt.Errorf("auth filestore: open existing failed: %w", errOpen)
@@ -142,8 +171,6 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 				return "", fmt.Errorf("auth filestore: close existing failed: %w", errClose)
 			}
 			break
-		} else if !os.IsNotExist(errRead) {
-			return "", fmt.Errorf("auth filestore: read existing failed: %w", errRead)
 		}
 		if errWrite := fileperm.WritePrivateFile(path, raw); errWrite != nil {
 			return "", fmt.Errorf("auth filestore: write file failed: %w", errWrite)
@@ -151,8 +178,24 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 	default:
 		return "", fmt.Errorf("auth filestore: nothing to persist for %s", auth.ID)
 	}
-	if err = fileperm.RestrictPrivateFile(path); err != nil {
-		return "", fmt.Errorf("auth filestore: secure auth file: %w", err)
+	if errSave != nil {
+		logger := log.WithField("auth_id", auth.ID)
+		if !replaced {
+			logger.Warn("local Codex credential save failed before replacement")
+			return "", fmt.Errorf("auth filestore: save Codex credentials: %w", errSave)
+		}
+		logger.Warn("local Codex credential file replaced but durability is unconfirmed")
+	}
+	if !replaced {
+		if err = fileperm.RestrictPrivateFile(path); err != nil {
+			return "", fmt.Errorf("auth filestore: secure auth file: %w", err)
+		}
+	}
+	if unchangedCodexFile {
+		if errSync := fileperm.SyncPrivateFileDirectory(path); errSync != nil {
+			log.WithField("auth_id", auth.ID).Warn("local Codex credential directory durability is unconfirmed")
+			errSave = fmt.Errorf("auth filestore: confirm existing Codex credential durability: %w", errSync)
+		}
 	}
 
 	if auth.Attributes == nil {
@@ -166,7 +209,7 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		auth.FileName = auth.ID
 	}
 
-	return path, nil
+	return path, errSave
 }
 
 // List enumerates all auth JSON files under the configured directory.
@@ -211,6 +254,8 @@ func (s *FileTokenStore) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err = os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("auth filestore: delete failed: %w", err)
 	}

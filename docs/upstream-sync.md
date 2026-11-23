@@ -4,6 +4,23 @@ Updated: 2026-11-23 (Asia/Shanghai). This ledger records selective backports fro
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
 
+## Authorized follow-up in the 2026-11-23 review — local Codex OAuth credential persistence
+
+Completed the approved K1/U1 local persistence scope on fork base `06d8dcb782cffa30642fbb37ed2a98398a364335`. Adapted the file sync ordering from [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25). The released review boundary remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
+
+The local file store uses complete JSON and a private same-directory temporary file for native Codex OAuth login and for the manager's file-backed Codex refresh results. It syncs the temp file and closes it before replacement, then syncs the directory on Unix. Before replacement, an error preserves the previous file or leaves a first-login path absent. After replacement, an error keeps the new JSON and reports unconfirmed directory durability. An equal refresh save can retry the directory check without replacing the inode. The file writer follows existing symlinks and keeps mode `0600`. The ordinary SDK command entries, remote stores, auth format, credential fencing and refresh scheduling retain their contracts.
+
+The auth watcher distinguishes replaced inodes from genuine removals. A file-backed Codex OAuth metadata save whose original path disappeared now returns a missing-source error rather than creating a file at the old path. This also covers the model-state reconciliation save observed between the manager's source check and file-store read. A genuine login can still create its credential file.
+
+### Verification
+
+- The unchanged base failed the three synthetic short-write cases for first login, re-login and refresh. It also failed the explicit stale-file save assertion after managed deletion. The candidate preserves the prior bytes, leaves a failed first-login path absent, cleans up failed temporary files and retains the newer runtime snapshot under the existing manager policy.
+- Unit and integration regressions covered temp and directory sync failures, relative links, mode and metadata, simultaneous JSON readers, disabled credentials, imported pool identity and deletion. The initial full and race suites caught a rename regression. Narrowing the atomic entry points to login and refresh and correcting the watcher fixed that path. A separate live local-process SDK fixture traced a rare late recreation to model reconciliation and validated the missing-source guard with 100 successful runs. The fixture refreshed through the manager, renamed the credential, confirmed its pool membership and deleted it. The final focused suite passed 15 repetitions in seven packages.
+- Go 1.27.3 on macOS arm64, CGO enabled. `go test -mod=readonly -p=6 -count=1 -timeout=130s -json -skip '^TestClaudeStandardRoundTripper(BindsLocalIP|HTTPSProxyKeepsBindAndProxyTLS)$' ./...` returned zero with 71 successful package results and 22 packages without tests. The local `127.0.0.1` probe passed and `127.0.0.2` returned errno 49. Secondary-loopback cases and opt-in PostgreSQL, public egress and external TLS capture checks skipped. The race suite passed in eight affected packages.
+- The macOS arm64 server build and Linux amd64 static cross-build passed. Their SHA-256 values are `54aad07ccb009e5767f9073708e1af169d42a6b20ba0458ea371f41e8dc676b9` and `6fb64de56052faba4d70cc50e10c8126088870eeb22f888d501fdbe294c2bbd4`. The identical before and after manifest covered 1,872 paths excluding this ledger, with 1,263 local compiler, test and embed inputs. Manifest SHA-256 `37631b44e9cb9ad058a5df6b2ec88ed55bc127f29cf81ae88087f19645bcc534`. Runtime validation used temporary files and synthetic credentials. Linux runtime and power-loss testing were outside this run.
+
+Automatic disk-only recovery of a newly issued token after a failed refresh save remains a separate credential lifecycle decision. A preserved older JSON file can contain a refresh token already rotated by the provider.
+
 ## Authorized follow-up in the 2026-11-23 review — graceful shutdown timer
 
 Completed K4 original item 7 on verified fork base `367ee66ce7c8152b4fb13ad7905500af84dc1889`. Adapted the shutdown timer placement from [CPA `759c57c2`](https://github.com/router-for-me/CLIProxyAPI/commit/759c57c2612def05dd15558ffbeb40c25f56f448) and [issue 6094](https://github.com/router-for-me/CLIProxyAPI/issues/6094). The reviewed CPA boundary remains [v8.1.1](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.1) at `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
@@ -22,9 +39,9 @@ Completed K4 original item 7 on verified fork base `367ee66ce7c8152b4fb13ad79055
 
 Published [`0a4abfb0`](https://github.com/vpromise/CodexProxy/commit/0a4abfb0f045e684b071b87de685cc5ee0dfada5) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `fe9d4596a713892f4827ee1695330f42765c499d`. Git transport and the GitHub branch API both returned the implementation SHA. At 2026-11-23T20:23:01+08:00 GitHub reported zero workflow runs, check runs and commit statuses for the SHA. The repository workflows trigger on pull requests or tags. This publication updated source on GitHub.
 
-### Open follow-up
+### Codex persistence observation
 
-K1/U1 Codex OAuth file persistence remains a decision. A synthetic short write on the unchanged local writer returned an error and left invalid JSON in both the login storage path and the loaded credential refresh path. The latter had already installed the new snapshot in memory. The on-disk file could no longer be loaded. Scope under discussion is atomic private writes for these two file-backed paths, including distinct pre-rename failure and post-rename durability reporting. Remote store policy and retry or recovery ownership have separate approval scopes. [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25)
+The subsequent Codex OAuth persistence follow-up above resolves the approved local writer scope. The initial diagnostic reproduced short writes leaving invalid JSON for login and refresh. In the refresh case the new snapshot was already active in memory and the damaged file could no longer be reloaded. [CPA `6d703fd`](https://github.com/router-for-me/CLIProxyAPI/commit/6d703fdf4818cc7d24cd23109c656cae2b2e1e25)
 
 ## Authorized follow-up in the 2026-11-23 review — signed Claude Responses replay
 

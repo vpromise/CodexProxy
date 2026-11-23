@@ -1052,6 +1052,47 @@ func TestHandleEventRemoveDebounceSkips(t *testing.T) {
 	}
 }
 
+func TestHandleEventCredentialReplacementThenRename(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "codex.json")
+	renamed := filepath.Join(dir, "renamed.json")
+	initial := []byte(`{"type":"codex","access_token":"old-fixture"}`)
+	next := []byte(`{"type":"codex","access_token":"new-fixture"}`)
+	if errWrite := os.WriteFile(path, initial, 0o600); errWrite != nil {
+		t.Fatal(errWrite)
+	}
+
+	w := &Watcher{
+		authDir:        dir,
+		configPath:     filepath.Join(dir, "config.yaml"),
+		lastAuthHashes: make(map[string]string),
+	}
+	w.SetConfig(&config.Config{AuthDir: dir})
+	w.handleEvent(fsnotify.Event{Name: path, Op: fsnotify.Create})
+
+	temp := filepath.Join(dir, ".codex.tmp")
+	if errWrite := os.WriteFile(temp, next, 0o600); errWrite != nil {
+		t.Fatal(errWrite)
+	}
+	if errRename := os.Rename(temp, path); errRename != nil {
+		t.Fatal(errRename)
+	}
+	// Replacing a known file can produce a remove event for the old inode.
+	w.handleEvent(fsnotify.Event{Name: path, Op: fsnotify.Remove})
+	if current := w.currentAuths["codex.json"]; current == nil || current.Metadata["access_token"] != "new-fixture" {
+		t.Fatal("watcher did not load the replaced file")
+	}
+
+	if errRename := os.Rename(path, renamed); errRename != nil {
+		t.Fatal(errRename)
+	}
+	w.handleEvent(fsnotify.Event{Name: path, Op: fsnotify.Rename})
+	w.handleEvent(fsnotify.Event{Name: renamed, Op: fsnotify.Create})
+	if w.isKnownAuthFile(path) || w.currentAuths["codex.json"] != nil || w.currentAuths["renamed.json"] == nil {
+		t.Fatal("watcher kept the old file after a replacement followed by a rename")
+	}
+}
+
 func TestHandleEventAtomicReplaceUnchangedSkips(t *testing.T) {
 	tmpDir := t.TempDir()
 	authDir := filepath.Join(tmpDir, "auth")

@@ -102,10 +102,6 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 	w.observeAuthFile(event.Name)
 
 	if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
-		if w.shouldDebounceRemove(normalizedName, now) {
-			log.Debugf("debouncing remove event for %s", filepath.Base(event.Name))
-			return
-		}
 		// Atomic replace on some platforms may surface as Rename (or Remove) before the new file is ready.
 		// Wait briefly; if the path exists again, treat as an update instead of removal.
 		time.Sleep(replaceCheckDelay)
@@ -119,7 +115,11 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 			return
 		}
 		if !w.isKnownAuthFile(event.Name) {
-			log.Debugf("ignoring remove for unknown auth file: %s", filepath.Base(event.Name))
+			// Debounce only noise from absent, untracked files. An event for a
+			// replaced inode must not suppress a later removal of the live file.
+			if !w.shouldDebounceRemove(normalizedName, now) {
+				log.Debugf("ignoring remove for unknown auth file: %s", filepath.Base(event.Name))
+			}
 			return
 		}
 		log.Infof("auth file changed (%s): %s, processing incrementally", event.Op.String(), filepath.Base(event.Name))

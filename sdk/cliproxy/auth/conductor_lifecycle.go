@@ -284,7 +284,11 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 	authClone := auth.Clone()
 	m.auths[auth.ID] = authClone.Clone()
 	m.mu.Unlock()
-	errPersist := m.persistAuthLocked(ctx, authClone, pLock)
+	persistCtx := ctx
+	if mode == updateModeRefresh {
+		persistCtx = withRefreshPersistence(ctx)
+	}
+	errPersist := m.persistAuthLocked(persistCtx, authClone, pLock)
 	pLock.mu.Unlock()
 	if !shouldDeferAPIKeyModelAliasRebuild(ctx) {
 		m.rebuildAPIKeyModelAliasFromRuntimeConfig()

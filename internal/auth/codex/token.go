@@ -44,6 +44,30 @@ func (ts *CodexTokenStorage) SetMetadata(meta map[string]any) {
 	ts.Metadata = meta
 }
 
+func (ts *CodexTokenStorage) tokenFileData() (map[string]any, error) {
+	ts.Type = "codex"
+	data, errMerge := misc.MergeMetadata(ts, ts.Metadata)
+	if errMerge != nil {
+		return nil, fmt.Errorf("failed to merge metadata: %w", errMerge)
+	}
+	return data, nil
+}
+
+// SaveLocalTokenToFile replaces the private credential file for the local file
+// store. The first result reports whether the file replacement took effect.
+func (ts *CodexTokenStorage) SaveLocalTokenToFile(authFilePath string) (bool, error) {
+	misc.LogSavingCredentials(authFilePath)
+	data, errData := ts.tokenFileData()
+	if errData != nil {
+		return false, errData
+	}
+	raw, errMarshal := json.Marshal(data)
+	if errMarshal != nil {
+		return false, fmt.Errorf("failed to encode Codex credentials: %w", errMarshal)
+	}
+	return fileperm.WritePrivateFileAtomic(authFilePath, append(raw, '\n'), false)
+}
+
 // SaveTokenToFile serializes the Codex token storage to a JSON file.
 // This method creates the necessary directory structure and writes the token
 // data in JSON format to the specified file path for persistent storage.
@@ -56,15 +80,13 @@ func (ts *CodexTokenStorage) SetMetadata(meta map[string]any) {
 //   - error: An error if the operation fails, nil otherwise
 func (ts *CodexTokenStorage) SaveTokenToFile(authFilePath string) error {
 	misc.LogSavingCredentials(authFilePath)
-	ts.Type = "codex"
 	if err := fileperm.EnsurePrivateParent(authFilePath); err != nil {
 		return fmt.Errorf("failed to create directory: %v", err)
 	}
 
-	// Merge metadata using helper
-	data, errMerge := misc.MergeMetadata(ts, ts.Metadata)
-	if errMerge != nil {
-		return fmt.Errorf("failed to merge metadata: %w", errMerge)
+	data, errData := ts.tokenFileData()
+	if errData != nil {
+		return errData
 	}
 
 	f, err := fileperm.OpenPrivateFile(authFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
