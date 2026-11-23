@@ -1,6 +1,7 @@
 package fileperm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,9 +16,26 @@ func WritePrivateFileAtomic(path string, data []byte, requireExisting bool) (boo
 }
 
 func writePrivateFileAtomic(path string, data []byte, requireExisting bool, syncFile func(*os.File) error) (bool, error) {
+	return writePrivateFileAtomicVersion(path, data, requireExisting, nil, syncFile)
+}
+
+// ErrCredentialFileChanged signals that an observed credential file can no longer
+// be replaced safely.
+var ErrCredentialFileChanged = errors.New("credential destination changed before replacement")
+
+// WritePrivateFileAtomicIfCurrent replaces the observed version of an existing
+// file. It checks the file identity and metadata again just before replacement.
+func WritePrivateFileAtomicIfCurrent(path string, data []byte, observed os.FileInfo) (bool, error) {
+	return writePrivateFileAtomicVersion(path, data, true, observed, (*os.File).Sync)
+}
+
+func writePrivateFileAtomicVersion(path string, data []byte, requireExisting bool, observed os.FileInfo, syncFile func(*os.File) error) (bool, error) {
 	target, original, errResolve := atomicWriteDestination(path)
 	if errResolve != nil {
 		return false, fmt.Errorf("inspect credential destination: %w", errResolve)
+	}
+	if observed != nil && !sameFileVersion(observed, original) {
+		return false, ErrCredentialFileChanged
 	}
 	if requireExisting && original == nil {
 		return false, fmt.Errorf("credential destination no longer exists: %w", os.ErrNotExist)
@@ -58,7 +76,10 @@ func writePrivateFileAtomic(path string, data []byte, requireExisting bool, sync
 		return false, fmt.Errorf("recheck credential destination: %w", errStat)
 	}
 	if (original == nil && current != nil) || (original != nil && (current == nil || !os.SameFile(original, current))) {
-		return false, fmt.Errorf("credential destination changed before replacement")
+		return false, ErrCredentialFileChanged
+	}
+	if observed != nil && !sameFileVersion(observed, current) {
+		return false, ErrCredentialFileChanged
 	}
 	if errRename := os.Rename(tempPath, target); errRename != nil {
 		return false, fmt.Errorf("replace credential file: %w", errRename)
@@ -69,6 +90,11 @@ func writePrivateFileAtomic(path string, data []byte, requireExisting bool, sync
 		return true, fmt.Errorf("credential file replaced but durability is unconfirmed: %w", errSync)
 	}
 	return true, nil
+}
+
+func sameFileVersion(observed, current os.FileInfo) bool {
+	return current != nil && os.SameFile(observed, current) &&
+		observed.Size() == current.Size() && observed.ModTime().Equal(current.ModTime())
 }
 
 // SyncPrivateFileDirectory confirms the directory entry for an existing file,

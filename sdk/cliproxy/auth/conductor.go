@@ -186,6 +186,12 @@ type Manager struct {
 	refreshCancel context.CancelFunc
 	refreshLoop   *authAutoRefreshLoop
 
+	// storeReloadMu excludes local disk recovery during an explicit load or store swap.
+	storeReloadMu          sync.RWMutex
+	storeRevision          uint64
+	localCodexRefreshSaves map[string]*localCodexRefreshSave
+	localCodexSaveWake     chan struct{}
+
 	requestPrepareLocks sync.Map
 	// localCredentialAdmissions owns non-Home per-credential inference admission.
 	// Entries are keyed by auth ID and removed with the auth lifecycle.
@@ -207,6 +213,7 @@ func NewManager(store Store, selector Selector, hook Hook) *Manager {
 	}
 	manager := &Manager{
 		store:                 store,
+		localCodexSaveWake:    make(chan struct{}, 1),
 		executors:             make(map[string]ProviderExecutor),
 		selector:              selector,
 		hook:                  hook,

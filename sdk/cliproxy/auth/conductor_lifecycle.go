@@ -111,6 +111,7 @@ func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
 	auth.accountCooldown = accountCooldownObservation{}
 	authClone := auth.Clone()
 	m.auths[auth.ID] = authClone.Clone()
+	delete(m.localCodexRefreshSaves, auth.ID)
 	m.mu.Unlock()
 	errPersist := m.persistAuthLocked(ctx, authClone, pLock)
 	pLock.mu.Unlock()
@@ -176,6 +177,14 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 	}
 	pLock := m.authPersistenceLock(auth.ID)
 	pLock.mu.Lock()
+	if mode == updateModeReplace && shouldSkipPersist(ctx) {
+		resolved, discard := m.reconcileLocalCodexFileSnapshot(auth)
+		if discard {
+			pLock.mu.Unlock()
+			return resolved, nil
+		}
+		auth = resolved
+	}
 	m.mu.Lock()
 	existing, ok := m.auths[auth.ID]
 	if !ok || existing == nil {
@@ -283,12 +292,22 @@ func (m *Manager) updateInternal(ctx context.Context, base, auth *Auth, mode upd
 	auth.EnsureIndex()
 	authClone := auth.Clone()
 	m.auths[auth.ID] = authClone.Clone()
-	m.mu.Unlock()
 	persistCtx := ctx
 	if mode == updateModeRefresh {
-		persistCtx = withRefreshPersistence(ctx)
+		persistCtx = withRefreshPersistence(ctx, existing, m.localCodexRefreshSaves[auth.ID])
 	}
+	if save := m.localCodexRefreshSaves[auth.ID]; save != nil {
+		if !save.matches(authClone) {
+			delete(m.localCodexRefreshSaves, auth.ID)
+		}
+		m.wakeLocalCodexRefreshSaves()
+	}
+	storeRevision := m.storeRevision
+	m.mu.Unlock()
 	errPersist := m.persistAuthLocked(persistCtx, authClone, pLock)
+	if mode == updateModeRefresh {
+		m.queueLocalCodexRefreshSave(base, authClone, storeRevision, errPersist)
+	}
 	pLock.mu.Unlock()
 	if !shouldDeferAPIKeyModelAliasRebuild(ctx) {
 		m.rebuildAPIKeyModelAliasFromRuntimeConfig()
@@ -353,6 +372,7 @@ func (m *Manager) RemoveWithPersistence(ctx context.Context, id string, remove f
 	}
 	provider := strings.TrimSpace(existing.Provider)
 	delete(m.auths, id)
+	delete(m.localCodexRefreshSaves, id)
 	registry.GetGlobalRegistry().UnregisterClient(id)
 	if m.modelPoolOffsets != nil {
 		delete(m.modelPoolOffsets, id)
@@ -411,6 +431,8 @@ func (m *Manager) invalidateSessionAffinity(authID string) {
 
 // Load resets manager state from the backing store.
 func (m *Manager) Load(ctx context.Context) error {
+	m.storeReloadMu.Lock()
+	defer m.storeReloadMu.Unlock()
 	m.mu.Lock()
 	if m.store == nil {
 		m.mu.Unlock()
@@ -422,6 +444,8 @@ func (m *Manager) Load(ctx context.Context) error {
 		return err
 	}
 	previousAuths := m.auths
+	m.localCodexRefreshSaves = nil
+	m.wakeLocalCodexRefreshSaves()
 	m.auths = make(map[string]*Auth, len(items))
 	if m.authEpochs == nil {
 		m.authEpochs = make(map[string]uint64, len(items))

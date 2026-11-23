@@ -239,7 +239,8 @@ func (s *Service) prepareCoreAuthForModelRegistration(ctx context.Context, auth 
 	if s == nil || s.coreManager == nil || auth == nil || auth.ID == "" {
 		return nil
 	}
-	if previous, ok := s.coreManager.GetByID(auth.ID); ok && coreauth.AccountIdentity(previous) != coreauth.AccountIdentity(auth) {
+	if previous, ok := s.coreManager.GetByID(auth.ID); ok && coreauth.AccountIdentity(previous) != coreauth.AccountIdentity(auth) &&
+		!s.coreManager.IsLocalCodexRefreshFileEcho(ctx, auth) {
 		if errRevoke := s.revokeRemovedPoolAccount(ctx, previous); errRevoke != nil {
 			log.WithError(errRevoke).Error("cannot revoke replaced pool account")
 			return nil

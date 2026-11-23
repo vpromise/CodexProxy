@@ -92,6 +92,28 @@ func TestAtomicCredentialPreservesRemovedOrReplacedDestination(t *testing.T) {
 	}
 }
 
+func TestAtomicCredentialIfCurrentPreservesInPlaceEdit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	if errWrite := os.WriteFile(path, []byte("previous"), 0o600); errWrite != nil {
+		t.Fatal(errWrite)
+	}
+	observed, errStat := os.Stat(path)
+	if errStat != nil {
+		t.Fatal(errStat)
+	}
+	const edited = "changed since it was read"
+	replaced, errSave := writePrivateFileAtomicVersion(path, []byte("candidate"), true, observed, func(file *os.File) error {
+		if errWrite := os.WriteFile(path, []byte(edited), 0o600); errWrite != nil {
+			t.Fatal(errWrite)
+		}
+		return file.Sync()
+	})
+	if replaced || !errors.Is(errSave, ErrCredentialFileChanged) {
+		t.Fatalf("stale credential write = %t, %v", replaced, errSave)
+	}
+	checkCredentialBytes(t, path, edited)
+}
+
 func TestAtomicCredentialFollowsRelativeSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("creating symlinks can require additional privileges on Windows")

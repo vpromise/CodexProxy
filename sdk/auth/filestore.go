@@ -103,8 +103,11 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		}
 	}
 
-	if err = fileperm.EnsurePrivateParent(path); err != nil {
-		return "", fmt.Errorf("auth filestore: create dir failed: %w", err)
+	localCodexRefresh := cliproxyauth.IsLocalCodexRefresh(ctx, auth)
+	if !localCodexRefresh {
+		if err = fileperm.EnsurePrivateParent(path); err != nil {
+			return "", fmt.Errorf("auth filestore: create dir failed: %w", err)
+		}
 	}
 
 	// metadataSetter is a private interface for TokenStorage implementations that support metadata injection.
@@ -135,21 +138,28 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		if errMarshal != nil {
 			return "", fmt.Errorf("auth filestore: marshal metadata failed: %w", errMarshal)
 		}
-		existing, errRead := os.ReadFile(path)
-		if errRead != nil && !os.IsNotExist(errRead) {
-			return "", fmt.Errorf("auth filestore: read existing failed: %w", errRead)
-		}
 		provider := strings.TrimSpace(auth.Provider)
 		if provider == "" {
 			provider, _ = auth.Metadata["type"].(string)
 		}
 		codexOAuth := strings.EqualFold(strings.TrimSpace(provider), "codex") && auth.AuthKind() == cliproxyauth.AuthKindOAuth
+		codexRefresh := codexOAuth && cliproxyauth.IsRefreshPersistence(ctx)
+		if localCodexRefresh {
+			savedPath, errRefresh := s.saveLocalCodexRefresh(ctx, auth.ID, path, raw)
+			if savedPath != "" {
+				setSavedFilePath(auth, savedPath)
+			}
+			return savedPath, errRefresh
+		}
+		existing, errRead := os.ReadFile(path)
+		if errRead != nil && !os.IsNotExist(errRead) {
+			return "", fmt.Errorf("auth filestore: read existing failed: %w", errRead)
+		}
 		if codexOAuth && auth.Attributes[cliproxyauth.AttributeSourceBackend] == cliproxyauth.AuthSourceFile && os.IsNotExist(errRead) {
 			// A file-backed snapshot can outlive an external rename between
 			// the manager's source check and this save.
 			return "", fmt.Errorf("auth filestore: Codex credential source disappeared: %w", errRead)
 		}
-		codexRefresh := codexOAuth && cliproxyauth.IsRefreshPersistence(ctx)
 		if errRead == nil && jsonEqual(existing, raw) {
 			unchangedCodexFile = codexRefresh
 			break
@@ -198,6 +208,11 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		}
 	}
 
+	setSavedFilePath(auth, path)
+	return path, errSave
+}
+
+func setSavedFilePath(auth *cliproxyauth.Auth, path string) {
 	if auth.Attributes == nil {
 		auth.Attributes = make(map[string]string)
 	}
@@ -209,7 +224,6 @@ func (s *FileTokenStore) Save(ctx context.Context, auth *cliproxyauth.Auth) (str
 		auth.FileName = auth.ID
 	}
 
-	return path, errSave
 }
 
 // List enumerates all auth JSON files under the configured directory.

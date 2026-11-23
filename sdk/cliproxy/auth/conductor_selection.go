@@ -423,9 +423,14 @@ func (m *Manager) Selector() Selector {
 
 // SetStore swaps the underlying persistence store.
 func (m *Manager) SetStore(store Store) {
+	m.storeReloadMu.Lock()
+	defer m.storeReloadMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.store = store
+	m.storeRevision++
+	m.localCodexRefreshSaves = nil
+	m.wakeLocalCodexRefreshSaves()
 }
 
 // SetCooldownStateStore swaps the independent runtime cooldown state store.

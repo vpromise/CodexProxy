@@ -21,6 +21,10 @@ func EnsurePrivateDir(path string) error {
 	if errMkdir := os.MkdirAll(clean, PrivateDirMode); errMkdir != nil {
 		return errMkdir
 	}
+	return restrictPrivateDir(clean)
+}
+
+func restrictPrivateDir(clean string) error {
 	if clean == "." || filepath.Dir(clean) == clean {
 		return nil
 	}
@@ -33,6 +37,12 @@ func EnsurePrivateDir(path string) error {
 // EnsurePrivateParent creates and restricts the parent of filePath.
 func EnsurePrivateParent(filePath string) error {
 	return EnsurePrivateDir(filepath.Dir(filePath))
+}
+
+// RestrictExistingPrivateParent secures a credential directory without creating
+// any part of a removed credential path.
+func RestrictExistingPrivateParent(filePath string) error {
+	return restrictPrivateDir(filepath.Dir(filePath))
 }
 
 // OpenPrivateFile opens a file and restricts its mode before callers write
