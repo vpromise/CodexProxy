@@ -31,7 +31,7 @@ The Codex-specific decisions below remain paused at the user's direction. Shared
 
 ### Publication receipt
 
-Published [`23bac07a`](https://github.com/vpromise/CodexProxy/commit/23bac07a727ebc43134cfe4c432aa8f1b3b017d2) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `1b3f89e4f2fe45787c3300e57c340a88043cc794`. Git transport and the GitHub branch API matched the implementation SHA at 2026-11-23T21:54:40+08:00. GitHub reported zero workflow runs, check runs and statuses. The repository workflows trigger on pull requests or tag pushes. This publication covers GitHub source.
+Published [`23bac07a`](https://github.com/vpromise/CodexProxy/commit/23bac07a727ebc43134cfe4c432aa8f1b3b017d2) to `vpromise/CodexProxy/main` with a normal fast-forward push. The implementation tree is `1b3f89e4f2fe45787c3300e57d640a88043cc794`. Git transport and the GitHub branch API matched the implementation SHA at 2026-11-23T21:54:40+08:00. GitHub reported zero workflow runs, check runs and statuses. The repository workflows trigger on pull requests or tag pushes. This publication covers GitHub source.
 
 ## Authorized follow-up in the 2026-11-23 review — recover a failed Codex OAuth refresh save
 
