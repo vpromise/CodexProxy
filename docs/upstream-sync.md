@@ -18,7 +18,9 @@ Scope approved after the backlog reassessment. The tracked CPA boundary remains 
 - `bun run verify` with pinned Bun 1.3.14 passed 374 WebUI tests, lint, type checking and build. Two builds using the release placeholder version produced identical embedded HTML with SHA-256 `24f20991722ebc2c2654d0bbdf7ace8fc0787caf56c10223e244daae4ca3979f`. `go build -mod=readonly -trimpath -p=4 -o <temporary-output> ./cmd/server` passed on Go 1.27.3, darwin/arm64, CGO=1. Linux, production credential behavior and real upstream inference were outside this validation.
 - The identical before/after manifest covered 1,861 workspace files and 1,252 actual Go compiler, test and embed inputs with no unrecorded Go inputs. Manifest SHA-256 `b40f840c44b48db718b37641c9f87fd80b69e77f1985275d708781b2987bb94e`. The manifest precedes this documentation entry.
 
-Publication is recorded in the following receipt after GitHub readback. This follow-up is scoped to source publication.
+### Publication receipt
+
+Published implementation [`e2eaac7b`](https://github.com/vpromise/CodexProxy/commit/e2eaac7b26dedca9834d6e342379b072113b26eb) to the fork's `main` with a normal fast-forward push. The implementation tree is `c9934e935c3b8fcc3764993ed20d00f1ad81468c`. Git transport and GitHub API both read back the implementation SHA. At 2026-11-23T16:40:17+08:00, the implementation SHA had zero workflow runs, zero check runs and zero commit statuses. The current workflows trigger on pull-request events or tags. Server deployment state was outside this follow-up.
 
 
 ## Current checkpoint - 2026-11-23
