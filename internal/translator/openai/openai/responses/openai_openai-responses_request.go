@@ -252,7 +252,7 @@ func convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 			case "function_call":
 				pendingReasoningContent = combineOpenAIResponsesReasoning(pendingReasoningContent, item.Get("reasoning_content").String())
 				// Buffer consecutive function calls and emit them as one assistant message.
-				toolCall := []byte(`{"id":"","type":"function","function":{"name":"","arguments":""}}`)
+				toolCall := []byte(`{"id":"","type":"function","function":{"name":"","arguments":"{}"}}`)
 
 				if callId := item.Get("call_id"); callId.Exists() {
 					toolCall, _ = sjson.SetBytes(toolCall, "id", callId.String())
@@ -268,8 +268,8 @@ func convertOpenAIResponsesRequestToOpenAIChatCompletions(modelName string, inpu
 					toolCall, _ = sjson.SetBytes(toolCall, "function.name", functionName)
 				}
 
-				if arguments := item.Get("arguments"); arguments.Exists() {
-					toolCall, _ = sjson.SetBytes(toolCall, "function.arguments", arguments.String())
+				if arguments := item.Get("arguments").String(); strings.TrimSpace(arguments) != "" {
+					toolCall, _ = sjson.SetBytes(toolCall, "function.arguments", arguments)
 				}
 				pendingToolCalls = append(pendingToolCalls, gjson.ParseBytes(toolCall).Value())
 				if callID := strings.TrimSpace(item.Get("call_id").String()); callID != "" {

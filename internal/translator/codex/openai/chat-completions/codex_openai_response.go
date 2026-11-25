@@ -51,6 +51,7 @@ type ConvertCliToOpenAIParams struct {
 	ToolMetadata          codexChatToolMetadata
 	textPartOffsets       map[citationPartKey]int64
 	emittedTextRunes      int64
+	messageText           messageTextStream
 	seenCitations         map[string]struct{}
 	ServiceTier           string
 	ResponseID            string
@@ -111,6 +112,10 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 	typeResult := rootResult.Get("type")
 	dataType := typeResult.String()
 	if dataType == "response.created" {
+		p.messageText = messageTextStream{}
+		p.textPartOffsets = nil
+		p.seenCitations = nil
+		p.emittedTextRunes = 0
 		(*param).(*ConvertCliToOpenAIParams).ResponseID = rootResult.Get("response.id").String()
 		(*param).(*ConvertCliToOpenAIParams).CreatedAt = rootResult.Get("response.created_at").Int()
 		(*param).(*ConvertCliToOpenAIParams).Model = rootResult.Get("response.model").String()
@@ -155,6 +160,23 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 		}
 	}
 
+	var fallbackText string
+	if dataType == "response.output_item.done" {
+		item := rootResult.Get("item")
+		if item.Get("type").String() == "message" && p.messageText.complete(rootResult, item) {
+			var fallback strings.Builder
+			for index, part := range item.Get("content").Array() {
+				if part.Get("type").String() != "output_text" {
+					continue
+				}
+				if text := part.Get("text").String(); text != "" {
+					p.noteTextPartAt(citationPartKey{rootResult.Get("output_index").Int(), int64(index)}, text)
+					fallback.WriteString(text)
+				}
+			}
+			fallbackText = fallback.String()
+		}
+	}
 	citations := p.streamCitations(rootResult)
 	if len(citations) > 0 {
 		template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
@@ -182,6 +204,9 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 		template, _ = sjson.SetBytes(template, "choices.0.delta.reasoning_content", "\n\n")
 	} else if dataType == "response.output_text.delta" {
 		if deltaResult := rootResult.Get("delta"); deltaResult.Exists() {
+			if deltaResult.String() != "" {
+				p.messageText.mark(rootResult)
+			}
 			p.noteTextPart(rootResult, deltaResult.String())
 			template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
 			template, _ = sjson.SetBytes(template, "choices.0.delta.content", deltaResult.String())
@@ -238,6 +263,10 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 		template, _ = sjson.SetBytes(template, "choices.0.native_finish_reason", nativeFinishReason)
 	} else if dataType == "response.output_item.added" {
 		itemResult := rootResult.Get("item")
+		if itemResult.Get("type").String() == "message" {
+			p.messageText.find(rootResult, itemResult)
+			return nil
+		}
 		if !itemResult.Exists() || !isCodexToolCallType(itemResult.Get("type").String()) {
 			return [][]byte{}
 		}
@@ -309,6 +338,11 @@ func ConvertCodexResponseToOpenAI(_ context.Context, modelName string, originalR
 			return [][]byte{}
 		}
 		itemType := itemResult.Get("type").String()
+		if itemType == "message" && fallbackText != "" {
+			template, _ = sjson.SetBytes(template, "choices.0.delta.role", "assistant")
+			template, _ = sjson.SetBytes(template, "choices.0.delta.content", fallbackText)
+			return [][]byte{template}
+		}
 		if itemType == "image_generation_call" {
 			itemID := itemResult.Get("id").String()
 			b64 := itemResult.Get("result").String()

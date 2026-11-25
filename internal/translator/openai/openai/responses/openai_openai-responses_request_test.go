@@ -356,6 +356,28 @@ func TestConvertOpenAIResponsesRequestToOpenAIChatCompletions_AttachesReasoningT
 	}
 }
 
+func TestResponsesToolArgumentsUseEmptyObjectWhenBlank(t *testing.T) {
+	for _, tc := range []struct{ name, field, want string }{
+		{"omitted", "", "{}"},
+		{"empty", `,"arguments":""`, "{}"},
+		{"whitespace", `,"arguments":" \t"`, "{}"},
+		{"explicit", `,"arguments":"{\"n\":9007199254740993}"`, `{"n":9007199254740993}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := []byte(`{"input":[{"type":"function_call","call_id":"call_time","name":"get_time"` + tc.field +
+				`},{"type":"function_call_output","call_id":"call_time","output":"12:00"}]}`)
+			out := ConvertOpenAIResponsesRequestToOpenAIChatCompletions("fixture-model", raw, false)
+			call := gjson.GetBytes(out, "messages.0.tool_calls.0")
+			if got := call.Get("function.arguments"); got.Type != gjson.String || got.String() != tc.want {
+				t.Fatalf("arguments = %q, want %q", got.String(), tc.want)
+			}
+			if call.Get("id").String() != "call_time" || gjson.GetBytes(out, "messages.1.tool_call_id").String() != "call_time" {
+				t.Fatalf("tool pairing changed: %s", out)
+			}
+		})
+	}
+}
+
 func TestConvertOpenAIResponsesRequestToOpenAIChatCompletions_PreservesAssistantContentWithToolCalls(t *testing.T) {
 	raw := []byte(`{
 		"input": [

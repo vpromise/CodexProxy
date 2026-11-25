@@ -272,8 +272,8 @@ func applyCodexClientModelMetadata(entry map[string]any, id string, model map[st
 	contextWindow := intModelValue(model, "context_length")
 
 	if info != nil {
-		if info.DisplayName != "" {
-			displayName = info.DisplayName
+		if displayName == "" {
+			displayName = strings.TrimSpace(info.DisplayName)
 		}
 		if info.Description != "" {
 			description = info.Description

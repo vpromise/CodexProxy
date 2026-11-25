@@ -144,6 +144,23 @@ func TestCodexClientModelsResponse_AppliesDisplayNameToTemplateModel(t *testing.
 	}
 }
 
+func TestCodexFallbackKeepsConfiguredDisplayName(t *testing.T) {
+	const id = "gpt-5.6-terra"
+	info := registry.LookupModelInfo(id)
+	if info == nil || info.DisplayName == "" {
+		t.Fatalf("missing fixture catalog entry %q", id)
+	}
+	entry := make(map[string]any)
+	applyCodexClientModelMetadata(entry, id, map[string]any{"display_name": "Configured name"}, false, "")
+	if got := entry["display_name"]; got != "Configured name" {
+		t.Fatalf("display_name = %v, want configured name", got)
+	}
+	applyCodexClientModelMetadata(entry, id, nil, false, "")
+	if got := entry["display_name"]; got != info.DisplayName {
+		t.Fatalf("display_name = %v, want %q as default", got, info.DisplayName)
+	}
+}
+
 func TestCodexClientModelsResponse_RewritesTemplateMultiAgentVersionWhenEnabled(t *testing.T) {
 	modelIDs := []string{"gpt-5.6-luna", "gpt-5.5"}
 	resp := BuildResponse([]map[string]any{{"id": modelIDs[0]}, {"id": modelIDs[1]}}, nil, true)

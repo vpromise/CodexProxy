@@ -29,6 +29,28 @@ import (
 
 var benchmarkBuildCodexWebsocketRequestBodyOutput []byte
 
+func TestCodexWebsocketStreamWithoutCredential(t *testing.T) {
+	executor := NewCodexWebsocketsExecutor(&config.Config{})
+	for _, tc := range []struct {
+		name   string
+		ctx    context.Context
+		alt    string
+		status int
+	}{
+		{"normal", t.Context(), "", http.StatusUnauthorized},
+		{"compact", t.Context(), "responses/compact", http.StatusBadRequest},
+		{"required", cliproxyexecutor.WithRequiredUpstreamWebsocket(t.Context()), "", http.StatusUpgradeRequired},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := executor.ExecuteStream(tc.ctx, nil, cliproxyexecutor.Request{Model: "gpt-5.5"}, cliproxyexecutor.Options{Alt: tc.alt})
+			var status interface{ StatusCode() int }
+			if !errors.As(err, &status) || status.StatusCode() != tc.status {
+				t.Fatalf("error = %v, want status %d", err, tc.status)
+			}
+		})
+	}
+}
+
 func TestBuildCodexWebsocketRequestBodyPreservesPreviousResponseID(t *testing.T) {
 	body := []byte(`{"model":"gpt-5-codex","previous_response_id":"resp-1","input":[{"type":"message","id":"msg-1"}]}`)
 

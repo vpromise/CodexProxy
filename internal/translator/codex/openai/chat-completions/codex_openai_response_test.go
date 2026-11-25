@@ -3,10 +3,41 @@ package chat_completions
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/tidwall/gjson"
 )
+
+func TestCodexInterleavedMessageTextFallback(t *testing.T) {
+	var state any
+	for _, response := range []struct {
+		start, delta, done string
+	}{
+		{"\"output_index\":0,\"item\":{\"id\":\"a\",", "\"item_id\":\"a\",", "\"output_index\":1,\"item\":{\"id\":\"b\","},
+		{"\"output_index\":0,\"item\":{", "\"output_index\":0,", "\"output_index\":1,\"item\":{"},
+		{"\"output_index\":0,\"item\":{\"id\":\"a\",", "", "\"output_index\":1,\"item\":{\"id\":\"b\","},
+	} {
+		events := []string{
+			`{"type":"response.created","response":{"id":"resp_test"}}`,
+			`{"type":"response.output_item.added",` + response.start + `"type":"message"}}`,
+			`{"type":"response.output_text.delta",` + response.delta + `"delta":"First"}`,
+			`{"type":"response.output_item.added",` + response.done + `"type":"message"}}`,
+			`{"type":"response.output_item.done",` + response.done + `"type":"message","content":[{"type":"output_text","text":" second"}]}}`,
+			`{"type":"response.output_item.done",` + response.done + `"type":"message","content":[{"type":"output_text","text":" second"}]}}`,
+			`{"type":"response.output_item.done",` + response.start + `"type":"message","content":[{"type":"output_text","text":"First"}]}}`,
+		}
+		var text strings.Builder
+		for _, event := range events {
+			for _, chunk := range ConvertCodexResponseToOpenAI(t.Context(), "model", nil, nil, []byte("data: "+event), &state) {
+				text.WriteString(gjson.GetBytes(chunk, "choices.0.delta.content").String())
+			}
+		}
+		if got := text.String(); got != "First second" {
+			t.Fatalf("stream text = %q, want each output item once", got)
+		}
+	}
+}
 
 func TestConvertCodexResponseToOpenAI_IncompleteTerminal(t *testing.T) {
 	ctx := context.Background()

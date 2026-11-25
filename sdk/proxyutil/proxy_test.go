@@ -352,6 +352,9 @@ func TestRedactProxyURL(t *testing.T) {
 		input string
 		want  string
 	}{
+		{"direct alias", " DiReCt ", "DiReCt"},
+		{"none alias", "NONE", "NONE"},
+		{"invalid direct suffix", "direct/token", "<invalid proxy URL>"},
 		{
 			name:  "with credentials",
 			input: "http://user:pass@proxy.example.com:8080/path?token=secret",

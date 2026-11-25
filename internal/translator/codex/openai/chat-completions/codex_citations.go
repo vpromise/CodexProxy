@@ -35,10 +35,13 @@ func chatURLCitation(annotation gjson.Result, offset int64) []byte {
 }
 
 func (p *ConvertCliToOpenAIParams) noteTextPart(event gjson.Result, text string) {
+	p.noteTextPartAt(citationPartKey{event.Get("output_index").Int(), event.Get("content_index").Int()}, text)
+}
+
+func (p *ConvertCliToOpenAIParams) noteTextPartAt(key citationPartKey, text string) {
 	if p.textPartOffsets == nil {
 		p.textPartOffsets = make(map[citationPartKey]int64)
 	}
-	key := citationPartKey{event.Get("output_index").Int(), event.Get("content_index").Int()}
 	if _, exists := p.textPartOffsets[key]; !exists {
 		p.textPartOffsets[key] = p.emittedTextRunes
 	}
