@@ -1,9 +1,8 @@
 # Upstream sync ledger
 
-Updated: 2026-11-16 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, followed by their publication and deployment observations.
+Updated: 2026-11-16 (Asia/Shanghai). This ledger records selective backports from `router-for-me/CLIProxyAPI` into `vpromise/CodexProxy`, with their source validation and GitHub publication results.
 
 **The reviewed upstream boundary is not a full merge boundary.** Local implementation and publication are recorded separately below. Only the selected behavior has been integrated in the indicated scope. Original upstream commits may remain outside this fork's ancestry, so GitHub's behind count is not a count of missing fixes. Published source and server deployment are separate states.
-
 
 ## Local main alignment and checkout validation - 2026-11-14
 
@@ -309,8 +308,6 @@ Protected changes follow the current [codexproxy-upstream-sync skill](/Users/vpr
 
 The implementation and review ledger are committed as **[a59e38139](https://github.com/vpromise/CodexProxy/commit/a59e3813931375e1748a92e8f73525d933f59650)** (`a59e3813931375e1748a92e8f73525d933f59650`), tree `c14afb1cb57d7d3306528ce94ce876a7494119f7`. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch SHA and GitHub branch/commit/tree readbacks agree at **2026-11-13T00:56:06.948389+00:00**. All eleven selected paths are committed, the candidate worktree is clean and the tested source manifest still matches.
 
-Exact implementation-SHA Actions runs, check-runs and status entries are **zero**. The status aggregate is pending with an empty status list. The six inspected workflow definitions trigger on PR/tag events. Publication is verified, with no GitHub CI execution on this SHA. This follow-up changes only the ledger and receives its own normal push and exact-SHA readback. Server deployment remains unperformed for this selection, with prior deployment receipts preserved.
-
 ## Current checkpoint - 2026-11-12
 
 Checked from **2026-11-12T05:05:04+08:00** against published fork main **`f8ad21a5c58bc2d42270a934a9260cceac5cce69`**. Official releases **v8.0.65**, **v8.0.66** and **v8.0.67** resolve respectively to `65de937cf19b88436ee8519caa42f0fcb66e2307`, `fa11a573b252b30256bef4de952a95feee3c8c9d` and `8bba7a77c6bcbfd993516d26606bfecaa4ff49d0`. Their publication times are 2026-11-11T02:19:55Z, 03:42:32Z and 08:51:43Z. Latest upstream main equals v8.0.67 at inspection. The complete released range **`905637daa3f2fae4dcacf50164dac15ad43ed5c2..8bba7a77c6bcbfd993516d26606bfecaa4ff49d0`** contains **13 single-parent commits**, nine through v8.0.65, two more through v8.0.66 and two more through v8.0.67. The previously reviewed main-only sponsor deletion is accounted once. There are zero additional main-only commits and zero merge resolutions in this range.
@@ -385,9 +382,6 @@ Protected behavior follows the current [codexproxy-upstream-sync skill](/Users/v
 
 The selection and ledger are committed as **[44146945d](https://github.com/vpromise/CodexProxy/commit/44146945d313475f09c7cfd3ad7ad54205aae21b)** (`44146945d313475f09c7cfd3ad7ad54205aae21b`), tree `3335ec99349d29ac66a19fd032eba7a05d8c1e71`. Normal push to verified `vpromise/CodexProxy main` succeeded. SSH branch readback and GitHub branch/commit tree agree at **2026-11-12T05:25:06+08:00**. The tested source manifest still matches and all fourteen staged paths are committed.
 
-Exact implementation-SHA workflow runs, check-runs and status entries are **zero**. The status aggregate is pending with an empty status list. Inspected workflows trigger on PR/tag events, so this direct main push has no CI execution to assess. Local final full/race/build results passed and GitHub publication is verified. This follow-up changes only the ledger. Historical deployment receipts remain the server record, and this run performed no deployment.
-
-
 ## User-authorized Claude 2.1.321 compatibility repair - 2026-11-11
 
 The user requested fixes against real Claude Code **2.1.321** and a detailed handoff for human-operated live validation. Work started at **2026-11-11T17:17:56+08:00** from published fork main **`0216110647a7972bfaf1897ff48ecbce1cc9c59e`**, in an isolated detached worktree. The base includes the merged account-isolation and per-pool egress changes. The original checkout remains on `codex/user-provider-isolation` at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6`.
@@ -437,7 +431,6 @@ The selected repair and ledger are committed as **[bf4a1feae](https://github.com
 
 Exact implementation-SHA workflow runs, check-runs and status entries are **zero**. The status API aggregate reports pending with no status entries. Inspected workflows trigger on PR/tag events, so this direct main push has no CI run to assess. Local full/race/build verification and GitHub publication have completed. This publication receipt is a documentation-only follow-up, published with its own exact-SHA readback and CI observation retained in the validation evidence. Server deployment remains unperformed for this repair.
 
-
 ## Publication verification - 2026-11-11
 
 Implementation [45448446e](https://github.com/vpromise/CodexProxy/commit/45448446ea5fdfe21d4660db9edf8cc8b54452fd) (`45448446ea5fdfe21d4660db9edf8cc8b54452fd`), tree `a587ca6518ab0df5568e6caa26654087ce10feec`, normally pushed to verified `vpromise/CodexProxy main`. SSH ls-remote and GitHub API SHA/tree readbacks agree at **2026-11-11T05:18:01.582826+08:00**. All 15 explicitly staged paths are committed, candidate clean, with the exact tested **1803-file** manifest preserved. The base already includes approved pool egress, credential fencing and stream ownership repairs. No original branch/ref/index or user file was changed.
@@ -447,8 +440,6 @@ Exact implementation-SHA Actions runs, check-runs and statuses are **zero**. Act
 ## Current checkpoint - 2026-11-11
 
 Checked at **2026-11-11T05:06:06.129802+08:00**; completed source review at **2026-11-11T05:16:49.575663+08:00**. Base is verified fork main `31c4b2d5a320394f4c5f6dfbe9516d2d24478edc`. Since the previous complete November10 review (`4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7` / v8.0.62), official **v8.0.63** (published **2026-11-10T00:39:40Z**, lightweight tag `6db7d4b839d86c5b24e17bbe73bcd4db18ef1b1a`) and **v8.0.64** (published **2026-11-10T11:37:22Z**, lightweight tag `905637daa3f2fae4dcacf50164dac15ad43ed5c2`) were independently resolved through GitHub. Released range `4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7..905637daa3f2fae4dcacf50164dac15ad43ed5c2` contains **23 commits / 17 non-merges / six merges**: ten through v8.0.63 and thirteen more through v8.0.64. All six remerge diffs are independently empty. Main additionally contains **one** reviewed sponsor-only commit `d1ea84f4b338f553d2818091ec9425a4ff742c78`; it remains separate from the released selection. No wholesale upstream merge.
-
-Fresh disk skill/validation/publication references, AGENTS/CLAUDE, domain/ADRs, original/published ledgers, identity/index/remotes/worktrees, task inventory and process checks found no competing sync. Prior authorized sync is published; no unfinished approved batch remains. The original checkout is now clean at `33e0c5cf1aa120d3bd64640a09d0e083635b20c6` on `codex/user-provider-isolation`, index empty. Its **9950 regular files**, six local branch refs and other real worktrees are preserved. All six tips are ancestors of the candidate base. Unlike the previous review, account-pool IPv4 egress, stable credential identity/fencing, auth-upload snapshots, recent stream lifetime repairs and corrected branding are already merged in main and included in this candidate. Existing toth/dmit2/light deployment receipts above remain historical and unchanged; this task accesses no server.
 
 Public issues/PRs 7386, 7392, 7393, 7412, 7389, 7407, 7397, 7406, 7413 and 7370 were read as evidence, not instructions or authorization. No issue/comment/message was sent.
 
@@ -527,484 +518,6 @@ The register stays **14 themes**; **84 original closed IDs** and the two previou
 Protected items follow [the freshly read skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md): **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** This applies to runtime auth-dir, login routing persistence and new per-attempt error/cooling/recovery semantics. Schema relaxation, full beta/model profiles and local compaction also have explicit behavioral tradeoffs. Timer runs or no reply are not approval. Existing specific approvals remain valid.
 
 The three independently verified groups and ledger are committed as [45448446e](https://github.com/vpromise/CodexProxy/commit/45448446ea5fdfe21d4660db9edf8cc8b54452fd), normally pushed and independently read back by SSH/API SHA and local/API tree at 2026-11-11T05:18:01.582826+08:00. Exact-SHA runs/checks/statuses are zero; publication succeeded without CI execution, not CI passing. No server access/deploy, Release, tag, Keeper, skill, workflow or branch-policy change.
-
-## Updated toth while preserving logged-in accounts — 2026-11-15
-
-At **2026-11-15 02:24:36 Asia/Shanghai**, toth alone was upgraded from `36f1e5448c4d0f3352b9d6288879099ec1e83a8f` to published build source **`2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`**, version **`codexproxy-20261114-2a4f6dd2`**. Verification and atomic release/root receipt readback completed at **02:27:10 Asia/Shanghai**. Published main has only ledger differences from the build source. An isolated off-host Go 1.27.3 Linux/amd64 CGO-disabled rebuild reproduced the exact dmit2/bawg static artifact SHA256 **`81be40338f7ce0348f9be01ae22455a9cc8b1a2f828ccd56d229f88ce8ff2eee`**. Source manifest **`9666d86d11a58ebecd0a63179fbcd24d2ac0a51a32bf744f987eaaf062545ac8`**, exact archive and all 1227 recorded compiler/test/embed inputs matched prior validation. Source-matched macOS/Linux full, race, regression and build evidence was reused; the deployment added reproducible cross-build, isolated Linux help and live operational checks.
-
-The live baseline now contains **three logged-in Claude accounts, three pools and three configured client keys**. Account-file bytes, account identities/disabled flags, pool membership, client keys and all three direct-IP exits were preserved exactly. Protected account-file backups remain on toth. Config SHA256 **`22a29e2545672eee8ba5e3267ca492f1153c5de7ca45244bc16b295963a17523`**, unit/gateway/fstab/credential-reference files, semantic process environment, firewall, enforcing SELinux, cgroup-v1 resource limits and Caddy/SSH/postfix process identities all matched the fresh baseline. Only CodexProxy was restarted, into PID **7186**.
-
-The first preflight rejected two obsolete client keys retained in an older deployment credential-reference file, before activation. The current authenticated management inventory identified three actual configured keys. The verifier was updated to query each current key's read-only models endpoint while retaining the original reference file and all actual access settings. The baseline checks then passed. The original verifier and correction explanation are retained; no keys were re-enabled or replaced.
-
-Fifteen local/origin/public health, hello, rejection, version and page checks, two authenticated management checks and **three authenticated client model-list checks** passed. Five independent workstation public HTTPS checks also passed with normal certificate verification. Management HTML SHA256 **`c2349625a7284ac2997858d852db3f4c3976e98df42d550816cd6ababf063b64`**, title **CodexProxy** and the existing custom logo matched. A **121.21-second / 25-sample** observation found stable process identity, zero memory/memsw-limit failures and zero swap usage. Final memory was **21,475,328 bytes**. This systemd version lacks a restart counter; stable PID/start-time/state checks were used. Startup application/gateway errors and unclassified warnings were zero, with 14 deliberate authentication rejection probes separately recorded. Actual provider inference and deliberate credential refresh were outside these checks. The selected source SHA has no GitHub Actions/check run.
-
-Recovery directory **`/opt/codexproxy/releases/20261115-2a4f6dd2`** retains old/new binaries, exact source/build evidence, old config/unit/receipt and a protected **`auths.before`** copy of the three credentials. Syntax-checked **`ROLLBACK.sh`** restores the prior binary, waits for readiness and verifies recovery while preserving current config and account data. Release/root completion receipts were written atomically and read back equal. This documentation publication is separate from the running source and preserves prior deployment history and the upstream review checkpoint.
-
-## Corrected toth branding and deployed merged main — 2026-11-10
-
-The user reported the old management branding at **cpvn.hoperouter.com**.
-Readback confirmed that toth still served feature source `2e045edb` and title
-`CLI Proxy API Management Center`; the feature branch had not yet incorporated
-main's branding commit when that artifact was built. PR #12 subsequently merged
-the rebased feature with main. This rollout replaces that older artifact with
-published **[`36f1e544`](https://github.com/vpromise/CodexProxy/commit/36f1e5448c4d0f3352b9d6288879099ec1e83a8f)**
-(`36f1e5448c4d0f3352b9d6288879099ec1e83a8f`). Activation was at
-**2026-11-10 21:35:11 Asia/Shanghai**, with verification and atomic completion
-receipt readback at **21:38:48**. Only toth's CodexProxy executable was replaced;
-Caddy, SSH and postfix retained their process identities and settings.
-
-| Identity | Verified value |
-| --- | --- |
-| Version / tree | `codexproxy-20261110-36f1e544` / `4a8c3ebe9b24c3fa3213e06de88bfa096d6ed812` |
-| Static Linux/amd64 binary SHA-256 | `0de254b8ea5e06ef591c1cf589ce406b23a80408c514daa33fc76391135613f2` |
-| Served management HTML SHA-256 | `9b07c2cc1bf9c391c3f34929117d941001a79815ce6a3385f586b88d79dfa87c` |
-| Served title / decoded custom WebP SHA-256 | `CodexProxy` / `07cfb4c52bd50d6d3c64e5a83c85e2b18c6358ed8b98ccec44e76f94136156da` |
-| Canonical source manifest | `ad082542f50966ce3251e9b706c8133c3b20855cd282c1a1bb8e84c82c3efd93`; 1800 files |
-| Preserved configuration SHA-256 | `dfcfba6a60144bc42ba4096b6fce1ed2bfc44dec397076deab0d0fb968f12992` |
-| Management / API | https://cpvn.hoperouter.com/management.html / https://cpvn.hoperouter.com/v1 |
-| Protected release / recovery | `/opt/codexproxy/releases/20261110-36f1e544-main-branding`; `ROLLBACK.sh` |
-
-The operator's current policy was captured immediately before activation and
-preserved exactly: **two client keys, two empty pools, zero upstream accounts**,
-and egress modes **direct-ip / inherit**. The direct-IP setting added since the
-initial deployment was retained. Credential/config/unit/gateway/fstab/account
-hashes, process environment, resource limits, firewall and SELinux enforcement
-matched the live baseline. Resources remain cgroup v1 **3 GiB memory**, **2.5 GiB
-soft limit**, **3.25 GiB combined memory+swap** (not an independent swap limit),
-CPUQuota **150%**, GOMEMLIMIT **2GiB**, GOMAXPROCS **2**. Backend remains loopback-only;
-existing host swap, logging settings, keys and account storage were preserved.
-
-The isolated Go **1.27.3** static build reused the **1799 source-matched input**
-validation from PR #12: **8443 full shuffled race test/subtest passes / 68 test
-packages**, **4811 Linux test/subtest passes / 7 packages**, clean vet, and
-**372 frontend tests / 1190 assertions**, lint, TypeScript and production build.
-Documented macOS/optional/race skips remain as recorded in the validation document;
-no new test or CI pass is claimed. All **526 compiler/embed inputs** matched the
-frozen manifest; source, archive, upload, payload-member, installed and running
-artifact checksums were verified. No mutable catalog refresh was used in the build.
-
-Seventeen local/origin/public HTTP gates, authenticated management readbacks and
-five independent workstation HTTPS gates passed with normal TLS verification.
-The served title is **CodexProxy**, and the decoded embedded logo matches the
-custom logo file in main. Public management bytes match the exact expected
-version-substituted bundle. The browser host was unavailable, so no rendered
-screenshot acceptance is claimed. **25 samples over 120.76 seconds** recorded no
-unexpected restart, memory-limit failures or swap usage; final memory was about
-**19.62 MiB** for this empty instance. Captured logs had **zero application/gateway
-errors and zero unclassified warnings**; fourteen authentication rejections were
-classified separately. This is operational acceptance, not loaded-capacity proof.
-No real inference, account import or credential refresh was initiated.
-
-The protected release retains the old executable/config/unit/receipt, exact new
-source/build/validation evidence, original upgrade runner and a syntax-checked
-binary-only recovery script. Recovery waits for readiness, restores the previous
-compatible `2e045edb` executable and preserves current credentials and pool exits;
-it does not restore an old configuration over operator changes. Release-local
-and root `LATEST_DEPLOYMENT.json` completion receipts were written atomically and
-read back identically. This documentation publication is separate from the running
-source and does not advance the upstream review boundary.
-
-## Deployed independent toth IPv4 instance — 2026-11-10
-
-At the user's request, **toth** was provisioned as an independent native systemd
-instance using **light** as a read-only deployment reference. The application
-started at **2026-11-10 16:30:10 Asia/Shanghai**; final verification and atomic
-receipt readback completed at **16:49:43**. Only toth was modified. The deployed
-source is published feature branch `codex/user-provider-isolation`, commit
-**[`2e045edb`](https://github.com/vpromise/CodexProxy/commit/2e045edb60771a76494eaf8897c2c84031239d73)**
-(`2e045edb60771a76494eaf8897c2c84031239d73`), including the reviewed per-pool IPv4
-source binding, credential fencing and subsequent runtime repairs. This deployment
-does not merge main or advance the upstream review boundary.
-
-| Identity | Verified value |
-| --- | --- |
-| Management / API base | https://cpvn.hoperouter.com/management.html / https://cpvn.hoperouter.com/v1 |
-| Version / source tree | `codexproxy-20261110-2e045edb` / `7d488fc2b728082751e659edc22bce15d3d61993` |
-| Static Linux/amd64 binary SHA-256 | `66810c43c36b20d7142ed3ae925f6818b7ec01c2c69961dc332b3511a6a258e5` |
-| Served management HTML SHA-256 | `c0c633bbb508a239172bbeec18930f8d1bbed5a7ee6e54ebf5ae1bb47db3e09b` |
-| Canonical source manifest | `d72e95aca82825db199adb610fa5925149609ed244afe5f754615d455bc621bd`; 1683 files |
-| Effective configuration SHA-256 | `ce2ed7e5bdd6b6faf82f9d9dcff9e7078eafe21f77eab798ff1f734dc8864e12` |
-| Runtime / configuration | `codexproxy.service`; `/opt/codexproxy/config/config.systemd.yaml` |
-| Binary / account data | `/opt/codexproxy/codexproxy`; `/opt/codexproxy/auths` |
-| Gateway | Official static Caddy v2.11.9; `/usr/local/bin/caddy`; `/etc/caddy/Caddyfile` |
-| Private credential delivery | `/root/codexproxy-toth-credentials.json`, root-only mode 0600 |
-| Protected release and recovery | `/opt/codexproxy/releases/20261110-2e045edb-initial`; `ROLLBACK.sh` |
-
-The domain's server-side A lookup points to **14.225.71.134**. Management inventory
-lists the three existing source addresses **14.225.71.134**, **14.225.71.135** and
-**14.225.71.136**. Account isolation is enabled with independent client keys for
-empty `codex-default` and `claude-default` pools. Their initial egress mode is
-`inherit`; an operator can select an IPv4 for each pool after account import.
-There are **zero upstream accounts**. New independent management/client keys were
-generated only on toth; light's accounts and keys were not copied. The management
-configuration stores a hash, and plaintext delivery values remain in the protected
-root file. No secret values are included in the repository or local receipts.
-OAuth maintenance retains the documented account/global route; media relay
-configuration is separate. Claude `always` remains a per-credential import setting.
-
-Both application and gateway run as dedicated unprivileged users and are enabled
-at boot. The backend is bound only to **127.0.0.1:8317**. Caddy provides HTTPS with
-a valid Let's Encrypt certificate and automatic renewal, and uses streaming
-reverse proxying without added post-connection timeouts. The host is CentOS 7,
-systemd 219 and cgroup v1; its compatibility adaptations use a static gateway,
-file-based bind capability and verified kernel limits. Application limits are
-**3 GiB memory**, **2.5 GiB memory soft limit**, **3.25 GiB combined memory+swap**,
-CPUQuota **150%**, GOMEMLIMIT **2GiB** and GOMAXPROCS **2**. A cgroup v1 combined
-cap is not an independent 256 MiB swap cap or cgroup v2 MemoryHigh. The existing
-approximately 2 GiB host swap and fstab were preserved. Commercial/file logging
-and usage statistics are enabled; debug and detailed request logging are disabled;
-log retention is 128 MiB. SELinux remains **Enforcing**. Only HTTP/HTTPS firewall
-services were added, preserving existing SSH/firewall state and the SSH/postfix
-process identities.
-
-Preflight found the server clock approximately **1749.35 seconds ahead**. Two
-independent NTP sources agreed, and the clock and hardware RTC were corrected
-before TLS activation. The final observed NTP offset was approximately **-0.011
-seconds**. This was a one-time calibration; no persistent NTP service was added.
-
-The isolated Go **1.27.3** static cross-build used CGO_ENABLED=0, mod=readonly,
-trimpath, buildvcs=false and explicit version/commit/date metadata. All **515
-compiler/embed inputs** were in the frozen manifest. Source/test/build inputs
-match the previously validated changes, with only deployment documentation added:
-**7508 full shuffled race test/subtest passes across 68 packages**, clean
-`go vet ./...`, **718 latest affected Linux test/subtest passes across 5 packages**,
-and **369 frontend tests / 1183 assertions**, frontend lint/type checks and build.
-The full macOS run excludes the two documented secondary-loopback binding tests;
-the affected Linux run has no such exclusions. Source archive, manifests, build
-metadata, validation receipts, gateway checksums, uploaded payload and each
-extracted member were retained and verified before execution. No new CI pass is
-claimed.
-
-**17 local/origin/public HTTP gates** and **five independent workstation HTTPS
-checks** passed with normal public certificate validation, exact version/commit
-headers and management bytes. Read-only authenticated checks confirmed management
-access, two correctly bound pool/client keys, empty model lists and the available
-IPv4 inventory. Installed and running binary hashes match the frozen artifacts.
-**25 healthy samples over 120.57 seconds** recorded unchanged application/gateway
-PIDs and start times, no memory or combined memory+swap limit failures, and zero
-swap usage. Final application cgroup memory was approximately **18.05 MiB**. Old
-systemd exposes no restart counter; observed continuity is recorded instead. This
-empty-instance observation does not establish loaded capacity. No live inference,
-credential refresh, rotation or management write was used as a smoke test.
-
-The captured log window contains zero application/gateway errors and zero
-unclassified warnings. It separately records **32 deliberate authentication
-probes**, **150 external missing-path probes**, and **two expected Caddy :80
-redirect-server HTTP/2/HTTP/3 warnings**. Initial verifier assumptions about
-JSON-hidden bind fields, old-systemd properties and journal timestamp syntax were
-corrected with kernel bind checks, PID continuity and numeric journal timestamps;
-the complete gates were rerun. Preparation corrected task-created directory
-permissions before service activation. Original failures and correction records
-remain in protected evidence; failed assertions were not silently discarded.
-
-Release-local `deployment.json` and `/opt/codexproxy/LATEST_DEPLOYMENT.json` were
-written atomically and read back. Recovery retains the initial absence baseline,
-source/build evidence, original verification records, final checks, logs and
-observation. The syntax-checked `ROLLBACK.sh` stops/disables only the new services
-and removes only task-added firewall services absent from baseline, while retaining
-credentials, account data, artifacts and clock calibration. There was no previous
-installation to restore. This ledger update is published separately from the
-running source commit and preserves all earlier deployment and sync records.
-
-### Post-deployment simulation — 2026-11-10
-
-User-authorized simulation completed at **2026-11-10 17:23:30 Asia/Shanghai**
-against the installed **2e045edb** artifact. **63/63 assertions passed**. The public
-and origin production listeners passed health, missing/invalid/misused-key
-rejection, empty catalogs, non-streaming/streaming requests for an unregistered
-synthetic model, client-to-management rejection, and **24 public catalog requests
-with four workers**. Final authenticated management reads succeeded both locally
-and over public HTTPS, confirming two empty pools and zero upstream accounts.
-
-Positive generation tests used the exact installed binary under the same
-unprivileged application user, with separate temporary configuration/storage and a
-loopback-only listener. All upstreams and credentials were synthetic. **62 native
-Codex/Claude mock requests** covered model/account isolation, unassigned clients,
-non-streaming and SSE responses, shared-account pools with distinct source IPs,
-and **48 mixed-pool requests with six workers** using the same session hint.
-The mock upstream observed the expected TCP source for each of the three exits.
-An active SSE stream flushed before completion, retained its captured original
-exit through policy changes/revocation, and completed; new operations adopted the
-new exit or were denied after revocation. Other authorized pools stayed usable.
-A valid but unavailable IPv4 produced **503 with no upstream arrival or route/proxy
-fallback**; recovery did not poison the shared credential. IPv6 policy input was
-rejected with 422, and stale policy revisions with 409. A deliberately unusable
-global proxy remained bypassed by all successful direct-IP operations.
-
-Independent HTTPS probes to an external IP observer also confirmed selected
-**14.225.71.134 / .135 / .136** were observed as those same public addresses.
-This checks host source routing/NAT separately from the native mock protocol path.
-Production executable/configuration/credential/unit/gateway/fstab/account hashes,
-service and neighbor PIDs/start times, and memory failure counters matched their
-pre-test baseline. Temporary processes/configuration were removed. Captured
-production logs contain zero errors or unclassified warnings; **50 deliberate
-authentication rejections** and **40 deliberate unregistered-model HTTP 400s**
-across all harness attempts were classified separately. Caddy emitted no warning
-or error in that captured window.
-
-Protected evidence is under
-**`/opt/codexproxy/releases/simulation-20261110T091933Z`**. Final and
-`/opt/codexproxy/LATEST_SIMULATION.json` receipts were written atomically and read
-back. Earlier attempts and harness corrections are retained: case-insensitive
-header handling, Python 2 urllib2 chunked-read buffering replaced by `curl -N`
-for first-byte observation, the documented save-versus-dial contract for unavailable
-IPv4, and classification of deliberate model errors. All final assertions were
-rerun. No application source or production routing setting changed. No real
-provider inference/refresh, positive native WebSocket/WebRTC test, capacity test
-or endurance test is claimed; the production listener still has no real accounts.
-
-## Deployed self-service OAuth version to dmit2 — 2026-11-16
-
-The user selected the current checkout, published branch **`codex/self-service-oauth`**, commit **[`58d64d999f69ea2f2295a3ffb15f34c06549af90`](https://github.com/vpromise/CodexProxy/commit/58d64d999f69ea2f2295a3ffb15f34c06549af90)**, tree **`fef8846de5f8532fb7efd8447059dbaccfe9bcc9`**. Only dmit2 was deployed. The initial switch completed at **2026-11-16 00:20:13 Asia/Shanghai**; a verifier correction required one further planned restart at **00:26:53**, and final atomic receipt readback completed at **00:30:23**. The running version is **`codexproxy-20261116-58d64d99`**, replacing `2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`. The self-service public page and administrator review UI are included. Existing nginx routing already forwards the enrollment paths and preserves the external Host and Authorization headers; no gateway change was made.
-
-### Exact artifact and fresh validation
-
-A clean detached worktree was tested and cross-built off-host using **Go 1.27.3 / darwin arm64**, with a **Linux amd64 / CGO_ENABLED=0** release build, `-mod=readonly -trimpath -buildvcs=false`, stripped symbols and explicit version/commit/build-date fields. The **1851-file** source manifest, excluding only this ledger, remained **`40a84cd6d035d8e6aca561ad9f044261433771080eb3b0ca893f1e8aee5e2af0`** before and after validation/build. All **92 packages / 1236 compiler, test and embed inputs** were manifest-recorded. The committed management bundle matched the pinned frontend verification documented in `docs/self-service-oauth-validation.md`; no catalog or frontend assets were regenerated.
-
-- Fresh full Go suite: **8892 passing test/subtest events**, **69 passing test-bearing packages**, exit 0. The two documented `127.0.0.2` binding tests were excluded on macOS; four other optional/environment-dependent cases self-skipped. Fresh race checks across API, management, middleware, authentication and watcher packages passed **1802 test/subtest events / five packages**, with no race report.
-- Static ELF: **62,460,064 bytes**, SHA256 **`f2170854b2f0358b5442a6b7cffc495c7239819ae1156decc4c15a5c81ec16ab`**. Build date **`2026-11-15T16:14:20Z`**. Served management HTML SHA256 **`5259074e48ddc22f2e5fc4f3494e808e34501ccf1e3f74a017c92f7a91aa319e`**.
-- Exact source archive SHA256 **`828a4ecd6409fc07c23b9ca47ad4ab85c4ac5ea886c9097378990baf9c096b73`**. Upload checksums, isolated Linux `--config /dev/null --help`, executable metadata and rollback syntax passed. This run executed macOS unit/race tests and Linux runtime checks, not Linux unit tests.
-
-### Activation, verifier correction and acceptance
-
-Installed and running PID **2252719** executable hashes match the artifact. Configuration retained the fresh baseline SHA256 **`eecb84a94d9c71a0d34a3af84d9a6cfdcb9470372ea216d40ba5c25227c59a79`**; the older receipt's configuration hash was not restored. Credential-file hashes, dotenv/nginx/unit/drop-in bytes, semantic process environment, executable owner/mode, routing/isolation/logging settings and new-api/nginx/s-ui identities matched the baseline. MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax **256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB** and existing restart protection remain unchanged. Docker remained inactive.
-
-The first public verification recorded a health request timeout and a management-intake **403**. The latter response explicitly identified the existing five-failure / 30-minute management IP ban: repeated unauthenticated verifier requests shared the loopback client identity. This was a verifier side effect, not a new authorization-policy change. Original failed public results, original scripts, first-process checks and its successful **121.58-second** observation are retained. Private checks were corrected to bind distinct real loopback source addresses, keeping every original status/hash assertion and the existing authentication rules. One planned restart of the same artifact cleared the verifier-induced in-memory attempt state. No configuration, credential or access-policy reset was performed.
-
-The corrected verifier passed **20 local/gateway gates** and **10 workstation public HTTPS gates**, with public certificate verification enabled. These cover health/hello, unauthenticated inference and management rejection, expected version/commit, management HTML, enrollment page/script/style bytes, no-store/no-referrer headers, and invitation-required session access. The final public health response was **200**, and both management probes returned **401**. The final process completed **25 healthy samples over 121.59 seconds**, with no automatic restarts or new high/max/OOM events; final sampled memory was **25,628,672 bytes**, swap **0**. Final application logs contained **0 errors** and **0 unclassified warnings**; all **12 warnings** were deliberate unauthenticated probes.
-
-An existing host-local inference key returned **200 / 0 visible models** from a read-only query. Authenticated management readback remained unavailable because only a management-key hash was available. No real OAuth exchange, deliberate credential refresh or inference request was performed. These checks establish deployment and endpoint readiness, not live-provider acceptance or completion of the feature guide's real-account acceptance exercise.
-
-### Recovery and records
-
-Protected recovery and evidence are retained under **`/opt/codex-stack/codexproxy/releases/20261116-58d64d99-dmit2/`**, including **`ROLLBACK.sh`** restoring `2a4f6dd2`, previous executable/config/unit/receipt snapshots, exact source/build/test evidence, original and corrected verifiers, both observations, and final/public/log results. Rollback replaces the executable only and preserves current configuration, accepted accounts and sensitive intake storage. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were atomically saved and read back equal; resource, logging and routing tuning histories were retained. This deployment bookkeeping is recorded locally and has not been pushed. The upstream review boundary and other hosts remain unchanged.
-
-## Deployed matching CodexProxy build to bawg — 2026-11-14
-
-At **2026-11-14 21:12:47 Asia/Shanghai**, bawg was upgraded from `10f500fe2540d055ed1e79e7bbf239bddcaf1963` to **`2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`**, version **`codexproxy-20261114-2a4f6dd2`**. Final verification and atomic receipt readback completed at **21:16:17 Asia/Shanghai**. The off-host reproducible static rebuild used the recorded Go 1.27.3 flags/build timestamp and produced exactly the dmit2 artifact SHA256 **`81be40338f7ce0348f9be01ae22455a9cc8b1a2f828ccd56d229f88ce8ff2eee`**. Published main differs from the build source only in deployment bookkeeping. Source manifest **`9666d86d11a58ebecd0a63179fbcd24d2ac0a51a32bf744f987eaaf062545ac8`**, source archive and all recorded compiler/embed inputs matched prior validation. Existing macOS/Linux regression/full/race evidence was reused. This run added cross-build/checksum, isolated Linux help and live service checks.
-
-Installed and running PID **771721** executable hashes match. Ten local/gateway checks and five public HTTPS checks passed with certificate verification enabled. Management HTML SHA256 is **`c2349625a7284ac2997858d852db3f4c3976e98df42d550816cd6ababf063b64`**. An existing host-local proxy client key returned **200 / 12 models** through a read-only query. No real inference or intentional credential refresh was invoked. Authenticated management configuration remained outside coverage.
-
-Config SHA256 **`d307e7661daba2334275002bf2e5ba0c345ae61890845149e47f6c6d6923d000`**, credential files, dotenv, unit bytes, executable owner/mode, semantic environment, resource settings and CodexKeeper/new-api/Caddy identities matched the preflight baseline. Bawg retains its own round-robin configuration with **session-affinity=false**, TTL **1h**, commercial-mode=false, file logging enabled and **512 MiB** log retention. Only CodexProxy was restarted during this deployment. The stable new process had zero unplanned restarts/OOM events and zero swap usage at final verification.
-
-The initial log gate saw two errors sharing the new process's start second. Source and ordered-log evidence attributes both to the predecessor's shutdown timeout at old `service_lifecycle.go:296` and `:64`, before the unique new full-SHA/version startup banner. The verifier now records those two predecessor errors separately and retains all other error/warning checks. Final new-process error/unclassified-warning counts are zero; 14 warnings are deliberate unauthenticated probes. Original verification code and diagnosis are retained. The shutdown timeout remains an operational observation of the previous version.
-
-Protected recovery **`/opt/codexproxy/releases/20261114-2a4f6dd2-bawg/ROLLBACK.sh`** restores the prior binary while preserving current config/account data. Its directory retains both artifacts, exact source/build provenance, previous configuration/unit/receipt backups and verification evidence. Release-local/root completion receipts match. The later user request to update new-api is a separate rollout; this CodexProxy receipt describes the independently completed deployment and preserves the existing upstream review boundary.
-
-## Deployed verified main to dmit2 — 2026-11-14
-
-At **2026-11-14 13:17:28 Asia/Shanghai**, dmit2 was upgraded from **`a095b1f9266dc00c7289fc9f700c8ef50cfee6e8`** to published source **[`2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2`](https://github.com/vpromise/CodexProxy/commit/2a4f6dd2e3d75f6ecef41c1a9f6a07f20e2ab3f2)**, tree **`1a7a6a9fd34b246bae9f6ae45c145b276d394272`**. Final verification and atomic release/root receipt readback completed at **13:19:45 Asia/Shanghai**. The running version is **`codexproxy-20261114-2a4f6dd2`**, including the previously published account-isolation, Thread and Claude 2.1.321 metadata repairs. This deployment accessed dmit2 only.
-
-### Artifact and validation provenance
-
-A task-owned detached worktree at the published source was cross-built off-host using **Go 1.27.3**, **Linux/amd64 / CGO_ENABLED=0**, `-mod=readonly -trimpath -buildvcs=false`, stripped symbols and explicit version/commit/build-date fields. The ELF is statically linked. Source-matched macOS and dev2 Linux full/race/regression results from the metadata repair were reused after verifying every recorded input, with only ledger bookkeeping differences. This deployment performed a fresh static cross-build and Linux help/runtime probes. No additional Linux unit-test execution is claimed.
-
-- Static binary SHA256 **`81be40338f7ce0348f9be01ae22455a9cc8b1a2f828ccd56d229f88ce8ff2eee`**.
-- Served management HTML SHA256 **`c2349625a7284ac2997858d852db3f4c3976e98df42d550816cd6ababf063b64`**.
-- Exact source archive SHA256 **`8789eacdaa3cc06efd2c850627072db7a756218ee60b7f80325572928cb85e00`**.
-- Established source manifest, excluding the ledger, contains **1836 files**, SHA256 **`9666d86d11a58ebecd0a63179fbcd24d2ac0a51a32bf744f987eaaf062545ac8`**. The Linux static compiler/test/embed audit found **92 packages / 1227 inputs**, all tracked and hash-recorded. Post-build source manifest verification passed.
-- Upload payload checksums, isolated empty-directory `--config /dev/null --help`, rollback shell/Python syntax and executable owner/mode verification passed. The selected source SHA has zero Actions/check runs, with existing PR/tag-only triggers.
-
-### Activation and preservation
-
-Only `codexproxy.service` was restarted after atomic executable replacement. Installed and `/proc/2239634/exe` hashes match the chosen artifact. The effective config retained SHA256 **`15a3af827bac924e2350f27c968c2a169d0b72a76399a33cb68f3c3da0d6a487`**, matching this deployment's fresh baseline. Session affinity remains enabled with **1h** TTL and **round-robin** routing, and account-pool isolation remains enabled. Config/unit/drop-in bytes, semantic process environment, credential-file hashes and new-api/nginx/s-ui process identities all matched before/after.
-
-Resource settings remain MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax **256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB**, RestartSec **15s** and StartLimit **3 per 300s**. Commercial/file logging and usage statistics remain enabled, detailed request logging/debug remain disabled, and log retention is **128 MiB**. Existing `resource_tuning`, `logging_tuning` and `routing_tuning` receipt history was retained.
-
-Ten local/gateway gates and five workstation public HTTPS gates passed, covering health, hello, unauthenticated models/config rejection, expected version/commit headers and management-page bytes. Public TLS verification was enabled. The established local origin-certificate exception was confined to the loopback gateway probe. An existing configured proxy client key remained on the host and returned **200 / 9 models** from read-only `/v1/models`. The current auth directory contains one Codex credential and no Claude credential, with zero configured Claude API-key entries. Real Claude/provider inference and deliberate refresh/rotation were outside the checks. Authenticated management readback was unavailable with the configured key hash.
-
-The post-restart observation recorded **25 healthy samples over 121.43 seconds**, stable PID, zero unplanned restarts, zero new high/max/OOM events and zero service swap usage. Final sampled cgroup memory was **27,189,248 bytes**. This observation establishes short-term readiness within the recorded workload.
-
-Logs were checked from actual process start **2026-11-13 21:17:26 PST**, accounting for the host/log timezone. Application error/fatal/panic and unclassified warning counts were zero. Ten warnings were deliberate unauthenticated GET probes. The log-receipt verifier initially compared Python's timezone tuple with its JSON list readback and failed its serialization assertion. Converting that field to a JSON-native list fixed the verifier; the same log-classification gates then passed. The original script and correction record are retained.
-
-### Recovery and completion records
-
-Protected release directory **`/opt/codex-stack/codexproxy/releases/20261114-2a4f6dd2-dmit2`** retains the exact artifact/source/build manifest, previous executable/config/unit/receipt backups, verification and observation evidence, and syntax-checked **`ROLLBACK.sh`**. Recovery restores the prior binary and restarts only CodexProxy while retaining current config/account data. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were atomically written and read back with verified status. This ledger update is published separately from the running build source, retaining the existing upstream review boundary and all earlier deployment records.
-
-## Deployed latest main to dmit2 — 2026-11-05
-
-At **2026-11-05 21:33:45 Asia/Shanghai**, dmit2 alone was upgraded from
-**44341db1b61aa93c4127bb3843956ef3b785112e** to published main
-**[a095b1f9](https://github.com/vpromise/CodexProxy/commit/a095b1f9266dc00c7289fc9f700c8ef50cfee6e8)**
-(`a095b1f9266dc00c7289fc9f700c8ef50cfee6e8`). Verification and atomic receipt readback completed at
-**2026-11-05 21:38:13 Asia/Shanghai**. Version **codexproxy-20261105-a095b1f9**,
-source tree **76d45b7cc3a794f294733e3cd3623bb0a806baa9**, static Linux/amd64 binary SHA-256
-**652ee05d84b9dac3abfcfbcd8799b581314adf765034281d7ea9a03f97d2bda9**, served management HTML SHA-256
-**8e409097b4053a85f70410bc644bc6e3e5c82281b7d0fbd5dc980ecc4d65afc0**. Installed and running binaries, local/gateway/public
-version headers and management bytes match. No other host was accessed.
-
-All effective configuration bytes remain SHA-256
-**2e46c12ef897a66f73345eed6c0d863f0076378f9f87e5a2ddc8333bc51016e3**. The user-approved **session-affinity=true**,
-**session-affinity-ttl=1h**, **round-robin** and enabled account-pool isolation are
-preserved. The single Claude credential still has **cloak_mode=always** and
-**disabled=true**; it was not re-enabled. Credential files, unit/drop-in bytes,
-semantic process environment and new-api/nginx/s-ui identities remain unchanged.
-Resource limits remain MemoryMax **1 GiB**, MemoryHigh **896 MiB**, MemorySwapMax
-**256 MiB**, CPUQuota **150%**, GOMEMLIMIT **512MiB**. Commercial/file logging and
-usage statistics remain enabled; detailed request logging/debug remain disabled
-and log retention is **128 MiB**. No configuration or credential migration.
-
-Source/test/build inputs exactly match the November5 validated **1759-file**
-manifest **e25d2ade0568d8fd04a100b0837bddbebe428dbe5d751ff36a51c7baefd2a9f3**. Reused evidence covers **4113 full
-tests / 68 packages** and **1974 race tests / 6 packages**, with the two documented
-macOS loopback exclusions. No Linux unit-test run is claimed. A fresh Go 1.27.1
-static cross-build used CGO_ENABLED=0, mod=readonly, trimpath, buildvcs=false and
-explicit version/commit/date. Linux compiler/test/embed audit found **1151 inputs /
-92 packages**, all within the manifest. Source archive, build metadata and
-sha256sum-format manifest **d9b805ca1295c5e52dee39c31dd56ec3684ec1f72a4b623df23bca118db323bb** are retained.
-Upload/archive/member checksums and isolated `--config /dev/null --help` passed.
-The exact source SHA has no Actions run; local evidence is not a CI pass.
-
-Ten local/gateway checks and five workstation public HTTPS checks passed with
-normal public TLS validation; the established loopback origin-certificate
-exception stayed local. A server-origin/Python public probe received an existing
-Cloudflare 403; baseline curl and final workstation curl gates passed. The first
-log verifier incorrectly treated access-logger 401 probe warnings as application
-warnings. Its original failure and four-event classification were retained;
-the correction matches logger, GET method, status401 and exact models/config
-paths while keeping all other gates. Final error/fatal/panic and unclassified
-warning counts are zero. No failed assertion was silently discarded.
-
-**25 healthy samples over 120.02 seconds** recorded zero unplanned restarts,
-memory-high/max/OOM events and swap use; final cgroup memory was approximately
-**27.5 MiB**. This is a short operational observation, not loaded-capacity proof.
-An existing assigned Codex client key stayed server-side and was used only for
-read-only models: **200 / 8 models**. Management readback is unavailable because
-only its key hash is configured. No live inference or deliberate token refresh.
-
-Protected recovery directory:
-**/opt/codex-stack/codexproxy/releases/20261105-a095b1f9-dmit2**. It retains previous executable/config/unit/receipt backups,
-exact source and build evidence, initial and final verification, observation and
-**ROLLBACK.sh** with syntax-checked Python recovery. Rollback restores the previous
-binary and only restarts CodexProxy while retaining current affinity, account data,
-Claude disable/cloak and resource/logging settings. Latest deployment receipts
-were atomically updated/read back, preserving resource, logging and routing
-history. This local ledger addition preserves earlier user edits; no Git commit,
-push, tag or Release was created for this deployment.
-
-## Enabled dmit2 session affinity — 2026-11-05
-
-At **2026-11-05 21:25:56 Asia/Shanghai**, the user's explicit request changed only
-`routing.session-affinity` from `false` to `true` in dmit2's effective native
-configuration `/opt/codex-stack/codexproxy/config/config.systemd.yaml`. Existing
-`round-robin`, `session-affinity-ttl: 1h`, enabled account-pool isolation, retry,
-resource and logging settings remain. The source stays **44341db1b61aa93c4127bb3843956ef3b785112e**
-(`codexproxy-20261026-44341db1`); no source deployment was performed.
-
-The existing watcher logged successful configuration reload and completed client
-reload. PID **2127281** and restart count remained unchanged. Local health 200,
-hello 204 and unauthenticated models 401 passed; workstation public HTTPS health
-returned 200 with normal TLS validation. A server-origin public probe returned the
-same preexisting Cloudflare 403 before/after, separately classified. New application
-error/fatal/panic count in the captured reload log interval was zero. Credential
-file hashes, executable, service files and neighboring new-api/nginx/s-ui process
-identities were preserved. The sole Claude credential remains disabled; no real
-inference, token refresh or multi-account failover experiment was initiated.
-
-Configuration SHA-256 changed from
-`95c1b048e9ec9640827494570ccf7bfa088e51cc8fe316349e18b2c56fc02e48` to
-`2e46c12ef897a66f73345eed6c0d863f0076378f9f87e5a2ddc8333bc51016e3`.
-Protected backups, PREPARED/VERIFICATION/configuration receipts and a syntax-checked
-`ROLLBACK.py` are under
-`/opt/codex-stack/codexproxy/releases/20261105-132514-session-affinity`.
-Rollback changes only this flag back to false while preserving other settings;
-verify hot reload and reconcile the latest routing receipt after rollback.
-`LATEST_ROUTING_TUNING.json` and the existing `LATEST_DEPLOYMENT.json` were updated
-atomically and read back, retaining resource/logging tuning history. This local
-ledger addition preserves all earlier uncommitted deployment records and does not
-advance the upstream checkpoint or create a Git commit/push.
-
-## Redeployed replacement light host — 2026-10-27
-
-The user replaced the machine behind SSH alias **light** and authorized a fresh deployment at **https://cpavn.hoperouter.com**. Inspection found a clean Debian 12 x86_64 host with **2 CPUs, approximately 4 GiB RAM, no swap and no previous CodexProxy/Caddy installation**. This entry supersedes the October26 light machine's live-status and resource statements; its records below remain historical. No other host was accessed or modified.
-
-Published main **[`7ce52cce`](https://github.com/vpromise/CodexProxy/commit/7ce52cceec8c2730eb7af845afdc9b40ec6573b9)** (`7ce52cceec8c2730eb7af845afdc9b40ec6573b9`) was activated at **2026-10-27 23:00:11 Asia/Shanghai** and verified at **2026-10-27 23:05:53 Asia/Shanghai**. This includes the October27 bootstrap-cancellation, reasoning-usage and CORS-header repairs (`d36a90e2`) plus the existing account-isolation, native-session and memory-retention fixes. Remote main was rechecked immediately before activation.
-
-| Identity | Verified value |
-| --- | --- |
-| Version / tree | `codexproxy-20261027-7ce52cce` / `a14d108a6c3882b8b10dc7985362b243d7b82699` |
-| Static Linux/amd64 binary SHA-256 | `47f9c6040b05541eee96a24a2b7ab5e397ed33c4c07b654d6fbe286c068b60e2` |
-| Management HTML SHA-256 | `737ae541672aaf0ae143e7e832cb663d1fb356677bb9f50830c3284680ca432d` |
-| Source manifest (sha256sum format) | `e97ad4fd7cd8ac131a0b49f08d607ce3b7490bfd64bf2e8e30df907a9e6facdd`; 1719 files |
-| Validated source manifest (sorted JSON format) | `cb870a0e6382bb72e8ec5dbcbaaecfacf349c057cc9b9e12f54d53743d87b235`; identical source/test/build inputs |
-| Effective configuration SHA-256 | `fa6139f8a4edc3dffa6fae35a76c3415b0819a1347e188e5f0ba9ae0aee2607f` |
-| Runtime / configuration | `codexproxy.service`; `/opt/codexproxy/config/config.systemd.yaml` |
-| Binary / account data | `/opt/codexproxy/codexproxy`; `/opt/codexproxy/auths` |
-| Gateway / management | Caddy; https://cpavn.hoperouter.com/management.html |
-| Protected release and recovery | `/opt/codexproxy/releases/20261027-7ce52cce-replacement` |
-
-**The user's in-flight resource correction is applied:** CodexProxy **MemoryMax 3 GiB**, **MemorySwapMax 256 MiB**. MemoryHigh is **2.5 GiB**, GOMEMLIMIT **2 GiB**, GOMAXPROCS **2**, and CPUQuota **150%**. systemd and kernel readbacks agree (`memory.max=3221225472`, `memory.high=2684354560`, `memory.swap.max=268435456`, `cpu.max=150000 100000`); the process environment was checked. The host has a separate **1 GiB swapfile**, persisted by appending to the original fstab. Service restart protection remains 15 seconds and three starts per 300 seconds. Both CodexProxy and Caddy are enabled at boot. The existing SSH service identity was preserved.
-
-The independent instance has **zero upstream accounts**, two empty Codex/Claude pools, and a newly generated client key for each pool. Account isolation is enabled. The independently generated management key is hashed in the application configuration; the delivery values remain only in root's mode-0600 **`/root/codexproxy-light-credentials.json`**. No old-server key or account was imported. No secret value is included in this ledger. Claude `always` remains a per-credential setting to apply on import; there is no global always default and no current Claude credential to modify. `ACCESS.md` records that limitation.
-
-The application runs as an unprivileged system user and listens only on **127.0.0.1:8317**. File logging and usage statistics are enabled; detailed request logging and debug are disabled; log retention is capped at 128 MiB. Caddy exposes the domain over HTTPS with a valid Let's Encrypt certificate and automatic renewal. Origin and public TLS validation passed without an insecure exception. The domain resolved directly to the replacement host during inspection; no Cloudflare account setting was changed.
-
-Build validation reused the exact source-matched **4019 full tests / 68 packages**, **2274 race tests / 10 packages**, and host-build evidence recorded in published main. The full-suite exclusions are exactly the two documented macOS loopback-binding tests; no Linux unit-test run is claimed. The isolated build used Go 1.27.1, CGO_ENABLED=0, mod=readonly, trimpath, buildvcs=false and explicit version/commit/date metadata. Source hashes matched before/after the build; there were no ignored compiler inputs. The compressed upload, extracted binary, source archive and manifest hashes were verified before activation.
-
-Fifteen local/origin/public HTTP gates and five independent workstation checks passed, including health, hello, unauthenticated rejection, exact version/commit and management bytes. Read-only authenticated checks confirmed management access, two correctly bound client keys/pools, zero accounts and empty model lists. **24 healthy samples span 224.8 seconds**, with zero automatic restarts, memory-high/max/OOM events or swap usage. Final service memory was approximately 22.4 MiB; this empty-instance observation does not establish loaded capacity. Application and post-readiness gateway logs contained zero errors and no unexplained warnings. No real-account inference, credential refresh, rotation or management write was used as a smoke test.
-
-Release-local and `LATEST_DEPLOYMENT.json` completion receipts were written atomically and read back. The release retains source/build metadata, package gateway/fstab baselines and a syntax-checked **`ROLLBACK.sh`**. For this initially empty host, rollback stops/disables the new application and gateway, preserves credentials/accounts/packages/swap, and records the inactive state; it does not restore data from the replaced machine. Only task-owned local build inputs/caches were removed after retaining evidence. No new Git commit, push, tag or Release was created. This entry preserves all existing uncommitted ledger content and does not advance the upstream review boundary.
-
-## Deployed independent light instance — 2026-10-26
-
-At **2026-10-26 16:25:55 Asia/Shanghai**, the user-authorized independent **light** instance started published main **[`44341db1`](https://github.com/vpromise/CodexProxy/commit/44341db1b61aa93c4127bb3843956ef3b785112e)** (`44341db1b61aa93c4127bb3843956ef3b785112e`). Verification completed at **2026-10-26 16:34:13 Asia/Shanghai**. The source and static Linux/amd64 artifact are identical to the preceding verified dmit2 deployment. No dmit, dmit2 or bawg server was accessed or modified during this rollout. No account or configuration was migrated from another host.
-
-| Item | Verified value |
-| --- | --- |
-| Management page | https://cpavn.hoperouter.com/management.html |
-| API base | https://cpavn.hoperouter.com/v1 |
-| Version / source tree | `codexproxy-20261026-44341db1` / `902958f53e73d77c0a2c79ae7570596253f49e30` |
-| Binary SHA-256 | `ea0b585882279e5aafe7679b85f4cf21a40309a8a775a0b22dd3c3af7d6da51f` |
-| Served management HTML SHA-256 | `e22ffa35c11e3ebfee185a4620e484a83175e814de8a1dd1fa26d9b36544625c` |
-| Source manifest | `df1d484eaf387b20b4bbdaa6da254ae2c15c8a99b9e24cbab8f7b278efc06dbb`; 1717 files |
-| Runtime / executable | Native systemd / `/opt/codexproxy/codexproxy` |
-| Effective configuration | `/opt/codexproxy/config/config.systemd.yaml` |
-| Configuration SHA-256 | `20bcf0b975907cb43358f13b6cf13ebf0acd0447a43749c8eeb2e8144322905b` |
-| Accounts / logs | `/opt/codexproxy/auths` / `/opt/codexproxy/logs` |
-| Gateway | Caddy; `/etc/caddy/Caddyfile`; valid Let's Encrypt certificate and automatic renewal |
-| Private credential delivery | `/root/codexproxy-light-credentials.json`, root-only mode 0600; no values copied to this ledger |
-| Release and recovery | `/opt/codexproxy/releases/20261026-44341db1-initial` |
-
-The fresh Debian 12 host has one CPU and approximately 2 GiB RAM. CodexProxy runs as its own unprivileged system user, bound only to **127.0.0.1:8317**, with **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 80%, GOMEMLIMIT 512 MiB**, restart delay 15 seconds and a three-starts-per-300-seconds limit. A dedicated **1 GiB host swapfile** was created and persisted without replacing existing fstab entries. File logging and usage statistics are enabled, detailed request logging/debug are disabled, and the log retention cap is 128 MiB. Both CodexProxy and Caddy are enabled at boot. Existing s-ui and SSH service identities were preserved.
-
-**Account isolation is enabled.** Two independently generated client keys bind to separate, empty Codex and Claude pools. The management key is independent and stored hashed in the application YAML; its initial delivery copy remains in the protected root file. Read-only authenticated checks confirmed management access, two pools, two keys, no accounts, and an empty model list for each client key. No real-account inference, refresh or rotation was initiated.
-
-**Claude always scope:** this source has per-credential `cloak_mode: always` for OAuth JSON and per-key `cloak.mode: always`, but no global always default. The independent instance has zero Claude accounts, so no credential could be changed. Future imports do not inherit always automatically: set the field when importing each Claude account or configuring its API key. This limitation was explained during deployment and is retained in `ACCESS.md`; the release is not represented as a globally forced-always installation.
-
-The clean detached source matched the already-validated manifest before and after the off-host Go 1.27.1 static build. Explicit build flags and version/commit/date reproduced the exact dmit2 binary hash. Reused source-matched evidence covers 4007 full tests in 68 packages and 2301 race tests in eight packages, with only the documented two macOS loopback-binding exclusions. No Linux unit-test execution is claimed. Frozen model catalogs and embedded management assets were retained. The compressed upload and all extracted artifact/source hashes were verified before application activation.
-
-Fifteen local/origin/public HTTP checks and five independent workstation checks passed. Both origin and public HTTPS use normal certificate validation; no insecure TLS exception was needed. The installed/running binary, version/commit headers and management response hash match the release. **24 healthy samples span 406.2 seconds**, with zero automatic restarts, memory-high/max events or OOM events; final service memory was approximately 22.8 MiB and service swap was zero. This empty-instance observation is not a production-load capacity measurement.
-
-Application startup/recent logs and post-readiness gateway logs contain zero errors. The initially unclassified warnings were investigated and retained as HTTP 404 responses to public requests for nonexistent paths, alongside deliberate unauthenticated probes; no failed assertion was silently dropped. Temporary gateway connection-refused records occurred while the new backend was still uploading, before its activation/readiness boundary. The original classification and bounded raw evidence remain protected on the server.
-
-Release-local and `LATEST_DEPLOYMENT.json` receipts were written and read back. The syntax-checked **`ROLLBACK.sh`** stops/disables the newly installed application and its new gateway, preserves credentials/account data/packages/swap, and records the inactive recovery state. The release retains the original package gateway config, fstab baseline, source archive, checksums, build metadata and verification evidence. This task creates no Git source commit, push, tag or Release; the local ledger entry preserves all earlier uncommitted content and does not advance the upstream review boundary.
-
-## Deployed to dmit2 with Claude always mode — 2026-10-26
-
-At **2026-10-26 15:29:18 Asia/Shanghai**, dmit2 alone was upgraded from main `a20079c2d233f0a6e7040e76fad6effa2e7407cf` to the latest verified published main **[`44341db1`](https://github.com/vpromise/CodexProxy/commit/44341db1b61aa93c4127bb3843956ef3b785112e)** (`44341db1b61aa93c4127bb3843956ef3b785112e`). Final verification completed at **2026-10-26 15:32:46 Asia/Shanghai**. This deployment supersedes older dmit2 running-version statements below. It includes native Claude session isolation repair `6e1d5b7f`, October 25 fixes `38a7713f`, and October 26 cancellation repair `154cf9fc`. dmit and bawg were outside scope.
-
-The existing single Claude credential now has **`cloak_mode: always`**. Its **`disabled: true`** state and all other credential fields were preserved; no credential was re-enabled. This is a per-credential setting, not a new default for future credentials. Global YAML, strict mode, sensitive-word settings, account pools, API keys, resource limits and logging remain unchanged. No inference, credential refresh, account rotation or authenticated account probe was initiated.
-
-| Identity | Verified value |
-| --- | --- |
-| Version / source tree | `codexproxy-20261026-44341db1` / `902958f53e73d77c0a2c79ae7570596253f49e30` |
-| Static Linux/amd64 artifact SHA-256 | `ea0b585882279e5aafe7679b85f4cf21a40309a8a775a0b22dd3c3af7d6da51f` |
-| Management HTML SHA-256 | `e22ffa35c11e3ebfee185a4620e484a83175e814de8a1dd1fa26d9b36544625c` |
-| Unchanged effective YAML SHA-256 | `95c1b048e9ec9640827494570ccf7bfa088e51cc8fe316349e18b2c56fc02e48` |
-| Source manifest (sha256sum format) | `df1d484eaf387b20b4bbdaa6da254ae2c15c8a99b9e24cbab8f7b278efc06dbb`; 1717 files |
-| Source validation manifest (sorted JSON format) | `5ee8c0409bc397d856540f6d35b55c5328e0da4ad2352afa7427ade36c4dfbbf`; identical file hashes |
-| Build | go version go1.27.1 darwin/arm64; CGO_ENABLED=0; mod=readonly; trimpath; buildvcs=false; explicit version/commit/date |
-| Recovery directory | `/opt/codex-stack/codexproxy/releases/20261026-072754-44341db1-always` |
-
-Reused source-matched validation covers **4007 full tests in 68 packages** and **2301 race tests in 8 packages**, with exactly the documented two macOS 127.0.0.2 binding exclusions. No Linux unit-test execution is claimed. The clean isolated build has no ignored source inputs; frozen model catalogs and embedded management assets were retained. The source manifest matched before and after the successful static build. The initially compared manifest digests used different serializations; recomputing the existing validation's sorted JSON format matched exactly before reusing test evidence.
-
-Installed and running executable hashes, version/commit headers and served management HTML match the artifact. All 15 loopback/gateway/public HTTP gates passed before and after activation, plus five independent public checks from the workstation with normal TLS verification. The established local origin-certificate exception remained limited to the loopback gateway. No authenticated management credential was available, so mode validation uses the saved credential metadata, full service restart and verified source behavior rather than a live provider request.
-
-The **24 healthy samples span 151.7 seconds**, with zero automatic restarts and no memory-high/max/OOM events. Final service cgroup memory was approximately 23.5 MiB; this low-load observation is not a production-load memory benchmark. Startup/recent logs had zero error/fatal/panic records; warnings examined were deliberate unauthenticated probes. **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB**, restart protection, process environment, unit/drop-ins and neighboring new-api/nginx/s-ui identities/settings were preserved. Docker remained inactive.
-
-Protected release-local verification and deployment receipts and `LATEST_DEPLOYMENT.json` were written atomically and read back, preserving resource/logging tuning history. The release contains the previous binary/config/unit/credential backups, exact source archive and a syntax-checked **`ROLLBACK.sh`**. Binary rollback restores the previous executable and restarts only CodexProxy while preserving current credentials, the authorized always setting, config and resource protections; credential backup is evidence, not an automatic token restore.
-
-This run uses already-published main and creates no new source commit, push, tag or GitHub Release. This local deployment entry was inserted without replacing earlier uncommitted ledger content or advancing the upstream review boundary.
 
 ## Publication verification - 2026-11-10
 
@@ -1240,31 +753,6 @@ Protected pending work follows [the current skill](/Users/vpromisex/.codex/skill
 
 Claude fingerprint remains **2.1.280**, SDK **0.112.1**, runtime **v26.3.0**; Codex runtime **0.154.0**, catalog tool **0.155.0**. No fingerprint/catalog change in this range. **No server deployment, Release, tag, Keeper or skill modification.** Six repairs are implemented, revalidated on the exact published inputs and normally pushed in [a8bf44aa](https://github.com/vpromise/CodexProxy/commit/a8bf44aadaedbe6c78acf0134679c7a2df025719); independent SSH/API SHA and local/API tree verification succeeded at 2026-11-08T05:17:41.462641+08:00. Exact-SHA runs, checks and statuses are zero; publication succeeded without a triggered CI run, not CI passing.
 
-## Deployed to dmit2 — 2026-10-23
-
-At **2026-10-23 15:30:53 Asia/Shanghai**, dmit2's native `codexproxy.service` was updated from `baabdc29ad44cf7e30286cfc8078dc7cf84a09d7` to published main **[`a20079c2`](https://github.com/vpromise/CodexProxy/commit/a20079c2d233f0a6e7040e76fad6effa2e7407cf)**. Verification completed at **15:33:48 Asia/Shanghai**. This rollout includes CodexProxy branding and the new logo (`04f0bc77`), revoked client-key record removal (`a181bc25`), the October 23 protocol/WebSocket fixes (`55d11ada`), and the previously deployed memory-retention repair (`baabdc29`, now merged into main). No config/schema migration was needed. dmit and bawg were outside this rollout.
-
-| Identity | Verified value |
-| --- | --- |
-| Source commit / tree | `a20079c2d233f0a6e7040e76fad6effa2e7407cf` / `31924c6a8cdb06f6e17c53af52da57e57c20a806` |
-| Version / build UTC | `codexproxy-20261023-a20079c2` / `2026-10-23T07:26:06Z` |
-| Source manifest | `213b1c211896a8e528a275bff63e1c9c45c68050482d42443d43b11d9d3708e2` (1708 regular files; excludes only this ledger) |
-| Static Linux/amd64 binary SHA-256 | `e4c7528cabf72dcbf83faf763f2a0af16f6d75b5f4ede16cc26643c1bcd7f366` |
-| Served management HTML SHA-256 | `a6a62e5847a80c2bbe1994f646b91b3515f919456c6ec0f6dac00f979ad29e69` |
-| Preserved live config SHA-256 | `a08ea24fdd5909b6b8fe6257f859180129b933eba997e2ee4bc9ec536dbeb775` |
-| Running executable / PID | `/opt/codex-stack/native/codexproxy` / `2105531` |
-| Protected release and recovery | `/opt/codex-stack/codexproxy/releases/20261023-072714-a20079c2-brand` |
-
-The binary was cross-built with Go 1.27.1, `CGO_ENABLED=0`, `-mod=readonly`, `-trimpath`, `-buildvcs=false`, and explicit version/commit/date metadata. The clean detached source matched the previously validated branding tree and its manifest before and after the build. Reused validation covers 369 frontend tests plus lint/type checks/production build, management-asset tests, the host build, and the preceding main integration's 68-package/3975-test Go suite and 5-package/450-test race suite. The two documented macOS loopback-binding exclusions remain explicit; this deployment did not rerun Linux unit tests. Frozen model catalogs and the checked-in management bundle were retained.
-
-The installed executable and `/proc/2105531/exe` both match the artifact hash. Fifteen HTTP gates passed on both the old and new versions across loopback, the nginx origin route, and public HTTPS: health 200, hello HEAD 204, unauthenticated models/config 401, expected version/commit headers, and exact management HTML. Five independent public checks from the operator workstation also passed with normal TLS validation. The existing origin-certificate exception was limited to the loopback gateway probe. An existing client key remained server-side and was used only for read-only `/v1/models`, which returned 200 with 15 model entries. No inference, credential rotation/refresh, or management write was initiated. Authenticated management checks were unavailable because only the configured management-key hash was present.
-
-The current production configuration, binary ownership/mode, systemd unit/drop-in bytes, normalized process environment and neighboring new-api/nginx/s-ui identities were preserved. The inactive Docker service remained inactive. **MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB**, and restart protection are unchanged. Existing logging settings remain commercial mode enabled, file logging enabled, detailed request logging disabled, usage statistics enabled, and a 128 MiB log-retention cap. No account/configuration data was rewritten or restored.
-
-A complete two-minute observation recorded 24 healthy samples, zero automatic restarts, and no memory-high/max/OOM events. Startup journal and recent application log checks found zero error/fatal/panic records; intentional unauthenticated probes were classified separately. Final service cgroup memory was approximately 22.4 MiB. These checks establish deployment readiness and short observation stability, not equal-load memory savings or end-to-end provider correctness.
-
-Release-local `deployment.json`, `FINAL_VERIFICATION.json`, `EXTERNAL_PUBLIC.json`, and root `LATEST_DEPLOYMENT.json` were written and read back. Existing resource/logging tuning history remains in the latest record. The release retains the exact source archive/manifest, build metadata, previous executable/config/unit backups, and a syntax-checked **`ROLLBACK.sh`**. That script restores only the preceding executable and restarts CodexProxy, verifies recovery, and supersedes the latest receipt; it preserves current account data, configuration and resource limits. This bookkeeping follow-up does not change the running source SHA.
-
 ## Memory repair integrated into main — 2026-10-23
 
 The user-authorized merge integrates published `codex/memory-retention-fix`
@@ -1296,59 +784,6 @@ and race output SHA-256 values are
 `def6b25fa9551928b2690d79f3b3e3bbbcc2db727653f09a55cc8985d5b43cf5` and
 `540db7a764c176717b9b3da4dde23024ce2646d45cb3723a6ea6aff45f271a1f`.
 The main management assets and the previous key-cleanup changes are unchanged.
-
-This source merge supersedes earlier statements that the memory branch is
-outside main. It performs no deployment or resource/logging configuration change.
-The October 22 recovery limits below are historical values from that rollout,
-not a readback of current server limits. Existing local deployment-ledger edits
-in the user's original checkout were preserved byte for byte.
-
-## dmit2 memory incident recovery — 2026-10-22
-
-At **2026-10-22 21:21:19 Asia/Shanghai**, dmit2 was restored to active/running and enabled from the verified native systemd release **[baabdc29](https://github.com/vpromise/CodexProxy/commit/baabdc29ad44cf7e30286cfc8078dc7cf84a09d7)** on **`codex/memory-retention-fix`**. This entry supersedes earlier dmit2 availability/version statements below. Main, dmit and bawg were not changed by this rollout. The implementation is based on merged main `ce1b7cd77d7e7d51b4580f44caa4684611c468d6`; the normal feature-branch push and exact remote SHA were verified. A later ledger-only commit does not change the running source SHA.
-
-The prior `10f500fe2540d055ed1e79e7bbf239bddcaf1963` native service had been deliberately stopped and disabled after five kernel-confirmed OOM kills. The replacement clears consumed usage queue slots and deferred diagnostic capture builders after final logging. Tests prove completed-request collection without losing multi-attempt error logs; this does not eliminate active-request body copies or establish the sole cause of the production OOMs.
-
-Validation: before/after weak-reference and native middleware regressions, targeted race tests, host and static Linux builds passed. All 68 packages passed on macOS with exactly two preexisting `127.0.0.2` binding failures excluded; both failures passed in the complete `helps` package suite on Linux. Complete Linux usage and middleware suites also passed. Four sustained local scenarios completed 2,569 synthetic requests; three Linux scenarios completed 362 requests. Normal responses, synthetic upstream errors and client cancellation were exercised with fake credentials, loopback-only network and no access to production config/auth. At quiescent forced-GC checkpoints, incremental live heap remained within 0.25 MiB. No forced GC ran during traffic. Linux cgroup peaks were 395.5 MiB (8 MiB × 4), 670.8 MiB (8 MiB × 8) and 717.7 MiB (16 MiB × 4), with no OOM events. These are bounded synthetic scenarios, not a claim of production capacity or a measured reduction in active-request peak memory.
-
-Only `codexproxy.service` gained a dedicated `90-memory-protection.conf`: `MemoryMax=768M`, `MemorySwapMax=128M`, `CPUQuota=100%` (one CPU on this two-CPU host), `StartLimitIntervalSec=300`, `StartLimitBurst=3`, `RestartSec=15s`, CPU/memory accounting enabled. Existing `GOMEMLIMIT=512MiB` and production configuration were preserved. `MemoryHigh` remains unlimited; the Go soft limit and cgroup hard backstop serve different purposes. A larger live workload may reach the service cap; containment is not proof that all memory optimizations are complete.
-
-The installed file and `/proc/<pid>/exe` both matched the static Go 1.27.1 Linux/amd64 artifact. Fifteen HTTP contracts passed across loopback, local gateway and public HTTPS: health 200, hello HEAD 204, unauthenticated models/config 401, expected version/commit, and exact management HTML. Public TLS was validated normally; only the existing loopback origin-certificate probe used the established local exception. An existing API key was used server-side solely for read-only `/v1/models` (200), never exported. No real inference or credential-refresh test was initiated. After at least 120 seconds of observation, there were zero restarts/OOMs and no startup error/panic records. Final process RSS was 59.8 MiB and service cgroup memory was 28.2 MiB, host available memory 1503 MiB; these low-load observations do not represent real inference memory. new-api, s-ui and nginx retained their original PIDs, start times and restart counts.
-
-- Build version: `codexproxy-20261022-baabdc29`; build UTC: `2026-10-22T12:08:00Z`.
-- Source tree: `88aa55fb240c5dee3d0c5ae5f5208305528a2930`.
-- Source manifest: `34064b969b072b70aa5a25c35e6f962eb1c69b66b857a9b212fa4c2b171246aa`.
-- Static artifact: `4f0940277006ac4c5128205c21f7803e3ff291058d6ef30af6b526a6a9808365`.
-- Management HTML: `6b57f6d8f86cd8ec104163961983b6235ac586c2c8554733e23fe44611cc1c6d`.
-- Preserved config: `cc85a7176688c287277ba484605e49649a3f1a54fdbc1a9f70ac0f6c583045da`.
-- Protected release: `/opt/codex-stack/codexproxy/releases/20261022-baabdc29-memory`; completion record and root `LATEST_DEPLOYMENT.json` were atomically written and read back.
-- Recovery: run that release's syntax-checked `ROLLBACK.sh`; it restores the old executable and the **stopped/disabled incident baseline**, removes only the owned protection drop-in, and does not overwrite account data or restart the former OOM-prone binary.
-
-Production configurations and raw logs remain in the mode-0700 release directory. The first preparation extraction raced an unfinished upload and failed before activation; after transfer completion all payload hashes and the safe isolated help smoke passed. No bypass of a failed runtime gate was used. Next validation is observation of user-initiated real traffic; no unbounded background load or profiling listener remains.
-
-### Resource adjustment — 2026-10-23
-
-At **2026-10-23 09:48:30 Asia/Shanghai**, only dmit2's existing CodexProxy resource settings were relaxed: **CPUQuota 100% → 125%**, **MemoryMax 768 MiB → 832 MiB**. `MemorySwapMax=128M`, live `GOMEMLIMIT=512MiB`, restart protection, application configuration and source `baabdc29` were preserved. PID `2097291` was unchanged; no service restart, source deployment, real inference test or credential refresh was performed. Kernel readback confirmed `cpu.max=125000 100000` and `memory.max=872415232`, with the dedicated `90-memory-protection.conf` as the only persistent drop-in. Its SHA-256 is `4c1e09c845e74a2a95e7e6cc3303fa6932a6aae286a4aa8286e5e87ab5ddb147`.
-
-The initial daemon-reload-only attempt did not apply the live cgroup values and was restored before using the online `systemctl set-property` interface. The successful protected record and syntax-checked resource rollback are in `/opt/codex-stack/codexproxy/releases/20261023-resource-tuning-014439`; `LATEST_RESOURCE_TUNING.json` and the existing deployment record's `resource_tuning` field were written and read back. A complete 180-second low-load observation had no inference completions, no restarts/OOM/memory-cap events, all local health probes passed, service memory approximately 106.7 MiB, and host available memory at least 1328.9 MiB. Final local/public health checks passed and binary/config/environment hashes plus neighboring service identities were preserved. This confirms applied limits and low-load stability; higher-concurrency performance is not yet measured. Detailed evidence is in `docs/memory-resource-tuning-2026-10-23.md`.
-
-### Expanded resource headroom — 2026-10-23
-
-At **2026-10-23 10:02:48 Asia/Shanghai**, the user-authorized dmit2 adjustment superseded the earlier settings: **MemoryMax=1G**, **MemorySwapMax=256M**, **CPUQuota=150%**, with **MemoryHigh=896M** added to apply reclaim/throttling before the hard cap. The user reduced the proposed swap allowance from 512 MiB to 256 MiB before activation; 512 MiB was never applied. Live `GOMEMLIMIT=512MiB`, source `baabdc29`, PID `2097291`, restart protection, application configuration and neighboring service identities were preserved. Persistent drop-in SHA-256: `785c69cf19ddf30a092453490e4d66976d72faf96c2612ed6ce04341d7a06b33`.
-
-The settings were applied online without a restart and verified against all four kernel cgroup files. A complete 180-second low-load observation recorded zero inference completions, no memory-high/max/OOM events or restarts, approximately 106.7 MiB service memory, zero service swap, and sampled host available memory of at least 1333.7 MiB. Local and public health checks passed. This establishes configuration and low-load stability; higher-concurrency behavior remains unmeasured. The 896 MiB pressure threshold can slow the service under sustained growth, and uncapped neighboring services can still pressure the host.
-
-Protected recovery material is retained at `/opt/codex-stack/codexproxy/releases/20261023-resources-1g-015819`; run `python3 /opt/codex-stack/codexproxy/releases/20261023-resources-1g-015819/change.py rollback` to restore the preceding 832 MiB / 128 MiB / 125% settings subject to its live-usage guards. `LATEST_RESOURCE_TUNING.json` and the deployment record's `resource_tuning` entry were written and read back. Detailed evidence: `docs/memory-resource-tuning-1g-2026-10-23.md`.
-
-### Logging overhead adjustment — 2026-10-23
-
-At **2026-10-23 10:51–10:55 Asia/Shanghai**, dmit2's native services received the user-authorized logging changes and were restarted serially. New-api now uses `StandardOutput=null`, retaining its file output and `StandardError=journal`. A unique read-only status probe appeared in the file and zero times in the journal. CodexProxy now has `commercial-mode: true` and `logs-max-total-size-mb: 128`, with ordinary file logging and usage statistics enabled and detailed request-body diagnostics disabled. Existing log files and all **37,850** new-api usage rows were preserved. Full request/response error-diagnostic files are intentionally no longer captured.
-
-Running CodexProxy source remains `baabdc29ad44cf7e30286cfc8078dc7cf84a09d7`, artifact `4f0940277006ac4c5128205c21f7803e3ff291058d6ef30af6b526a6a9808365`, now PID `2104021`; new-api remains `v1.0.0-rc.46` with unchanged artifact, now PID `2103960`. Only the two CodexProxy YAML values changed; config SHA-256 is `753bead53cd5c3cef742c22d1dec60c0538fdb0d0a13999ac1511026e9c08dcd`. MemoryMax 1 GiB, MemoryHigh 896 MiB, MemorySwapMax 256 MiB, CPUQuota 150%, GOMEMLIMIT 512 MiB and restart protection remain unchanged. nginx and s-ui retained fresh-baseline identities and settings.
-
-Local readiness/access-control contracts, public HTTPS, loopback gateway and exact management HTML passed. A complete 120-second low-load observation recorded no inference accesses, automatic restarts, OOM/memory-limit events or application error/panic tags. No real inference or credential refresh was initiated. No plaintext management credential was available, so authenticated management log-query/UI interaction is a coverage limit; file writes and the retained logging flag were verified. Post-restart memory is not evidence of equal-load savings.
-
-Protected recovery and verified receipts: `/opt/codex-stack/codexproxy/releases/20261023-logging-024936`. Run `python3 /opt/codex-stack/codexproxy/releases/20261023-logging-024936/change.py rollback-codexproxy` and/or `rollback-newapi` for the respective service; these restore only owned logging changes and restart the corresponding service. Root `LATEST_LOGGING_TUNING.json` and the existing deployment record were updated and read back, preserving source and resource history. Detailed report: `docs/memory-logging-tuning-2026-10-23.md`. No source/binary deployment, Git commit or push occurred.
 
 ## November7 selective review — 2026-11-07
 
@@ -1383,8 +818,6 @@ Original checkout remains `codex/user-provider-isolation` at `5e986f5e432f96abd8
 Historical decisions remain **14 themes**. K1 config/file consistency; K2 refresh-job identity; K3 cooldown/error/lifecycle boundaries; K4 shutdown/WS lifetime; K5 remote initialization secret sanitization; K6 resource budgets/diagnostic retention; U1 terminal credential quarantine/recovery; U2 narrow transport/short429 classification; U3 history/cache/compaction; U4 concrete catalog/capabilities; U5 tool protocol scope; U6 mixed quota/manual-disable catalog visibility; U7 Guardian cross-model affinity; U8 plugin instance/reload isolation. Existing detailed per-theme scope, tests and rollback plans are carried forward in the dated Chinese report with source mappings.
 
 **New decision evidence / closure:** K3: generic non-credential-scoped RequestTerminatedError could be made request-scoped before inner failover/401 refresh; local explicitly request-scoped Claude Fast behavior already has the narrower authorized protection. Discuss bare/plugin terminal responses and explicit continue rules separately; omit Home release acknowledgement restructuring. Test Execute/Count/Stream/bootstrap, wrapped/bare errors, 401/429/502, real credential errors, pool limits, deadlines, manual disable and ABA; rollback only the new classifier, never old tokens or existing cooldowns. U4: **retire the previous automatic image-model substitution proposal** because d1e5cc60 removes 8fb60326 upstream. It was never implemented locally, so no removal patch is needed and no local substitution-induced production fault is asserted. The remaining conditional proposal is final-payload/resolved-header capability validation returning request-scoped400 for confirmed unsupported native hosted image requests. Confirm actual consumer and boundaries (OAuth/API-key, model/header overrides, optional/forced/additional tools, direct Images, passthrough), prove no upstream invocation/cooldown/rotation and preserve account-pool permissions; rollback only the new validator, never restore implicit model substitution. New gpt-6-chat-thinking metadata remains actual-model-use conditional. These amendments supersede the historical November6 substitution question rather than silently authorizing it.
-
-Protected pending changes follow [the freshly read skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md): **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** This applies to K3 terminal response/retry/refresh rules and remaining lifecycle themes; proximity to those concepts does not block the independent display-only fix. Existing dmit2 routing/deployment authorization is not source-policy approval. No cooldown persistence or automatic credential recovery was enabled.
 
 Client fingerprints remain Claude **2.1.280**, Codex runtime **0.154.0**, catalog-fetch tool **0.155.0**. No model catalog or management bundle update. No server was accessed, deployed, released or tagged. Publication verified: implementation [a5f207c1](https://github.com/vpromise/CodexProxy/commit/a5f207c10c34614fc50b58db07b038667a64c7f5) / tree `5145fdb0a766ee127a461ee8660bc1f36982237f`, normally pushed to fork main and independently read back through SSH and GitHub API at 2026-11-07T05:04:37.422900+08:00. Exact-SHA workflow runs, check-runs and statuses are all zero. Current active workflows are PR/tag-triggered; this is successful publication without a CI run, not CI passing. The follow-up ledger-only commit records the mapping and does not change tested inputs.
 
@@ -1428,15 +861,9 @@ Original checkout remains `codex/user-provider-isolation` at `5e986f5e432f96abd8
 
 All 14 historical decision themes remain individually active (K1-K6/U1-U8); obsolete/unsupported/duplicate sources are not new decisions. November6 amendments: K3 adds exact count_tokens unsupported neutrality and Claude refusal semantics; K4 adds terminal WS429 under pool-limited exhausted failover; K6 adds bounded/error-only diagnostic retention; U4 adds actual-use-driven GPT-Image-2.6 and hosted-image model substitution; U5 adds client tool_search bridge. Other nine themes retain their previously recorded scope. See their individual existing entries and the dated Chinese report for the complete current behavior, proposed scope, benefits/risks, user decision and test/rollback plans.
 
-Protected policy changes remain pending because [the synchronization skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md) requires: **"Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task."** Previous authorization for dmit2 routing configuration and deployment does not approve unrelated source-policy changes. In particular, questions about cooldown do not enable cooldown persistence or automatic terminal-credential quarantine/recovery. Independent fixes above are not blocked by these decisions.
-
 Publication verified: implementation [41f1189d](https://github.com/vpromise/CodexProxy/commit/41f1189d068f7979dd7fb08d1c745e4534b893af) / tree `9d53300ac5a8ad8ab77f87385f6f81b0cada1e33`, normally pushed to fork main and independently read back via SSH and GitHub API at 2026-11-06T05:12:02.615443+08:00. Exact-SHA workflow runs/check-runs/statuses are all zero. Actions is enabled; the active workflows are PR/tag-triggered, so this direct main push did not trigger CI. This is successful publication with no CI run, not a green CI result. The follow-up ledger-only commit records this mapping without changing tested inputs. No server was accessed, deployed, tagged or released by this run.
 
 ## Historical checkpoint - 2026-11-09
-
-This table is historical; the November11 current checkpoint above supersedes its review/publication status. Deployment receipts elsewhere retain their own dates.
-
-**Deployment records are historical:** the published October23 receipt above records dmit2 at `a20079c2`. Newer October27 deployment notes exist only in the user's modified original checkout and are deliberately not staged by this sync. This task did not inspect or deploy servers; do not interpret this published checkpoint as a current live readback. Existing receipts remain unchanged.
 
 | Item | Recorded state |
 | --- | --- |
@@ -1454,8 +881,6 @@ This table is historical; the November11 current checkpoint above supersedes its
 | Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
 | Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
 
-The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released review boundary has advanced to v8.0.55 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; the current checkpoint and publication/deployment records supersede their earlier status. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
-
 ## Publication verification — 2026-11-05
 
 Implementation **[96f38add](https://github.com/vpromise/CodexProxy/commit/96f38add6a8c893243a85bded489b1d675e0710c)** (`96f38add6a8c893243a85bded489b1d675e0710c`), tree **e53983ef8d042aa474ff4580dfc43e98a98d4117**, normally advanced fork main from **9fba84db07fef4d2af075196b67bc4204c37e3f0**. SSH/API main SHA and local/API tree matched at **2026-11-05T05:12:09.203850+08:00**. Both selected repairs are committed and pushed on the existing account-isolation baseline. The exact 1759-file tested manifest is unchanged; this publication receipt changes only the ledger and does not repeat tests/build.
@@ -1465,8 +890,6 @@ At the implementation SHA: **0 Actions runs, 0 check runs, 0 commit-status entri
 ## Selective review and validation — 2026-11-05
 
 Checked **2026-11-05T05:06:10.825992+08:00**. Reviewed **01b24f1f95dc9b309765212c52b25b25e005ff01..e6e5708e677adb2463d45accdd24bc9fd028ddd8**, all **15** commits in official **v8.0.54** and **v8.0.55**. The v8.0.54 tag resolves to **78a9cc9aaa8ae90a66300d9cbddfe7c894307622** and v8.0.55 to **e6e5708e677adb2463d45accdd24bc9fd028ddd8**, also the inspected upstream main. **0 main-only commits**; both merge remerge-diffs are empty. Commit patches and issue/PR evidence #7231/#7232/#7233/#7234/#7248/#6799 are retained. Excluded frameworks were reviewed for applicability and dependencies, not claimed runtime-validated.
-
-Candidate starts at published main **9fba84db07fef4d2af075196b67bc4204c37e3f0**. All six preexisting local branch tips are ancestors, including account/provider isolation, native Claude session identity, revoked-key cleanup and memory repairs. No competing sync or approved unpublished code was found. Original checkout remains `codex/user-provider-isolation / 5e986f5e`, empty index and modified deployment ledger only; all 1685 original regular-file hashes including ignored files remain identical. Existing deployment receipts are historical; no server was inspected.
 
 ### Selected scope
 
@@ -1526,8 +949,6 @@ Exact implementation SHA: **0 Actions runs, 0 check runs, 0 commit-status entrie
 ## Selective review and validation — 2026-11-04
 
 Checked **2026-11-04T05:00:34.856497+08:00**. Reviewed **6e6afab99a1939525ecb6bb1f0873c8e7a9df877..01b24f1f95dc9b309765212c52b25b25e005ff01**: all **16** commits (15 non-merges, one merge) in official **v8.0.53**, published **2026-11-03T12:27:20Z**. The independently resolved lightweight tag equals upstream main; **0 main-only commits**. The merge has an empty remerge-diff. Commit diffs, scope/dependency decisions and issue evidence 7183, 7197, 7204, 7209, 7213, 7220, 7224, 7225 and 7230 are retained. Large excluded OAuth framework review establishes applicability boundaries; it is not a claim of runtime validation of every upstream provider.
-
-Isolated candidate is based on verified published main **7d0d4919e0b859b8a7e008d89f1279575d4862b9**, tree **b4ccafc1af7382c150aa9c71b478d61f66292354**. All six local branch tips are ancestors of this base, retaining account/provider isolation, native session identity, revoked-key cleanup and memory repairs. Original checkout remains `codex/user-provider-isolation / 5e986f5e`, empty index, original modified ledger only; all 1685 regular-file hashes including ignored files are preserved. No competing synchronization or older approved unpublished implementation was found. Existing deployment receipts and local-only deployment notes remain separate; no server access occurred.
 
 ### Selected repairs and preserved contracts
 
@@ -1708,8 +1129,6 @@ This requirement applies to the retained policy/lifecycle plans. U8 additionally
 
 ### Publication state
 
-The preparation state is superseded by the verified publication receipt above: selected implementation is committed and normally pushed, CI not triggered. No deployment, tag, Release, CI/policy, Keeper or skill change is part of this run. Task-owned evidence is retained in `outputs/codexproxy-upstream-sync-2026-11-03*` before cleanup. Historical deployment notes and the original checkout's newer uncommitted deployment history are preserved separately.
-
 ## Publication verification — 2026-11-02
 
 Implementation **[554a9420](https://github.com/vpromise/CodexProxy/commit/554a9420d4ef07574759e59ce1930b60c0c2a9a5)** (`554a9420d4ef07574759e59ce1930b60c0c2a9a5`), tree **37d7b0da26d7db9f9ae14dc20905ecb56803c654**, normally advanced verified fork main from **8305f488c01e1b7826a223af4f8defedc0ce9f3e**. SSH and GitHub API SHA and local/API trees matched at **2026-11-02T05:06:20.208281+08:00**. All four repair groups described below are committed and pushed on the account-isolation baseline. The unchanged 1749-file tested manifest identifies the exact code; this receipt changes only the ledger and needs no repeated Go suite/build.
@@ -1850,8 +1269,6 @@ Protected changes remain pending under the user request and [SKILL.md](/Users/vp
 This applies to the policy/lifecycle plans above, not to independent verified compatibility fixes. Conditional plugin schema10/locales, removed providers and Home are archived separately rather than expanded into an active approval queue.
 
 ### Publication state
-
-The pre-commit validation state above is superseded by the verified publication receipt immediately before this section. The selected implementation is normally pushed; CI did not trigger. Historical deployment records are untouched. Review/test/source evidence and the complete Chinese decision report will remain under `outputs/codexproxy-upstream-sync-2026-11-02*` in the task workspace before task-owned scratch cleanup.
 
 ## Review publication verified — 2026-11-01
 
@@ -2172,8 +1589,6 @@ Implementation **[d36a90e2](https://github.com/vpromise/CodexProxy/commit/d36a90
 
 Exact-SHA inspection found **0 workflow runs, 0 check runs and 0 commit statuses**. Actions is enabled; all six workflows are active. Main is unprotected, with no applicable branch rules. Published workflow source has only PR/PR-target or tag-push triggers, none matching a main push. **Push succeeded; GitHub CI did not run.** Empty aggregate pending state is not an active or passed check. Local full/race/build results remain separate; no Linux CI is claimed and no workflow, policy, tag, Release or empty commit was created.
 
-The final **1719-file** source/test/build manifest still matches validation. This follow-up only records publication, is committed/pushed and verified separately, with its exact final SHA in the delivery report. Original HEAD, branch, empty index and all **1664** recorded file hashes remain unchanged, including the user's newer deployment-ledger notes. Existing feature worktrees are untouched. Evidence and patch are retained in the October27 report/archive before removing only this run's disposable worktree, caches and binary. No deployment or live server verification was performed.
-
 ## Review and selective synchronization — 2026-10-27
 
 Checked **2026-10-27T04:58:29.272030+08:00**. Official release **v8.0.44**, published **2026-10-26T15:49:33Z**, dereferences to **1f917e77c4562623aa49e9804d999524151a2f96**, also upstream main at inspection. The complete range **307803510bce87f986fcf7b1a84190f105c7b4aa..1f917e77c4562623aa49e9804d999524151a2f96** contains **16 non-merge commits and 1 merge**. No main-only remainder; the discovery merge's remerge diff is empty. All changes were classified from patches/callers and relevant tests, not just titles. Stable patch IDs of all 16 non-merge changes had no exact match among 200 recent local patches; semantic comparisons were still performed.
@@ -2299,8 +1714,6 @@ The isolated candidate starts at verified fork main **f11a77109c3088302e437b5a84
 - **U6:** mixed quota/manual-disable model visibility is a display decision, separate from scheduling; preserve healthy siblings and existing cooldowns.
 - **U7:** Guardian cross-model affinity still needs an actual usage requirement and an explicit narrow selection contract. Preserve ordinary child binding; cover provider/model permission, disable/cooldown, TTL and race before implementation, rollback only the special branch/index.
 
-The invoked [codexproxy-upstream-sync skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md) requires: “Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.” These protected choices remain unimplemented. The user's triage authorization permits closing irrelevant work, not silently approving the retained policies. Independent verified repairs proceed to publication. Existing server deployment records are historical and unchanged; this run performs no deployment, tag or Release.
-
 ## Publication verification — 2026-10-25
 
 Implementation **[38a7713f](https://github.com/vpromise/CodexProxy/commit/38a7713f4184a506f5f2bab51b8fbca1fec9d9ee)** (`38a7713f4184a506f5f2bab51b8fbca1fec9d9ee`), tree **26ab39c24f5b0f412779fdce2f772f028b134c94**, normally advanced verified fork main from **602bc44f289a4ff4c1d75f66b47137855cbed6e8**, preserving the intervening authorized **[6e1d5b7f](https://github.com/vpromise/CodexProxy/commit/6e1d5b7f4af1f8483249c11e05fa7bf6ab92ebfa)** commit unchanged. Exact SSH/API main SHA and API/local tree matched at **2026-10-25T05:17:05.240921+08:00**. The implementation maps partial **9d08f0d4/44d1ddf5** and adapted **179d43dc** to the scopes below; ten explicitly staged files contain source, regression fixtures and ledger. No user checkout edits or pending protected changes were staged.
@@ -2379,8 +1792,6 @@ The tested 1,711-file manifest remains unchanged after publication bookkeeping, 
 
 Checked at **2026-10-24T04:58:12.585536+08:00**. Official releases **v8.0.40** (`d946c4fba6fc9a5cfbca1f3d85184d62ad2fb683`, published 2026-10-23T00:10:37Z) and **v8.0.41** (`8289ec4c71ad914d0612c2776352b76ba3d355a6`, published 2026-10-23T18:25:13Z) resolve to immutable commit SHAs. Reviewed **ceb045a129d43f805e93a5e4aef3a59b108f34f7..8289ec4c71ad914d0612c2776352b76ba3d355a6**, **15 commits (14 nonmerge and one merge)**. Upstream main equals the released tip; checkpoint ancestry verified, no main-only remainder. Reviewed all patches, affected local paths and issue rationale. Stable patch IDs against 200 recent nonmerge local commits found no exact matches; applicability was determined from local semantics, not that absence. The merge has no extra remerge-resolution diff.
 
-The isolated candidate starts from verified fork main **032bd8f3bf7be7ea9534a38c3520af07080c0a02**, including the account-isolation integration, revoked-key cleanup, branding and memory-retention repair. The original checkout remains on `codex/user-provider-isolation` at **5e986f5e432f96abd8abda69a2783cd5abc65b07** with an empty index and its existing unstaged deployment-ledger edit. No earlier authorized unpublished source batch was found. No concurrent sync process was found; other worktrees were left intact.
-
 ### Complete incremental dispositions
 
 | Source | Disposition / exact scope |
@@ -2423,8 +1834,6 @@ Fresh listener probes: 127.0.0.1 and ::1 pass; 127.0.0.2 fails with errno 49. On
 
 ### Remaining decisions and publication scope
 
-**13 active topics remain, no new approval topic, all 84 original closures retained.** The October20 K1–K6/U1–U6 register and October22 U7 remain the canonical decisions. K6 now also records sources **13874f1f** (bounded decoded body/window/concurrency) and **888f2382** (aggregate RESP frame budget). Existing RESP per-element/line/array limits already protect the cited huge allocations; a new aggregate 64 KiB policy needs actual legal request-size evidence. The completed-request retention repair is now in main and in the historical dmit2 deployment record, superseding earlier outside-main statements; it does not bound active request/decompression peaks. Keep K1's remaining general configuration/file consistency separate from already merged client-key revocation/isolation fixes. K4 lifecycle decisions are not implemented by this sniff-deadline ordering fix. The optional commentary-to-thinking presentation change is conditional on an actual caller requirement, not an additional daily approval request. The unsupported plugin, Home, SIWC and Gemini families remain closed/conditional as described above.
-
 All pending topics retain their individual proposed scope, benefit/risk, decision question and test/rollback plans. The Chinese report **codexproxy-upstream-sync-2026-10-24.md** and structured report **codexproxy-upstream-sync-2026-10-24.json** list all 13 individually; evidence **codexproxy-sync-evidence-2026-10-24.zip** retains patches, manifests, tests and exact-SHA publication readbacks. Source records and prior diagnostics are not reported as new tests. No protected lifecycle/cooldown policy is changed without its concrete prior authorization.
 
 This entry records implemented/tested/built scope. A separate publication entry records actual commit/tree, normal push, SSH/API SHA and CI. No deployment, Release, tag, Keeper, skill, management bundle, CI trigger or branch-policy change. Existing server records are historical and were not rechecked by this run.
@@ -2440,10 +1849,6 @@ This documentation-only follow-up leaves the verified **5bad1f51fd02e053078841ac
 ## Review and selective synchronization — 2026-10-23
 
 Checked at **2026-10-23T04:59:23.604042+08:00**. Official **v8.0.39**, published **2026-10-22T16:28:24Z**, resolves to **ceb045a129d43f805e93a5e4aef3a59b108f34f7**; upstream main resolves to the same SHA. Range **0db19025571684b198a2ef508f99b41c717337e8..ceb045a129d43f805e93a5e4aef3a59b108f34f7**, **17 nonmerge commits**, checkpoint ancestry verified; zero main-only remainder. Inspected patches, affected local symbols, regression contracts and linked issues. Patch-ID comparison with 200 recent nonmerge fork commits and ancestor checks found no exact match; semantic applicability is recorded below.
-
-Identity: verified origin fetch/push **git@github.com:vpromise/CodexProxy.git**, GitHub **ADMIN**, main unprotected. Candidate base **ce1b7cd77d7e7d51b4580f44caa4684611c468d6** includes account isolation and acknowledged-grant publication fixes merged after the previous sync. Original checkout **codex/user-provider-isolation / 5e986f5e432f96abd8abda69a2783cd5abc65b07**, index tree **4f1ab346957d7343f27bdd45794b3f5065e955b8**, with an existing unstaged deployment-ledger edit; preserve it byte for byte. No concurrent synchronization process/task was found. Separate preexisting audit and memory-retention worktrees are not this run's scratch. All implementation and verification used an isolated worktree.
-
-The separate published **codex/memory-retention-fix** branch contains **baabdc29ad44cf7e30286cfc8078dc7cf84a09d7** and ledger **c09004149902be4f5212e3768d88e1939256c6b1**, whose GitHub branch SHA was verified. Its ledger records dmit2 recovery/resource containment, superseding older dmit2 operational records; this sync did not inspect any server. At that review, the branch was **not merged into main** and was not part of that candidate's validation. The later memory integration and combined validation recorded above supersede this source-state limitation. Existing deployment history is retained below; original local deployment edits remain untouched. No old authorized uncommitted/unpushed synchronization batch was found.
 
 ### Complete incremental dispositions
 
@@ -2502,8 +1907,6 @@ This documentation-only follow-up updates publication mappings without changing 
 ## Review and selective synchronization — 2026-10-22
 
 Checked at **2026-10-22T05:01:11.869244+08:00**. Official releases: **v8.0.37 / ce07d189b3de2a39d37fd68ae093b102ce3aabee**, published 2026-10-21T07:54:51Z; **v8.0.38 / 0db19025571684b198a2ef508f99b41c717337e8**, published 2026-10-21T15:06:34Z. Reviewed **20c9095cac089c6a8e40554debe4dd8a19d4c14f..0db19025571684b198a2ef508f99b41c717337e8**, 26 commits including six merge-only commits, no main-only changes at inspection. All tags resolved to immutable commits; checkpoint ancestry confirmed. Inspected production diffs, regression coverage and referenced issue/PR rationale. Stable patch IDs against the latest 200 nonmerge local commits and ancestor checks found no exact match; local symbol review established the Alpha Search equivalence and narrower adaptation scopes below. Absence of a patch-ID match was not treated as proof of a missing fix.
-
-Verified origin fetch/push **git@github.com:vpromise/CodexProxy.git**, ADMIN permission, unprotected main. Base **e5575c827376ec83aaeaf23b637898b14190b90a** includes the October21 deployment record after 10f500fe; source matches the prior validated 1651-file manifest 66ae0947 exactly. No concurrent synchronization or prior authorized unpublished batch was found. User checkout stays on clean **codex/user-provider-isolation / 605896e1b7a3637665d31e1df93adf8ecdcc67fa**, empty index changes. No feature-branch integration. Implementation and checks ran in a detached temporary worktree.
 
 ### Complete incremental dispositions
 
@@ -2564,52 +1967,6 @@ Actual compiler/embed audit: **92 packages / 1078 inputs**, no candidate input o
 The invoked [codexproxy-upstream-sync skill](/Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md) requires: “Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.” U1/U7 and the retained protected scopes therefore stay unimplemented; independent validated repairs proceed to normal publication.
 
 At this snapshot, implementation/testing/build are complete; commit/push and exact-SHA CI are recorded by the follow-up publication entry. No deployment, Release, tag, Keeper, skill or CI configuration change. Evidence archive: task outputs `codexproxy-sync-evidence-2026-10-22.zip`; Chinese report `codexproxy-upstream-sync-2026-10-22.md` individually lists all 13 topics, sources, local state, proposals, risks, required decisions and tests/rollback.
-
-## Deployed on 2026-10-21 — dmit2 and bawg
-
-Deployed only **dmit2 → bawg** from published main **[10f500fe](https://github.com/vpromise/CodexProxy/commit/10f500fe2540d055ed1e79e7bbf239bddcaf1963)** (`10f500fe2540d055ed1e79e7bbf239bddcaf1963`), tree `862a773624d9c07324c08842802b9a8aa2d77707`, implementation **`f9133d2c214bb17d8b88bed3a49ece0bb48c76d7`**. Git SSH and GitHub API agreed on the selected main SHA; the fork has no GitHub Releases. Both live targets matched the previous **181db3c5** deployment, version `codexproxy-20261018-181db3c5`, artifact `9034ea74be5efa16010b9400dfe66a5a9fa12b87f8cb0e79df10636885392983`, with matching installed/process hashes, successful baseline HTTP/TLS/UI checks, zero restarts/OOM and no baseline unexplained log messages in the last 15 minutes. The old commit is an ancestor of the selected source. Source inputs changed, so both hosts required deployment. No downgrade or ledger-only redeployment.
-
-Exclusive project and selected-host locks prevented concurrent deployment. The user's clean `codex/user-provider-isolation` checkout at `605896e1b7a3637665d31e1df93adf8ecdcc67fa` and index tree `c21f00ae5fa372ec256bafe792ddc8697b032f1a` were preserved; all build/record work used an isolated detached worktree. **dmit was not connected to, checked, built for, uploaded to, backed up, restarted, deployed or rolled back.** Its service/history/recovery material remain outside this run. No upstream synchronization or feature-branch integration.
-
-### Exact validation and shared static artifact
-
-- Manifest: **1651 files**, **`66ae09474b6c19de2a0560157b0fc2e9a864c73ccfa012556fc251e7c03b7cdc`**, excluding only this ledger. It exactly matches October 21's verified source/test/build evidence before and after this build and before publication. Reused **3932 full tests / 68 packages**, **2408 race tests / 12 packages**, focused regressions and native build recorded above; the suites were not rerun for deployment. Full/race raw log hashes are retained in BUILD.json. The two named macOS loopback-bind exclusions, optional unconfigured TLS capture and three race-only allocation skips remain explicit; no Linux unit-test or live-provider validation claimed.
-- Go **1.27.1**, compiler/test/embed audits **92 packages / 1067 native inputs** and **92 / 1066 Linux static inputs**; all source inputs are in the validated manifest. Generated Go test cache files were separately identified by cache location/test ownership. `go mod verify` passed. No catalog/UI rebuild or dependency change.
-- New **linux/amd64, CGO_ENABLED=0** static build passed with readonly modules, trimpath, disabled VCS stamping and explicit build metadata. Version **`codexproxy-20261021-10f500fe`**, UTC build **`2026-10-20T22:26:58Z`**, **61,100,192 bytes**, SHA-256 **`33db63d7e61789932723bfa8a379b03bb4e10ec8865b100a675376b3e205ddee`**. Architecture/linkage and `go version -m` match. No dmit/CGO build.
-- Exact source archive SHA-256 **`d24a5c42945a32aec1be0f6cc98dd3cbbb3fbd4ad8fee1bbea0d47668bd1d71b`**. Served management HTML SHA-256 **`a4ebaa0380f07f6b271ead7e53797326d0b510bf4190e2f0890a74e0c9a56edb`**, derived using the selected source's embedded bytes and version substitution.
-
-### Serial activation and verification
-
-| Host | Activated (Asia/Shanghai) | Accepted (Asia/Shanghai) | Running source / result |
-| --- | --- | --- | --- |
-| dmit2 | 2026-10-21 06:28:05 | 2026-10-21 06:30:59 | `10f500fe` / running; installed/process artifact hashes match; restarts 0, OOM false |
-| bawg | 2026-10-21 06:31:56 | 2026-10-21 06:32:17 | `10f500fe` / active/running; installed/process artifact hashes match; restarts 0, OOM false |
-
-Each target passed local health 200/status ok, HEAD `/api/hello` 204, unauthenticated API/management rejection 401, exact version/full commit headers, management-page hash, loopback HTTPS gateway and public HTTPS health/page checks with normal certificate validation. An independent macOS client verified both public routes and page hashes. Existing API keys were used only for read-only model-list GETs: both ordinary and Codex client catalog routes returned 200 with valid nonempty catalogs (dmit2: **5** models; bawg: **10**). No usable plaintext management credential was available, so authenticated management-config reading remains uncovered; existing management secrets are bcrypt hashes. No inference, credential refresh/rotation or management writes.
-
-Dmit2 preserved config, effective runtime environment, arguments, mounts/auth directories, networks, limits and established new-api/usage-keeper production identities/settings. Its absence of a Docker healthcheck is retained; running state plus HTTP gates passed, including new-api's existing internal network path. Its persistent image-build binary also matches the new artifact. The new image uses the exact existing immutable base with only executable/revision replacement, `--pull=false`, isolated network-none help/payload smoke containers and no production volumes. Only the CodexProxy Compose service was recreated, without dependencies. Bawg preserved executable owner/mode, unit/drop-in bytes, config, effective arguments/environment and dotenv; only `codexproxy.service` restarted. CodexKeeper/new-api/Caddy stayed unchanged. Its cgroup memory.events oom and oom_kill are zero. Backups preserve original ownership/mode and rollback syntax checks pass.
-
-### Diagnosed preexisting external catalog warnings
-
-The first dmit2 post-activation verifier stopped on **3 unclassified warnings**, leaving the root latest receipt unpromoted and bawg untouched. Health, executable hashes, UI and HTTPS had passed. Retained the first log report, complete startup logs and original verifier before classification. No repeated restart or speculative rollback was performed.
-
-Diagnosis proved the warning is independent of the deployment: both external Codex catalog URLs currently return the same **581783-byte** JSON, SHA-256 **`96d73d2c6008e246167567fa66b1aea143fcd2976fd50d9885a11a94e8c5ff98`**, with **9 models** and no required **gpt-5.5** default template. The updater/validator and bundled catalog are byte-identical between 181db3c5 and 10f500fe. Both hosts' protected pre-activation history contains **22 occurrences** of the same validation warning for each URL and **22 periodic refresh-failure warnings**, beginning before this deployment. The same updater function labels startup versus periodic calls. It rejects the invalid remote catalog and retains the existing embedded catalog. Both old and new running services' read-only Codex catalog endpoints return valid, nonempty catalogs.
-
-The verifier was extended only to classify these **three exact messages** against retained historical counts, unchanged-code/embed hashes, the identical external payload checks and successful catalog-route evidence. It still rejects every unexplained warning/error; no runtime source/configuration, TLS, availability or preservation gate was weakened. Repeated dmit2 verification passed without reactivation; only then did bawg proceed. Actual-process-start log acceptance:
-
-- **dmit2**: 0 errors, 4 deliberate rejection-probe warnings, 3 diagnosed preexisting external-catalog warnings, 0 unexplained warnings.
-- **bawg**: 0 errors, 2 deliberate rejection-probe warnings, 3 diagnosed preexisting external-catalog warnings, 0 unexplained warnings.
-
-The external catalog incompatibility still needs separate upstream/catalog maintenance; this deployment does not change source/configuration or apply downloaded diagnostic catalogs. Current service/catalog availability checks pass using the bundled data. No deployment-introduced fault was found and no rollback occurred. These are operational readiness checks, not real provider-protocol validation.
-
-### Recovery and completion records
-
-Retained protected release directories include old/new binaries, exact source archive/manifest, build/input audits, prior configs/Compose or units/drop-ins, previous latest receipt, prepared/activated/verified/public/log/final-audit receipts, diagnosis evidence and executable recovery:
-
-- dmit2: **`/opt/codex-stack/codexproxy/releases/20261021-10f500fe/ROLLBACK.sh`**, restoring **181db3c5**, pinned old image, original Compose and persistent image-build input.
-- bawg: **`/opt/codexproxy/releases/20261021-10f500fe/ROLLBACK.sh`**, restoring **181db3c5** and original binary metadata.
-
-No config/schema migration was required. Rollback scripts restore only CodexProxy and verify the previous version before superseding latest records. Release-local and root `LATEST_DEPLOYMENT.json` completion receipts were atomically written and reread equal; fresh final audits verified running hashes, state, preserved configuration/neighbors and rollback syntax. Both roots keep **10f500fe as build source**, separately from the documentation-only publication commit. Commit/push this record alone to fork main with exact SSH/API readback and retained PUBLICATION.json receipts. Preserve server recovery material; remove only this run's local disposable worktree/artifacts/cache and release its locks. The known external catalog warning is the remaining maintenance item.
 
 ## October 21 verified implementation publication
 
@@ -2675,8 +2032,6 @@ Actual `go list` input audit: 92 packages / 1067 source/test/embed inputs; **no 
 ### Pending decisions and publication state
 
 **12 active themes remain (K1–K6, U1–U6; 27 original IDs); 84 closed IDs remain archived. No new standalone decision.** New5fe203d5/88041f0c evidence belongs to K1; cddc9bb8 credential isolation and aadb34f9 pause/search continuation belong to U3/U5. Optional new helper/fingerprint shapes are conditional U4 context, not automatic reactivation of excluded work. None is implementation authorization. Current policies, prior credential fences, manual disable, cooldown scope and five-day refresh lead are unchanged. The detailed original register and its test/rollback plans below remain authoritative.
-
-At this implementation snapshot, local adaptation and final validation are complete; commit/push and exact-SHA CI readback are recorded by the subsequent publication entry. Existing deployment records remain unchanged. No Release, tag, server deployment, Keeper or skill changes.
 
 Evidence destination: task outputs `codexproxy-sync-evidence-2026-10-21.zip` with manifests, logs, review/issue data, input audit and final patch; Chinese report `codexproxy-upstream-sync-2026-10-21.html` lists all12 retained decisions individually with source links, proposals, tradeoffs and tests/rollback.
 
@@ -2848,13 +2203,9 @@ Implementation **[06fbdf20](https://github.com/vpromise/CodexProxy/commit/06fbdf
 
 The exact implementation SHA has **0 workflow runs, 0 check runs, 0 commit statuses**; aggregate status is **pending**, not CI success. The six current workflows have PR/PR-target/tag triggers, no ordinary main-push trigger. Defined local checks passed on the exact final manifest recorded below. This separate documentation-only publication update records the implementation mapping; its final pushed SHA/remote/CI readback is retained in the task report and evidence archive, without requiring a self-referential ledger commit.
 
-The user's clean **codex/user-provider-isolation / 605896e1b7a3637665d31e1df93adf8ecdcc67fa** checkout remains untouched, including index and tracked/nonignored hashes. All **111** discussion entries retain their authorization status. Existing deployment history is unchanged and no servers were accessed. Disposable worktree, binary and caches are removed only after the review/test/publication evidence is archived; no user files or shared module cache are removed.
-
 ## Review and selected repairs on 2026-10-20 — v8.0.34 through v8.0.35
 
 Checked at **2026-10-20T05:02:32.550088+08:00**. Reviewed **2422c6b0f5fe16495320fa29456493874c1977a0..ae3ee3be303fb07fb8173279923413005bf32177**, 34 commits including 3 merges. v8.0.34 resolves to **e7d4c7316fca3fe0e852866f4e611cb4f2fa0764** (released 2026-10-19T11:10:43Z); v8.0.35 and fetched main resolve to **ae3ee3be303fb07fb8173279923413005bf32177** (released 2026-10-19T19:02:46Z). All commits are accounted for below; each remerge diff has no additional conflict-resolution change. There are no main-only commits at this check.
-
-Fork identity, fetch/push URL `git@github.com:vpromise/CodexProxy.git`, main/default branch, ADMIN permission and absence of branch protection were verified. No concurrent sync or authorized unpublished batch was found. Started a detached temporary worktree at published **43e0c0c4b84b7cb66f34894c2431b4c3dbf4a188**. The user's clean `codex/user-provider-isolation` branch remains at **605896e1b7a3637665d31e1df93adf8ecdcc67fa**; its HEAD, index and files are preserved. The primary checkout's older ledger is superseded for progress recovery by the published main ledger; no user branch is moved. Existing deployment history remains historical and unchanged.
 
 ### Selected behavior and preservation
 
@@ -2950,13 +2301,9 @@ Implementation **[d5e6ead6](https://github.com/vpromise/CodexProxy/commit/d5e6ea
 
 The exact implementation SHA has **0 workflow runs, 0 check runs and 0 commit statuses**; aggregate status is `pending`, not CI success. All six current workflow definitions were inspected: only PR/PR-target or tag events apply, with no ordinary main-push trigger. No workflow or branch policy was changed to manufacture a passing status. Defined local checks below passed against the final exact source/test manifest; documentation-only publication bookkeeping does not change those inputs. The final report records the separately pushed ledger commit and its own remote/CI readback.
 
-The original clean user feature checkout remains on **codex/user-provider-isolation / 605896e1b7a3637665d31e1df93adf8ecdcc67fa**, without moving its HEAD/index or local branches. This is a publication to the fork main branch, not a merge into that unrelated feature branch. All **108** pending decisions remain unimplemented unless their historical entry records a separate prior approval. Existing deployment history below is unchanged; this run performed no server access or deployment.
-
 ## Review and selected repairs on 2026-10-19 — v8.0.33
 
 Checked at **2026-10-19T05:02:28.743868+08:00**. The released range is **911f49cbd49f4fe2516979754a7488a3fd14fe64..2422c6b0f5fe16495320fa29456493874c1977a0**, 25 commits including 3 merges; all are accounted for below. The v8.0.33 Git tag and fetched upstream main both resolve to **2422c6b0f5fe16495320fa29456493874c1977a0**. Each merge was inspected using `git show --remerge-diff`; none contains additional conflict-resolution changes. No unreleased main-only changes remain at this check.
-
-Verified fork fetch/push destination `git@github.com:vpromise/CodexProxy.git`, default/publication branch main, ADMIN permission and unprotected branch. Started from published **4a5f1527ab284b7cf21e4defc32ff57884938b31**, which adds only the October 18 deployment record after the preceding sync. No other active synchronization, dirty index/working files or authorized unpublished local branch commits were found. The user checkout remains clean on `codex/user-provider-isolation` / `605896e1b7a3637665d31e1df93adf8ecdcc67fa`; implementation and validation used a disposable detached worktree, without moving user branches or importing their unrelated account-isolation feature. The retained deployment record is historical evidence, not a server inspection by this run.
 
 ### Selected behavior and local preservation
 
@@ -3024,41 +2371,6 @@ Historical updates: **28** adds 66c27581/issue6725 — local tree has no importe
 
 The skill's discussion boundary applies to these unapproved scopes: “Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.” Its separate behavioral-tradeoff rule covers adaptive off fallback and capability/catalog changes. Independent stream fixes proceed under standing publication authorization. Unused providers, promotion and absent mDNS/Home components stay excluded rather than becoming approval requests.
 
-## Deployed on 2026-10-18 — dmit2 and bawg
-
-Deployed only **dmit2 → bawg**, in that order, from published main **[181db3c5](https://github.com/vpromise/CodexProxy/commit/181db3c5abfbd60e1571d05918649f6f77064357)** (`181db3c5abfbd60e1571d05918649f6f77064357`), tree `c292a3ad9d8cc110a769365cd5f80bd1a26fe724`. Git SSH and GitHub commit API agreed on this exact main SHA before build; the fork has no GitHub Releases. Implementation maps to **e18cdc7818bc11f038353ca9b57ba714d923197a**, with earlier selected repairs included through main ancestry. Both targets were actually running the recorded ancestor `a968188caa4c873fd9523ed087057b3e723e2b08` and its matching installed/process checksum before rollout; this was an update, not a downgrade. **dmit was not connected to or inspected** and received no build, upload, backup, restart, deployment or rollback action. Its existing service, October 15 record and rollback material remain outside this run.
-
-Acquired exclusive project and selected-host deployment locks before server changes. Preserved the clean user checkout on `codex/user-provider-isolation` / `605896e1b7a3637665d31e1df93adf8ecdcc67fa`, its index and ignored files. Used a disposable detached worktree at 181db3c5; no feature-branch integration or upstream synchronization. Source/test/build inputs changed since the previous deployment, so both selected hosts required activation. The source manifest excludes only this ledger; bookkeeping-only commits do not require a new deployment.
-
-### Source validation and artifact
-
-- All **1638** regular tracked/nonignored inputs match the previously validated manifest byte-for-byte: **`883da0f688944c2acbc94c41b81ab53e0f2b11b4725b671d832f289e60bb4875`**. Reuse the successful October 17 evidence recorded above: **44 focused tests / 3 packages**, **3883 full tests / 68 packages**, **2621 race tests / 21 packages** and native server compilation. These suites were **not rerun** for this deployment. Their two named macOS loopback-bind exclusions, unconfigured optional TLS capture and three race-only allocation skips retain the stated limits; no Linux unit-test execution or real inference is claimed.
-- Go **1.27.1**, native compiler/test/embed audit **92 packages / 1054 files**, Linux static audit **92 packages / 1053 files**; every source input belongs to the validated manifest. `go mod verify` passed. An initial audit helper rejected a Go-generated test file in the dedicated Go cache; retained that traceback and corrected only the generated-test-input classification, requiring the task cache and Go test ownership. Both complete input audits then passed. No source or acceptance gate was changed.
-- New static **linux/amd64, CGO_ENABLED=0** server build passed with readonly modules, trimpath, disabled VCS stamping and explicit version/commit/date. No CGO/dmit artifact was built. Version **`codexproxy-20261018-181db3c5`**, build UTC **`2026-10-17T22:29:37Z`**, binary **61,071,520 bytes**, SHA-256 **`9034ea74be5efa16010b9400dfe66a5a9fa12b87f8cb0e79df10636885392983`**. `go version -m` and ELF inspection confirm the intended static target.
-- Source archive SHA-256 **`b1509e2586d67c6787b91e22ecc8b692beb792960fc3ab6ee0059e4c757cb2c9`**. Expected served management HTML SHA-256 **`75a5f8f9fc705194bc487cadd3eeb70100b0a3ab28052541258d2b6e7d1f694e`**, derived from the bundled page with the source's version substitution. The manifest remained unchanged after build and again before publication.
-
-### Serial activation and acceptance
-
-| Target | Activated (Asia/Shanghai) | Accepted (Asia/Shanghai) | Actual running source / result |
-| --- | --- | --- | --- |
-| dmit2 | 2026-10-18 06:30:29 | 2026-10-18 06:30:41 | `181db3c5` / running; installed and running binary SHA-256 match; restarts 0, OOM false |
-| bawg | 2026-10-18 06:31:31 | 2026-10-18 06:31:52 | `181db3c5` / active/running; installed and running binary SHA-256 match; restarts 0, OOM false |
-
-Each target passed local `GET /healthz` 200/status ok, `HEAD /api/hello` 204, API-key rejection 401, management rejection 401 with the exact new version/full commit headers, and management-page body equality. Loopback HTTPS gateway and public HTTPS health/page checks passed with normal certificate validation; a separate macOS client also verified both public routes and page hashes. Read-only authenticated `/v1/models` returned 200 (dmit2: **5** models; bawg: **10**). Authenticated management-config reads were not performed: neither host had a usable existing plaintext management credential. No inference, credential refresh/rotation or management write was sent.
-
-Dmit2 retained its exact runtime settings, config hash, mounts, auth directory, arguments, resources and established new-api/usage-keeper production container identities/settings. Its configured absence of a Docker healthcheck is recorded; running state plus HTTP gates passed. Its persistent `image/codexproxy` now matches the new artifact. New-api's existing network path to the proxy returned healthy. Only CodexProxy was recreated, using the existing image as the immutable local base, `--pull=false` and the existing Compose project/file with no dependencies; isolated help/payload smoke containers had no production mounts. Bawg retained unit/drop-in bytes, binary owner/mode, config, effective arguments/environment and dotenv state; only `codexproxy.service` was restarted. CodexKeeper, new-api and Caddy identities/settings remained unchanged. Its cgroup memory events report oom=0 / oom_kill=0.
-
-Startup and recent logs were scoped to the actual new process start and server timezone. Both hosts had **0 errors**, **2 deliberate unauthenticated-probe warnings**, and **0 unexplained warnings**. The dmit2 baseline's two known background GET/404 warnings were matched against retained historical evidence; none occurred in the new process's acceptance window. No deployment fault or rollback occurred. These checks establish operational readiness within their stated scope, not live provider-protocol correctness.
-
-### Recovery and records
-
-Protected release directories retain the new artifact, exact source archive/manifest, build/input-audit evidence, previous executable/config/service definitions, previous completion record, syntax-checked executable rollback, and prepared/activated/verified/public/log/final-audit receipts:
-
-- dmit2: **`/opt/codex-stack/codexproxy/releases/20261018-181db3c5/ROLLBACK.sh`**; immutable prior image ID is pinned, original Compose and persistent image-build binary are backed up.
-- bawg: **`/opt/codexproxy/releases/20261018-181db3c5/ROLLBACK.sh`**; original executable metadata and unit/drop-in backups are retained. Backup binary ownership/mode matches the baseline.
-
-Each rollback restores only its CodexProxy target to **a968188c**, verifies recovery and supersedes the latest record only after recovery checks pass. No config/schema migration was needed. Release-local completion receipts and root `LATEST_DEPLOYMENT.json` were atomically written and reread equal; fresh final audits confirmed running hashes, state, preserved configuration/neighbors and rollback syntax. Both roots record 181db3c5 as the running build source; the separate documentation publication does not change it. No manual operational intervention remains. Publish this deployment record alone to fork main with a normal push and exact remote readback; preserve all server recovery material and remove only this run's local scratch/worktree/cache after publication.
-
 ## Published review on 2026-10-18
 
 Documentation-only review **[51c0aa99](https://github.com/vpromise/CodexProxy/commit/51c0aa99ee38a6ecb2de172dbbd1e163e8ba5409)** (`51c0aa99ee38a6ecb2de172dbbd1e163e8ba5409`), parent `c6b69c951d5eaf42dedb6c811d22815e9d698cfa`, was normally pushed to main. SSH and GitHub API both returned this exact SHA at **2026-10-18T05:02:04.787220+08:00**. Its only changed file is this ledger; runtime/test/build inputs still match October 17 manifest `883da0f688944c2acbc94c41b81ab53e0f2b11b4725b671d832f289e60bb4875`. No new repair was implemented or claimed tested today.
@@ -3088,8 +2400,6 @@ Fresh baseline exact-SHA GitHub inspection: **0 workflow runs / 0 check runs / 0
 
 **103 historical items remain unresolved; 0 new discussion items.** Carry forward every item individually in the dated delivery report, retaining its references, current local behavior, reason, suggested scope, benefit/risk, decision, tests and rollback plan. The previously added 101 (plugin resident images), 102 (automatic thinking drop policy) and 103 (layered cooldown persistence) are now historical, not new today. No pending scope gains approval from this heartbeat. Previously completed explicit binding-beta and Haiku 5.5 prefill fixes remain completed; catalog/automatic-drop extensions remain separate decisions.
 
-No new code repair, fingerprint change, configuration migration, credential/cooldown policy change, tag, Release, CI modification or deployment. Fresh source inspection still shows **Claude Code 2.1.280**, **Codex runtime 0.154.0**, **catalog-fetch default 0.155.0**. No server accessed; preserve existing deployment history as historical evidence. No Keeper or skill edits. Publish only this meaningful check/validation-reuse ledger and its publication bookkeeping, with normal main pushes and exact remote/CI readbacks; archive evidence before removing only this run's worktree and scratch files.
-
 ## Published on 2026-10-17 — stream metadata and explicit request compatibility
 
 Implementation **[e18cdc78](https://github.com/vpromise/CodexProxy/commit/e18cdc7818bc11f038353ca9b57ba714d923197a)** (`e18cdc7818bc11f038353ca9b57ba714d923197a`), parent **`5d7d4eead6c06ea012c436a9a70e0e10513cb2f6`**, was normally pushed from the isolated worktree to verified `vpromise/CodexProxy` main. SSH and GitHub API both returned the exact SHA at **2026-10-17T05:11:19.348359+08:00**. Its tree is **`3a4b62d8b8a8c6d4dbb6e0f9bb73e422a3a7693b`**. The committed source/test/build manifest remains **`883da0f688944c2acbc94c41b81ab53e0f2b11b4725b671d832f289e60bb4875`**, matching all final checks.
@@ -3097,8 +2407,6 @@ Implementation **[e18cdc78](https://github.com/vpromise/CodexProxy/commit/e18cdc
 Upstream mappings: `7a511e4db78a8dad9a4373830d2b12fd64eaab70` (adapted stream snapshot), `fa68946ad572f275b210595f63994dfeb9f0fe75` (query masking only), and `911f49cbd49f4fe2516979754a7488a3fd14fe64` (explicit binding beta and Haiku 5.5 prefill only) → **`e18cdc7818bc11f038353ca9b57ba714d923197a`**. The four repairs change only four production files; the rest is regression evidence and this ledger. No full-upstream inclusion is claimed.
 
 Exact-SHA GitHub inspection returned **0 workflow runs, 0 check runs, 0 commit statuses**; aggregate status is `pending` with no entries. **No CI run was observed, which is not CI passing.** All six workflow definitions were inspected: PR/PR-target or tag triggers, no ordinary main-push trigger. No empty commit, workflow/policy change, Release or tag was used to manufacture CI. This documentation-only follow-up is also normally pushed and its exact SHA/CI readback is retained in the delivery report; unchanged Go inputs do not require retesting.
-
-No selected-code publication blocker remains. The original clean account-isolation feature checkout and its HEAD, index and file hashes remain untouched; the main repairs are not merged into that feature. All **103** undecided items remain pending. No server was contacted, deployed or restarted; Keeper and skill were not modified. Prior deployment history is unchanged. Preserve patch/manifests/logs/readbacks in the dated delivery evidence before removing only this run's disposable worktree/cache/binary.
 
 ## Review and selected repairs on 2026-10-17 — v8.0.31–v8.0.32
 
@@ -3142,8 +2450,6 @@ All earlier 100 unresolved items remain pending; none becomes approved by this r
 **102 — automatic thinking block drop policy (`911f49cb`).** Explicit body controls now obtain the required beta, but no default drop_block is injected. Propose default-off, explicitly scoped Responses-to-Claude opt-in only if the user accepts losing mismatched signed history; native requests and explicit choices remain authoritative. Benefit: replay with altered prefixes/tools can continue; risk: hidden reasoning loss, masked translation defects and token-count divergence. Decide allowed models/credentials/routes and required client visibility of dropped blocks. Test signed/unsigned/redacted, adaptive/enabled/disabled, aliases/old models, prefix/tool changes, count_tokens and payload rules. Roll back only the optional injector/config, retaining the independent explicit-beta repair. Live provider verification would require separate authorization.
 
 **103 — independent model cooldown layers (`b946d54e`).** Devin remains excluded, but shared conductor shadow/provenance/persistence/observation merging also affects Codex/Claude. Current local state lacks that layer; no local production failure is claimed reproduced. First reproduce supported-provider interleavings, then decide minimal layered state, early restoration and legacy-record rules without importing Devin's hourly scheduler. Benefit: preserve exact own-model failures beneath credential quota; risks: persistent format, restore priority, stale-success fences and manual-disable regressions. Test concurrent model/credential failures, repeat propagation, expiry, refresh, restore, aliases, ABA, zero-version SDK, restart/legacy records and race. Preserve cooldown backups and conservatively down-convert on rollback; do not clear cooldown files or restore old rotated tokens. Keep item100's auth-level late-success question separate.
-
-Publication is tracked separately after exact SSH/GitHub readback. No server connection/deployment, tag, Release, CI policy change, Keeper or skill edit is included. Prior deployment history is retained.
 
 ## Published on 2026-10-16 — incomplete tool-result status
 
@@ -3215,10 +2521,6 @@ Separate diagnostic, excluded from the published source: existing model-level an
 
 These pending changes follow the skill's discussion boundary for protected policies and substantial new configuration/ownership choices. The independently validated translator fix is publishable without waiting for them.
 
-### Deployment provenance discovered during review
-
-The feature branch's [605896e1](https://github.com/vpromise/CodexProxy/commit/605896e1b7a3637665d31e1df93adf8ecdcc67fa) records a separate user-authorized dmit rollout at October 15 22:08: deployed detached snapshot `d9caa87c346b8d42f241c7598b8104967eb0b561`, same tree as published feature implementation `eb8e43e68b9f8dab4f9f1f197cbcd6c318ef61c6`. dmit2/bawg retain their last recorded October 14 state. This is source-ledger provenance only; no server was queried or deployed by this sync. The feature and its deployment remain separate from main. Existing historical deployment sections are preserved.
-
 ## Published on 2026-10-15 — MCP names, SSE assembly and plugin host references
 
 Implementation **[5ab2738c](https://github.com/vpromise/CodexProxy/commit/5ab2738c2e6d6526bf8a0170b81a7e3eaf5e4930)** (`5ab2738c2e6d6526bf8a0170b81a7e3eaf5e4930`) was normally pushed from the isolated worktree to verified `vpromise/CodexProxy` main. SSH remote and GitHub API both returned this exact SHA at **2026-10-15T05:15:42.727186+08:00**. Parent remains the verified `b2f6b8f2` fork base. Source tree `c471b0f4ae6b3945faa8c21782b164672c948a88` matches the tested 1634-file manifest; all new regression/helper inputs were included.
@@ -3226,8 +2528,6 @@ Implementation **[5ab2738c](https://github.com/vpromise/CodexProxy/commit/5ab273
 Upstream mappings: **02fc76b149a917d07db6c1f588f47341bb29c7be → 5ab2738c2e6d6526bf8a0170b81a7e3eaf5e4930** (declared full MCP suffix only); **7795de19ca80940adeafe45ebe7c5dbfc4931cc5 → 5ab2738c2e6d6526bf8a0170b81a7e3eaf5e4930** (SSE assembly with local byte/frame budgets); **81573f042982878247c5f2ea83a7a4e855ce7aa6 → 5ab2738c2e6d6526bf8a0170b81a7e3eaf5e4930** (handler plugin/router host synchronization only). Remaining upstream scopes are not marked implemented.
 
 Exact-SHA GitHub inspection: **0 workflow runs, 0 check runs, 0 commit statuses**, aggregate pending with an empty list. This means **no CI run, not passing CI**. The six current workflow definitions trigger on PR/PR-target or tags, not ordinary main pushes. No workflow/policy edit or empty commit was made. This documentation-only follow-up is also normally pushed and its exact remote/CI readback is retained in the delivery artifact; it does not alter tested inputs.
-
-No selected-code publication blocker remains. The original user feature checkout stays at its original HEAD/index/file contents; local main is not moved across the unrelated branch's work. The user must integrate the new main into that feature separately, resolving any overlap. No server deployment, tag, Release, force push, Keeper or skill change occurred. October 14 deployment history remains unchanged. Full patch, upstream dispositions, source/compiler-input manifests, logs and API readbacks are preserved before removing this run's disposable worktree/caches/binary.
 
 ## Review and selected repairs on 2026-10-15 — v8.0.28 through v8.0.29
 
@@ -3322,31 +2622,7 @@ Fresh loopback probe: 127.0.0.1 works; 127.0.0.2 returns errno 49. Only command-
 
 **97. Recreated credential file deletion** (`5fc580b1`): whole-file-removal provenance plus fresh strict file synthesis changes whether queued deletion is applied. Decide whether an unreadable/temporarily invalid recreated file retains old auth or stops use; distinguish actual per-ID/config deletes. Test delete/recreate/subset plugin IDs, uncertain reads, relative/case paths, manual disable, queue ordering, ABA and race. Roll back reconciliation code without deleting files or replaying credentials. Coordinate item 89 multi-auth ownership separately.
 
-The skill requires discussion before changing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics; other new architectural/configuration extensions require their concrete scope choices. This run does not infer authorization from the user's unrelated isolation feature branch. Deployment history below is unchanged; no server was contacted.
-
 ## Historical checkpoint — 2026-10-23
-
-The newer dated records above supersede this checkpoint. The latest recorded dmit2 deployment is the November 5 upgrade to `a095b1f9`; this section retains the October state and review boundaries.
-
-**Recorded dmit2 status on October 23:** active/running and enabled at `baabdc29`; recovery was verified on October 22; October 23 adjustments set CPUQuota 150%, MemoryMax 1 GiB, MemoryHigh 896 MiB and MemorySwapMax 256 MiB, then enabled commercial mode and a 128 MiB log-retention cap while removing duplicate new-api stdout journal output as recorded above. The incident stop at 20:42–20:44 was superseded by the recovery record above. Earlier rows retain release history.
-
-| Item | Recorded state |
-| --- | --- |
-| Latest upstream check | 2026-10-13 05:05:59 (Asia/Shanghai): 35 newly reviewed commits after f1d4a94e; all 48 commits from the prior released boundary accounted for, including 13 previously reviewed commits now released; no main-only remainder |
-| Last reviewed upstream main | [bf934162](https://github.com/router-for-me/CLIProxyAPI/commit/bf9341629ef2300ac9d846a2e80fe2756f63a671) (`bf9341629ef2300ac9d846a2e80fe2756f63a671`); selective dispositions below, not a full merge |
-| Released selection boundary | v8.0.27 / `bf9341629ef2300ac9d846a2e80fe2756f63a671`; all four releases v8.0.24–v8.0.27 inspected and their actual tag SHAs resolved |
-| Release at that review | [v8.0.27](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.27), published 2026-10-12 16:37:20 UTC; actual tag resolves to `bf9341629ef2300ac9d846a2e80fe2756f63a671` |
-| Latest verified published implementation | [02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd76ffc424f81eb35383dd41b703ef51aec43) (`02ffd76ffc424f81eb35383dd41b703ef51aec43`) on `main`: selected Claude cache presence and bounded Chat-to-Codex call IDs |
-| Published source tree | `4547dcc0ecf3b704e005a251bebcb6ccfb89fd1c` (October 13 implementation commit) |
-| Latest publication | October 13 implementation [02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd76ffc424f81eb35383dd41b703ef51aec43) (`02ffd76ffc424f81eb35383dd41b703ef51aec43`), verified on SSH remote main and GitHub API; documentation follow-up records this exact publication |
-| Unpublished selected fixes | None. Both independently validated October 13 repairs are committed and normally pushed. All undecided scopes remain outside the published selection |
-| Pending candidate | No ordinary release-pending repair or earlier authorized unpublished implementation remains. 91 discussion items (80 historical + 11 new) remain unimplemented in their undecided scope |
-| Deployment | dmit runs the account-isolation fixes at `7fef3e38932fe029c5207c164cc29e27868eea06`, deployed and verified October 22 at 17:25 Asia/Shanghai; see the deployment record below. On October 22, dmit2 migrated its existing `10f500fe2540d055ed1e79e7bbf239bddcaf1963` binary from Docker Compose to systemd alongside newapi; CodexKeeper and the unused container runtime were stopped and disabled. A read-only October 22 inspection found the identical CodexProxy binary on bawg; bawg was not changed. See the migration record below. |
-| Local client fingerprints | Claude Code **2.1.280**; Codex runtime **0.154.0**. The standalone catalog-fetch tool now defaults to **0.155.0** |
-| Current selection policy | Request correctness, scoped client compatibility and pinned model metadata; retain local instructions, provider boundaries and runtime-state policies. Earlier dispositions remain unless amended by the assessments below |
-| Latest deferred-family reassessment | October 8: the user authorized the four priority repairs after the analysis; attachment/error propagation, missing-thread classification, credential-version fencing and ambiguous refresh retry are now published in `e09cd295`. Thread-alias state, explicit caching, terminal rejection/queue policies and other framework deferrals remain separate |
-
-The October 7–8 selections and four authorized deferred-family repairs are published at [e09cd295](https://github.com/vpromise/CodexProxy/commit/e09cd29585ef17eb347c8a5f743f167df524a0f9) and deployed to dmit, dmit2 and bawg from [6f3119b1](https://github.com/vpromise/CodexProxy/commit/6f3119b1fc835d65a6520be7369b717f13755c39), its publication-ledger follow-up. Their validated source manifest is `89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`. The previous October 4 deployment at [c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3) remains available for rollback. The October 5 selection was published at [f67fe572](https://github.com/vpromise/CodexProxy/commit/f67fe5728c5a77d77e12999051a2992f49730286). The released selection and review boundaries have advanced to v8.0.27 as recorded above; this does not mean that deferred upstream behavior was integrated. The October 10 validation and publication records below supersede earlier local-only labels for the selected repairs. Earlier sections retain historical integration/validation states; later publication/deployment records supersede earlier status labels. Upstream ancestry, v8 configuration/module migration and other deferred families remain outside the published selection.
 
 ## Published on 2026-10-13 — Claude cache marks and Codex call IDs
 
@@ -3355,8 +2631,6 @@ Implementation **[02ffd76f](https://github.com/vpromise/CodexProxy/commit/02ffd7
 Upstream mapping: **`be8c35f294a3a4c83555b27d49458e5e91bb9cf8` → `02ffd76ffc424f81eb35383dd41b703ef51aec43`**, partial adaptation of null/nonobject cache-mark presence while keeping permissive object acceptance; **`b0debb353796015982f4f84f790c13073bf4c958` → `02ffd76ffc424f81eb35383dd41b703ef51aec43`**, overlength Chat-to-Codex call IDs with collision reservation and additional UTF-8 boundary preservation. Review boundary v8.0.27 does not imply implementation of other upstream commits.
 
 Exact-SHA GitHub inspection returned **0 workflow runs, 0 check runs, 0 commit statuses**, aggregate **pending** with an empty list. This is **no CI run, not passing CI**. Current workflow definitions were inspected: their PR/tag triggers do not run for this normal main push. CI configuration was not changed. The final ledger-only follow-up is separately normally pushed, and its remote SHA/CI state are verified in the delivery artifact. Documentation bookkeeping does not change the tested source inputs.
-
-No remaining selected-code publication blocker was found. The quota/manual visibility diagnostic and other 91 discussion scopes are not claimed fixed. No force push, empty commit, tag, Release or server deployment occurred; October 11's deployment history remains intact. Task-owned worktree/build/cache cleanup happens after preserving patch, exact manifests and logs in the delivery evidence.
 
 ## Review and selected repairs on 2026-10-13 — v8.0.24 through v8.0.27
 
@@ -3479,13 +2753,9 @@ Fresh listener probes: 127.0.0.1 works; 127.0.0.2 fails with macOS errno 49. Onl
 
 The current [skill](</Users/vpromisex/.codex/skills/codexproxy-upstream-sync/SKILL.md>) states: **“Before changing existing cooldown, disable, scheduling, credential-refresh/lifecycle or migration semantics, discuss a concrete execution plan with the user unless that plan is already authorized in the active task.”** This is the reason the undecided protected scopes above remain pending. Larger protocol/configuration and consumer-dependent additions also require the concrete choices described above. Independent selected repairs are authorized for normal commit/push without another confirmation.
 
-Publication is recorded separately after exact remote verification. Fingerprints remain Claude Code **2.1.280**, Codex runtime **0.154.0**, catalog-fetch default **0.155.0**. No tag, Release, server operation/deployment, CI configuration change, CodexKeeper edit or skill edit is included; the October 11 deployment record remains historical and unchanged.
-
 ## Published on 2026-10-12 — documentation-only review
 
 Review commit **[a53fae6d](https://github.com/vpromise/CodexProxy/commit/a53fae6d3bac3d3a97a180ce24b61a45db556cbd)** (`a53fae6d3bac3d3a97a180ce24b61a45db556cbd`) was normally pushed to the verified fork main. At **2026-10-12 05:02:49 Asia/Shanghai**, SSH `refs/heads/main` and the GitHub commit API returned the exact SHA. Only `docs/upstream-sync.md` changed, and the index and tracked/nonignored working tree were clean. Source/test/build inputs still match the October 10 validated snapshot; the four excluded upstream changes and earlier unimplemented candidates were not added.
-
-For this exact SHA, GitHub returned **0 workflow runs, 0 check runs and 0 commit statuses**, with aggregate `pending` and an empty status list. This is **no CI run, not passing CI**. Six active workflow definitions were inspected; they listen to PR events or tag pushes, not this main push. No CI configuration was modified. This documentation follow-up records the verified review publication; its own push and exact remote/CI result are checked in the delivery report. No force push, empty commit, tag, Release or server operation occurred. The separate October 11 deployment history remains unchanged.
 
 ## Review on 2026-10-12 — four out-of-scope main-only commits
 
@@ -3503,8 +2773,6 @@ The default released-fix policy remains applicable: **no newly released fix and 
 | [f1d4a94e](https://github.com/router-for-me/CLIProxyAPI/commit/f1d4a94ef4398349716f2db5bbc3a27624c174a7) | **Excluded sponsorship image replacement.** Only `assets/modelflare.png`; no supported runtime correction. |
 
 ### Repository, validation and preserved state
-
-Started from clean **`main` / `9aca47497fb65714350b189e223bc47fa4a1d2ce`**, with empty index, verified origin fetch/push **`git@github.com:vpromise/CodexProxy.git`**, matching SSH remote and GitHub main, ADMIN access and no main branch protection. No concurrent synchronization was found. The only commit since this task's prior publication is the separately completed October 11 deployment ledger; its recorded deployment state is preserved, not reverified on servers here. No earlier authorized selected implementation remains uncommitted or unpushed.
 
 A detached worktree at this exact base was used for the review record and actual-input audit. Main and candidate both match the established **1627-file** source/test/build manifest **`12c92024218f4a3e3d156d4a4fa0b3fded08c64bc6555928a90a29b700b86cbb`**, excluding only this ledger. Fresh `go list -json ./...` audits find **92 candidate packages / 1043 compiler, test and embed inputs**, byte-for-byte equal to the archived validated inputs. Main has **93 packages / 1044 inputs**, differing only by the unchanged ignored flatted source (`management-webui/node_modules/flatted/golang/pkg/flatted/flatted.go`, SHA-256 `10a513c052cba20086f82ad417d3b7b25b9a0b8537ba46a8097bd6ce70ad2516`); it remains outside the server dependency graph and retains its separate no-test compile evidence. Original ignored user files are untouched. **`go mod verify` ran today and exited 0: all modules verified.**
 
@@ -3680,14 +2948,6 @@ Integration rechecks main HEAD, its initial source manifest and the empty index 
 
 At **2026-10-09 13:25 Asia/Shanghai**, the user-requested inventory established that dynamic plugins are currently unused. Local configuration has no `plugins` section, which defaults to disabled. The active server configuration paths were resolved from Docker mounts/arguments and the systemd process. Only plugin enablement metadata, artifact names and process/build metadata were emitted; no complete configuration, environment or credential store was printed.
 
-| Target | Active configuration | Findings |
-| --- | --- | --- |
-| dmit | `/root/cpa-deploy/config.yaml`, mounted into container `cpa` | No `plugins` section or configured instances; `/root/cpa-deploy/plugins` is mounted but has no dynamic-library artifacts. The running executable has `CGO_ENABLED=1`; no non-system shared libraries are mapped. |
-| dmit2 | `/opt/codex-stack/codexproxy/config/config.yaml`, mounted into `codex-stack-codexproxy-1` | No `plugins` section or configured instances; default runtime plugin directory is absent. The running executable has `CGO_ENABLED=0`; no plugin libraries are mapped. |
-| bawg | `/opt/codexproxy/config.yaml`, used by `codexproxy.service` | No plugin section or top-level YAML merge was found; the plugin directory has no dynamic-library artifacts. The running executable has `CGO_ENABLED=0`; no plugin libraries are mapped. |
-
-The deployed Linux CGO-disabled loader cannot load standard dynamic-library plugins. dmit supports that capability but does not currently enable or load any. Native Codex/Claude execution does not require a dynamic plugin. Therefore **`67465884` plugin disable cleanup remains deferred and unimplemented**, without changing the stored plugin configuration or lifecycle policy. This inventory did not restart services, modify servers, access provider credentials or invoke inference; deployment remains the October 8 source recorded below.
-
 ## Local synchronization on 2026-10-09 — v8.0.21 through v8.0.22
 
 The user invoked the revised `codexproxy-upstream-sync` workflow for one synchronization. Its unqualified scope is local review, selective adaptation, verification and ledger maintenance. The work targets `vpromise/CodexProxy`, whose remote is `git@github.com:vpromise/CodexProxy.git`; the current conversation's sibling CodexKeeper checkout is not the CPA fork. No commit, push, Release, tag or server operation is included.
@@ -3702,20 +2962,6 @@ Reviewed all **11 non-merge commits** after **`0f96f568e4dbf6f84ad7399a74b78344c
 The starting main was clean at **`dafabedeb2b64e105a42a8a6d101b63dda9deaff`**, with an empty index. Its **1614-file** source/test/build manifest, excluding this ledger, was **`89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`**, exactly matching the previously validated implementation. A detached worktree reproduced that snapshot. Selected **2 narrow repair groups from 2 upstream commits**, changing **11 source/test paths plus this ledger**.
 
 ### Per-commit dispositions
-
-| Upstream source | Disposition and local evidence |
-| --- | --- |
-| [2d5351b3](https://github.com/router-for-me/CLIProxyAPI/commit/2d5351b3e5822ad60c34410c5e62a88897f00b38) | **Excluded Vertex/Gemini Interactions.** Executor, request/stream helpers, credential flag and synthesizer wiring serve unsupported native providers. Do not add those routes, configuration or shared-helper dependencies. |
-| [249e9ef9](https://github.com/router-for-me/CLIProxyAPI/commit/249e9ef97611cbd99eee422821cfa3a939dca88e) | **Excluded native Meta/Muse repair.** The new keep-foreign-signature option is used by the unsupported Meta executor. Earlier conditional third-party encrypted-content decisions remain; native Codex signature checks are preserved. |
-| [0a23627d](https://github.com/router-for-me/CLIProxyAPI/commit/0a23627d229f02ab6f7fa0ff596342b3cdb19cdd) | **Excluded v8 management save-path repair.** Local management retains the existing config format and `SaveConfigPreserveComments` already invokes `normalizeCollectionNodeStyles`. The affected `ConfigV8` handler is absent. Exporting the helper or removing key quoting is not needed for this local path and does not justify the deferred v8 migration. |
-| [7c2133e2](https://github.com/router-for-me/CLIProxyAPI/commit/7c2133e201d991d95b9fef5c4f67d34bd75c618a) | **Partially equivalent; additional batch reconciliation deferred.** Local `completeModelRegistrationForAuthWithCache` already reads the latest auth and rejects obsolete registration epochs. `ApplyModelRegistration` also gates publication under the manager lock against current registration, disabled state and routing attributes. The upstream stale-starting-snapshot regression, adapted to v7 imports, passes including exclusion and allowed-account selection assertions. This is not proof of every possible post-registration race. The new final generation scan, extra executor work and all-auth re-registration are not imported; a reachable remaining service-level race and its scheduling/lifecycle plan are required before that expansion. |
-| [54946fa3](https://github.com/router-for-me/CLIProxyAPI/commit/54946fa3dfa29c6ca7312ac141a92cdd5e413771) | **Excluded upstream community README edit.** Removing a full QQ group does not change supported runtime behavior. |
-| [6331b38b](https://github.com/router-for-me/CLIProxyAPI/commit/6331b38bba2cb716480fe78b6638b87db45e521d) | **Partially adapted: native Codex WebSocket interruption.** A single downstream reader forwards a valid `response.interrupt` unchanged to the active session socket while generation runs, with a live credential-enabled check. No new connection, credential selection or inference turn is created. Native `response.incomplete` terminates the executor/handler turn, retains usage and permits the next request on the same connection; partial reasoning is not cached as a completed response. Preserve local prewarm, pinning, output and error contracts. The fork needed the native incomplete-terminal handling explicitly because it lacks the broader upstream stream refactor. HTTP-turn cancellation/partial-transcript policy, duplex `response.steer` and Home-only interrupt authorization remain outside this adaptation. An interrupt with only an HTTP upstream is rejected without canceling that request. |
-| [ab151f5d](https://github.com/router-for-me/CLIProxyAPI/commit/ab151f5d04dc47d2fa8a35ef32f15ac81baac533) | **Excluded Antigravity accounting.** The changed response translator serves an unsupported native provider; existing Codex/Claude usage accounting is unchanged. |
-| [80809679](https://github.com/router-for-me/CLIProxyAPI/commit/80809679914f376605e2ae6aa2c5d68f140f98d3) | **Partially adapted after explicit user approval.** Filter only a unified reset whose parsed time equals the overage reset and whose representative claim contains overage. The follow-up and regression evidence are recorded above. Preserve explicit long `Retry-After`, shared-window deadlines and conservative credential scope when shared health evidence is absent. The upstream blanket seven-day-plus-one-hour filter and relaxed overage scope are not imported; this is not whole-commit integration. |
-| [2bc236d2](https://github.com/router-for-me/CLIProxyAPI/commit/2bc236d2fcc1b43d4405b85cd8155b4b8561e149) | **Deferred Claude remote compaction compatibility.** Adds summary inference, an Antigravity capsule format, replay rewriting and foreign-capsule filtering to Claude execution. The helper family is absent locally. This needs its own capsule/content-preservation, accounting and replay contract; it is not a dependency of native interruption or output limits. Native Codex compact behavior and Claude's existing compact endpoint behavior remain unchanged. |
-| [a881c036](https://github.com/router-for-me/CLIProxyAPI/commit/a881c0361c2ea5174f5e261fae07c77b6fd76481) | **Partially adapted: Responses-to-Claude output defaults.** Omitted or null `max_output_tokens` uses the registered positive output limit for ordinary Claude models, including limits above 32k and limits below it. Unknown models retain 32k; Fable retains this fork's existing 32k default rather than importing upstream's separately introduced 64k ceiling. Explicit caller values and checked/legacy converter signatures remain intact. The repair reaches streamed and non-streamed executor requests. No catalog update, new explicit-value clamp or Chat-completions default change is included. |
-| [67465884](https://github.com/router-for-me/CLIProxyAPI/commit/67465884ca179a8f9098328d03a361b50003fdd7) | **Deferred; not implemented.** Local `Host.ApplyConfig` removes capabilities on disable but retains loaded clients. The user requested an inventory before deciding on shutdown/detach. Read-only checks at 13:25 Asia/Shanghai found no enabled/configured or loaded dynamic plugins on dmit, dmit2 or bawg; dmit2 and bawg run CGO-disabled Linux builds. The scoped cleanup proposal remains below for future use; no plugin code, configuration or runtime state was changed. |
 
 ### Scope decisions after user follow-up
 
@@ -3745,150 +2991,6 @@ The source-only patch against `dafabede` is **`f77815d368b7da6909a93b592b37035ac
 Before integration, main HEAD, the original source manifest, empty index and clean tracked/untracked state were rechecked. Applying only this candidate leaves **12 unstaged/untracked paths including this ledger**, an empty main index and unchanged HEAD. The resulting source matches the final **1619-file** tested manifest; the ignored extra package is unchanged. The detached worktree, binary, logs and dedicated caches were removed after recording evidence. No selected repair remains outside the checkout. CodexKeeper remains clean and unchanged.
 
 Claude Code **2.1.280**, Codex runtime **0.154.0** and catalog-fetch **0.155.0** remain unchanged; this range provides no fingerprint/catalog upgrade. Publication and deployment remain the October 8 states recorded below. The October 9 selection is **local only**.
-
-## Migrated dmit2 to systemd on 2026-10-22
-
-At the user's request, migrated **CodexProxy and newapi** from Docker Compose to native systemd services, and retired **CodexKeeper**. Reused the exact existing static Linux/amd64 binaries: CodexProxy commit **`10f500fe2540d055ed1e79e7bbf239bddcaf1963`**, implementation **`f9133d2c214bb17d8b88bed3a49ece0bb48c76d7`**, binary SHA-256 **`33db63d7e61789932723bfa8a379b03bb4e10ec8865b100a675376b3e205ddee`**; newapi **v1.0.0-rc.46**, binary SHA-256 **`e6993914433ab30b2caeffd2c3e6860ad05417cd44ac51f20708c176504db27c`**. No application source or version changed, and no build or provider inference test was performed. Existing unrelated local edits were preserved; no Git publication was requested.
-
-Cutover started at **16:53:07 Asia/Shanghai**. After draining newapi, stopped all three containers and created a **4,580,239,360-byte** archive of all three services' persistent directories, including historical logs. Created and checked separate consistent SQLite snapshots for newapi and CodexKeeper. Native CodexProxy and newapi started at **16:54:14–16:54:16**; local verification completed at **16:54:20**, followed by successful public HTTPS and origin checks. The original data directories remain under `/opt/codex-stack`; binaries and protected environment files are under `/opt/codex-stack/native`. CodexProxy now uses `/opt/codex-stack/codexproxy/config/config.systemd.yaml`, changing only its listener to loopback and its auth-directory path to the existing host directory. Original configuration and Compose files remain available for recovery.
-
-All three newapi channel base URLs now use **`http://127.0.0.1:8317`**. Original session and encryption secrets were compared with the native processes and preserved. Database integrity checks passed; all table row counts were preserved at activation, with exact credential comparisons for **2 users, 5 tokens and 3 channels**, and all **38 settings** unchanged. The retired CodexKeeper's data and image/container recovery material were retained. Its nginx `/keeper` and `/keeper/` routes now return **410**. Other nginx routes, TLS configuration and s-ui process identity were preserved; nginx was gracefully reloaded.
-
-The previous **384 MiB Docker hard limits** were removed. Native units use Go soft runtime budgets of **512 MiB for CodexProxy** and **384 MiB for newapi**, with no systemd hard memory limit. The unchanged newapi binary listens on all host addresses; an enabled dependency unit, `codex-stack-local-only.service`, installs a dedicated nftables rule rejecting non-loopback traffic to TCP **3000**, preserving the prior host-local access boundary. CodexProxy itself listens on **127.0.0.1:8317**. Both application services and the firewall dependency are enabled at boot. Docker, docker.socket and containerd were stopped and disabled after confirming that no other containers existed; the three retained old containers have automatic restart disabled.
-
-Validation: exact installed/running binary hashes, active units with **0 restarts**, original environment/secret preservation, database integrity and credential comparisons, all channel URLs, local health and unauthenticated model rejection, exact frontend and management-page hashes, and normal public HTTPS responses passed. Public newapi root/status and CodexProxy management/health returned **200**; retired keeper returned **410**. Origin checks matched; only the existing loopback origin-certificate checks used insecure TLS. No live inference, quota, credential-refresh or management-write smoke test was sent. These checks establish operational readiness, not load-test or full protocol correctness.
-
-Final receipts were read back at **16:58:46 Asia/Shanghai**. Passive observation of existing traffic recorded **96 newapi POST requests** and **106 CodexProxy HTTP 200 responses**, with **0 automatic restarts, OOM kills, `do request failed` or `unexpected EOF`** since activation. CodexProxy retained its current model catalog after a background remote-catalog validation warning; no catalog source or update policy was changed. Memory continued to vary with existing concurrent requests, and Go runtime budgets are soft rather than hard limits.
-
-Protected recovery and verification are under **`/opt/codex-stack/migrations/20261022-systemd`**, including full persistent-data archive, SQLite snapshots, private runtime baseline, original configuration/Compose/nginx/latest records, binary copies, staged units, checksums and a syntax-checked **`ROLLBACK.sh`**. Archive SHA-256: **`2894bb46ea13ee10ed832bb097d23ba03bb5db39fe50ac5e5ef65ea1a2a7bc39`**. Rollback stops native services, restores the internal Docker channel addresses and old nginx routes, and starts the retained containers; it preserves database writes received after migration instead of restoring an older database. The root `LATEST_DEPLOYMENT.json` and `LATEST_SYSTEMD_MIGRATION.json` were updated separately from source publication. Upstream review and selection boundaries are unchanged.
-
-## Deployed to dmit on 2026-10-22 — isolation fixes
-
-- Scope: dmit only, replacing its October 15 account-isolation deployment. Published source: [`7fef3e38`](https://github.com/vpromise/CodexProxy/commit/7fef3e38932fe029c5207c164cc29e27868eea06) (`7fef3e38932fe029c5207c164cc29e27868eea06`) on `codex/user-provider-isolation`. No deployment to dmit2 or bawg was performed in this rollout.
-- Version: `codexproxy-20261022-isolation-fix-7fef3e38`; build date `2026-10-22T09:08:18Z`. Activated at **17:20:31 Asia/Shanghai**; verification completed at **17:23:57**, with completion receipts finalized at **17:25:10** on October 22.
-- Build: isolated detached worktree; Go 1.27.1, `GOOS=linux GOARCH=amd64 CGO_ENABLED=1`, Zig 0.15.2 targeting `x86_64-linux-gnu.2.17`, `-mod=readonly -trimpath -buildvcs=false`, and version/commit/build-date linker fields. Source manifest SHA-256: `f5f26f94e84accfbeb324f5f69fd3a9908d0954b14c231157b944a6960db264b`; source archive: `ef23ed142fb04aa6d9a114842bc188bdb118392e77a0c98b0e76f5e4892595eb`.
-- Artifact: executable SHA-256 `1c54859d573dcf79780ed3e0f258875479e84c7106dd3e876c46dacab93b5f64` (66,790,048 bytes). Image `local/codexproxy:20261022-isolation-fix-7fef3e38`, ID `sha256:eebb283f45df1729a72f9e275d81983367bb37702e70b78276ffa78e31691fb8`, derives from the exact previous running image with only the executable and version/revision labels changed. Served management HTML SHA-256: `4e2bb5274797b5cfc0105abdb7cb0b013a0b301de19d51e7a662cc6e42193c22`.
-- Validation: reused source-matched Go package/full-suite and focused race-check evidence, 366 frontend tests, lint, TypeScript checks, frontend build, embedded-asset contract checks and server build. The two macOS loopback-bind exclusions (`TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS`) both passed on Linux in a disposable container with networking disabled and no production volumes or credentials. This was focused Linux execution, not a full Linux suite. Test executable SHA-256: `bccc50196ff5fd05e87b6a31a26507d398a3349f59f1cc721129e1620265c322`.
-- Runtime verification: installed and running executable hashes matched; container `b49704509338a22a18d71b12cfcbd48fa40e17d801949b480fb163f932c049c8` was healthy, with zero restarts and no OOM. `/healthz` returned 200, HEAD `/api/hello` returned 204, and unauthenticated model/management requests returned 401 with expected version headers. Authenticated management config and file-log queries returned 200. Both existing client keys returned their model catalogs (7 and 6 models) through read-only requests.
-- Configuration and neighbors: raw and effective config were unchanged, including account pools, key bindings, enabled isolation and enabled file logging; full request logging remained disabled. Runtime settings, 256 MiB memory and 0.75 CPU limits, and all four neighboring production containers were preserved. Compose reordered environment and bind lists; the verifier was corrected to compare their exact semantic contents, reject duplicate keys/destinations and retain resolved-mount checks. The correction and original evidence are retained in `VERIFIER_CORRECTION.json`.
-- HTTP/log verification: local management, local gateway and public `https://cpa.vpromise.fun/management.html` returned 200 with identical expected HTML. Public HTTPS was checked from dmit with normal TLS verification, `x-cpa-origin: dmit` and `Cache-Control: private, no-store`; only the loopback gateway used its established origin-certificate exception. Startup logs were evaluated from the actual process start in UTC-07:00: 34 info entries and two warnings attributable to deliberate unauthenticated probes, with no error/fatal entries. One background Codex model-catalog refresh completed successfully.
-- Coverage limits: no real inference, quota probes, credential refresh/rotation or management mutation smoke tests were triggered. Public reachability was verified from the server, not an interactive client browser. Operational checks do not establish complete provider-protocol or cross-pool correctness.
-- Recovery: `/root/cpa-deploy/releases/20261022-isolation-fix-7fef3e38/ROLLBACK.sh` restores the exact previous Compose image and verifies the prior binary, without overwriting account/config data. The release retains the previous `d9caa87c346b8d42f241c7598b8104967eb0b561` executable (SHA-256 `6dda1466eb07f27c12a504ed5b9e5df5092739d689cc10f4f3ce7b7c3b783db5`), Compose/config/receipt backups, source/build manifests and verification evidence. No rollback was needed. Release-local `deployment.json` and `/root/cpa-deploy/LATEST_DEPLOYMENT.json` were written atomically after verification and read back consistently.
-
-## Deployed to dmit on 2026-10-15 — account isolation and UI fixes
-
-The user explicitly requested replacing **dmit** with the locally verified account-isolation implementation and UI refinements. This selected the current unpublished feature work, rather than the default published `main`. A detached task-owned worktree froze all tracked and nonignored untracked source at working-tree manifest **`694a6a4d65db56ebfdf5e9085e79591ab63159a38bb30eafff6383709af1bac6`**, with parent **`b2f6b8f28468c5de841647a52f0b558d04a926f8`**. The frozen frontend was rebuilt with the standard runtime version placeholder. Its embedded asset was included in the local snapshot commit **`d9caa87c346b8d42f241c7598b8104967eb0b561`**, tree **`e0bf9c1fb02da5cd2a3a17f8a9bdeb48edee79ec`**. This commit was not pushed; the user's branch, index and pending source edits were preserved. No other server, tag or GitHub Release was changed.
-
-The final **1657-file** manifest is **`e9bc7cae3e61f17c6529cebdbfc2da5ba9f2d994042189cf49187149437707a0`**, excluding only this ledger; exact source archive SHA-256 **`954482aa32721d90f61d4eda23350f0cbdee68ae2ed1c1ff0d4c9ca7294b1748`**. A fresh frozen-source frontend verification passed **366 tests**, lint, TypeScript and Vite. The full macOS Go suite passed with only the two previously documented `127.0.0.2` bind tests excluded; external outbound connections and real local credential/config reads were denied by the test sandbox. `go mod verify` passed. The Linux/CGO input audit covered **1054 repository inputs** across **241 package/test variants**, all manifested. Its initial check incorrectly treated **68 Go-generated test mains** in the task-owned compiler cache as source inputs; each was identified by package kind, cache location and generated header, with the correction retained in `AUDIT_CORRECTION.json`. Linux unit tests were not executed; cross-compilation and isolated image smoke tests are separate evidence. Browser acceptance remains blocked by the previously recorded tool policy.
-
-Built Linux/amd64 with **Go 1.27.1**, **CGO_ENABLED=1**, and official **Zig 0.15.2 / x86_64-linux-gnu.2.17** after verifying compiler archive SHA-256 **`3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`**. Flags were `-mod=readonly -trimpath -buildvcs=false`, with `-s -w` and version **`codexproxy-20261015-isolation-d9caa87c`**, full snapshot commit and build date **`2026-10-15T13:59:31Z`**. The **66,766,016-byte** artifact SHA-256 is **`6dda1466eb07f27c12a504ed5b9e5df5092739d689cc10f4f3ce7b7c3b783db5`**; version-substituted management HTML SHA-256 is **`2bd3c8c2b4742ed5d1188d08f1855431646f37fb434c57b64cf4fe69f74e1b99`**. Upload checksums, ELF architecture/linkage, build metadata and no-network/no-volume image `--help` smoke passed.
-
-dmit's previous executable and image matched **`a968188caa4c873fd9523ed087057b3e723e2b08`**. The new image used its exact existing image as a pinned local base, changing only the executable and revision/version labels. Only Compose service `cpa` was recreated, using image **`local/codexproxy:20261015-isolation-d9caa87c`**, image ID **`sha256:a16a2935234ff68582ab0d6dd0cec472b096082d7c90fd4cb3c733156f66c741`**. Baseline identity, configuration, runtime settings, latest record and production neighbors were rechecked immediately before activation. The new process started **2026-10-15 22:07:52 Asia/Shanghai** and final acceptance completed at **22:08:48**. Docker was **healthy**, with **0 restarts / no OOM**; installed and running `/proc` hashes matched the chosen artifact. Startup logs had **0 errors / 0 warnings**.
-
-Local health **200 / status ok**, `HEAD /api/hello` **204**, unauthenticated model and management rejection **401**, exact version/commit headers, authenticated model catalog **200 / 11 models**, and authenticated management configuration **200** passed. Local, loopback gateway and server-originated public HTTPS management GETs returned **200** with exact new page bytes and expected dmit/no-store headers. Public TLS verification stayed enabled; only the documented loopback origin-certificate probe used insecure TLS. **Coverage limit:** the local macOS client's public request returned Cloudflare **403 before activation**, and the same status, edge identity and denial-body hash afterward. No bypass was attempted. This is retained separately from the successful server-originated public HTTPS check.
-
-Configuration SHA-256 remained **`0bb69b7d48ef16731467d000bc611d54c1372c82ec02659c2358f742c11d250e`**. Effective runtime environment, entrypoint, command, healthcheck, mounts, networks, limits and existing production neighbors were preserved; sub2api's preexisting restart count **8** was unchanged. Account isolation remains **disabled**. No credential store was replaced, no enrollment endpoint or management write was exercised, and no real-account inference, quota probe or refresh test was sent. Ordinary startup does not enroll pool identities, so this activation required no configuration/data migration.
-
-Protected recovery and provenance are retained under **`/root/cpa-deploy/releases/20261015-isolation-d9caa87c`**: source archive/manifest, build/test evidence, artifact, previous binary/image, configuration/Compose/latest-record backups, private runtime baseline, HTTP/log checks and executable **`ROLLBACK.sh`**. Rollback restores only the prior service image and Compose definition after checking for concurrent config/Compose changes; it does not overwrite newly written account data. The script was syntax-checked, not executed. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were written atomically after verification and read back equal. No rollback was needed. This ledger update accompanies the feature-branch publication described below; upstream review boundaries are unchanged.
-
-The subsequent user-requested GitHub publication targets **`codex/user-provider-isolation`**, not `main`. Implementation commit **[`eb8e43e6`](https://github.com/vpromise/CodexProxy/commit/eb8e43e68b9f8dab4f9f1f197cbcd6c318ef61c6)** (`eb8e43e68b9f8dab4f9f1f197cbcd6c318ef61c6`) has exactly the same Git tree **`e0bf9c1fb02da5cd2a3a17f8a9bdeb48edee79ec`** as the tested and deployed snapshot, including the embedded UI. The source manifest also matches, so the completed validation above applies without a source change. A separate documentation commit records deployment and this mapping. The live server still reports snapshot commit `d9caa87c`; publication does not redeploy it or merge the feature into `main`.
-
-## Deployed on 2026-10-14 — scheduled serial rollout
-
-The scheduled task locked the project in the user's checkout and on **dmit, dmit2 and bawg**; no other active deployment was found. Clean `main`, SSH `refs/heads/main` and the GitHub commit API agreed on **[a968188c](https://github.com/vpromise/CodexProxy/commit/a968188caa4c873fd9523ed087057b3e723e2b08)** (`a968188caa4c873fd9523ed087057b3e723e2b08`). The fork has no GitHub Releases. Froze this exact published commit for the entire rollout, tree **`55d225147c124b7a74ab57ca97ede6d85e77aee9`**, containing implementation **`02ffd76ffc424f81eb35383dd41b703ef51aec43`**; its difference from the implementation is ledger-only. All three live processes, installed hashes, version headers and records initially matched **`1fc6ce95c51b93e43e7f957cb55777f572b0b45b`**, an ancestor. The two production and two regression files changed deployment inputs, so all three required updating; no downgrade, repeated deployment or upstream synchronization occurred.
-
-A task-owned detached worktree exactly matched the **1629-file** validated source/test/build manifest **`c7949b193918c9180352db7daf744f33a5e1c132efdc37ed744811d67fbf675b`**, excluding only this ledger, before and after builds. Reused October 13's completed, exact-source full suite (**68 packages / 3855 top-level tests**), race suite (**18 packages / 2512 top-level tests**) and native build evidence above. Toolchain remains **Go 1.27.1 / darwin/arm64**. Fresh compiler/test/embed audits found **92 packages / 1045 inputs** on darwin and Linux/CGO, and **92 / 1044** on Linux/static; every input is in the immutable manifest. `go mod verify` passed. Linux audits/cross-builds are not Linux unit-test execution. Existing named macOS bind exclusions, optional external TLS-capture limitation and intentional race allocation skips retain their documented scope. Ignored user files, the main index, bundled UI and catalogs were preserved; no mutable frontend/catalog refresh was used.
-
-Built Linux/amd64 with `-mod=readonly -trimpath -buildvcs=false` and `-s -w -X main.Version=codexproxy-20261014-a968188c -X main.Commit=a968188caa4c873fd9523ed087057b3e723e2b08 -X main.BuildDate=2026-10-13T22:33:02Z`. dmit retained **CGO_ENABLED=1**, official **Zig 0.15.2 / x86_64-linux-gnu.2.17**; its compiler archive matched the official **`3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`** checksum before execution. dmit2 and bawg retained **CGO_ENABLED=0**, sharing one identical static artifact. `go version -m`, ELF linkage/architecture, upload checksums, isolated help smoke tests with absent configuration, and installed plus running `/proc` hashes passed.
-
-| Target | Artifact bytes | Artifact SHA-256 |
-| --- | ---: | --- |
-| dmit | 66,619,256 | `5213f2c392b89dfc3dee199d57533d788440ddeb1f07a7e8a32522a2d99ccf0e` |
-| dmit2, bawg | 61,059,232 | `9ad5f8bfd8e481bc67f22432dbd76cca19183e33935ae3ca3200728bd897ef94` |
-
-The exact published source archive SHA-256 is **`a6dd2109526907a2769ac4b0634b70c61429e81e091e1ce15b0842764e3e4efa`**. The version-substituted embedded management response is **2,115,303 bytes**, SHA-256 **`fe5a45446ecb540482a4cfab0dcf57f4b5100b9e2cdb5b7b7b42d647902ea260`**. All local, gateway and public management GET bodies matched it.
-
-Activation was serial **dmit → dmit2 → bawg**, with full acceptance of each preceding target before activating the next. Docker built from the exact old running image IDs, retained under unique base tags, using `--pull=false` and binary-only build contexts; only the target executable and source metadata changed. Compose changed only the selected service image to `local/codexproxy:20261014-a968188c`; `up --no-deps --no-build --pull never` affected only CodexProxy. dmit2's persistent `image/codexproxy` was backed up, updated and verified against its running static artifact. bawg's executable was atomically replaced with original ownership/mode and only `codexproxy.service` restarted. Unit/drop-ins, effective environment/arguments, optional dotenv content, configuration, mounts/networks/resource limits, credential directories and established production neighbors stayed unchanged. Current process/configuration and latest-record identity were rechecked immediately before activation; dmit2's persistent build input was also checked. No config/data migration, other-service restart or shared-resource pruning occurred.
-
-All times below are **2026-10-14, Asia/Shanghai**. dmit was Docker healthy; dmit2 has no configured Docker healthcheck and passed running/HTTP readiness; bawg was systemd active/running.
-
-| Target | Mode | Activation readiness | Full acceptance | Live/record audit | Restarts / OOM |
-| --- | --- | --- | --- | --- | --- |
-| dmit | Docker / CGO | 06:34:55 | 06:35:56 | 06:42:50 | 0 / false |
-| dmit2 | Docker / static | 06:38:32 | 06:39:36 | 06:42:56 | 0 / false |
-| bawg | systemd / static | 06:40:53 | 06:41:50 | 06:43:02 | 0 / false |
-
-All targets passed local `/healthz` **200 / status ok**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, unauthenticated management **401** with exact version/commit headers, and management GET **200** with expected bytes. Loopback gateways and public HTTPS management passed; dmit2/bawg gateway/public health passed. Public certificate validation stayed enabled from both servers and the local macOS client. Only dmit's documented loopback origin-certificate check used insecure TLS; its public origin/cache headers remained correct. new-api's internal read-only request to `http://codexproxy:8317/healthz` passed on dmit2. Existing API-key authenticated `/v1/models` returned **200**, with **11 / 5 / 11** models. dmit's authenticated management configuration returned **200**. **Coverage limit:** no usable existing plaintext management credential was available on dmit2 or bawg, so their optional authenticated management reads were not performed. No live inference, real credential-refresh test or management write was made.
-
-Startup/recent logs used actual process-start times and observed **-0700** server-local log timezone: dmit Docker logs, dmit2 Docker plus `main.log`, bawg journal plus `main.log`. Acceptance found **0 errors** on each; the **2 / 2 / 2** warnings were deliberate unauthenticated probes, with **0 unclassified warnings**. Docker OOM flags and systemd state were normal; bawg's cgroup `oom` and `oom_kill` counters were both **0**. Preexisting restart counts were all **0** and remained **0** on replacement processes. The established normalization of unique environment keys, independent mounts/Binds and Compose bookkeeping labels was retained, with duplicate-key/destination rejection and all other runtime/neighbor gates intact. No verifier failure, activation regression or rollback occurred this round.
-
-Protected **`releases/20261014-a968188c`** directories under **`/root/cpa-deploy`** (dmit), **`/opt/codex-stack/codexproxy`** (dmit2) and **`/opt/codexproxy`** (bawg) retain exact source/manifest, artifacts/build metadata, private runtime/configuration baselines, old executable and image IDs, Compose/unit backups, dmit2's previous persistent binary, prior latest record, prepared/activated/verified receipts, HTTP/public/client/log/OOM checks, completion audits and executable **`ROLLBACK.sh`**. Rollback restores **`1fc6ce95`**, re-tagging the immutable previous Docker image to its original reference or atomically restoring the systemd binary, then verifying recovery before superseding the latest record. Rollbacks were syntax-checked, not executed. Release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were read back equal; live source/artifact/configuration/neighbor checks passed through **06:43**. Earlier recovery directories and images remain retained.
-
-This deployment record is one documentation-only follow-up for a normal push to the verified fork's `main`; its publication SHA is verified separately in the delivery report and server publication receipt. The running source remains **`a968188c`** after bookkeeping. Reviewed/released upstream boundaries and all **91** pending decisions remain unchanged. No tag, Release, source modification or unrelated publication was created. After preserving evidence, only this run's local detached worktree, compiler download, binaries and dedicated caches are removed. Operational readiness is limited to these checks and does not establish full provider-protocol correctness.
-
-## Deployed on 2026-10-11 — scheduled serial rollout
-
-The scheduled deployment locked the project locally and on all three targets before activation. The user's main checkout was clean at **[1fc6ce95](https://github.com/vpromise/CodexProxy/commit/1fc6ce95c51b93e43e7f957cb55777f572b0b45b)** (`1fc6ce95c51b93e43e7f957cb55777f572b0b45b`); SSH `refs/heads/main` and the GitHub commit API agreed. The fork had no GitHub Releases. This exact published commit was frozen for the entire rollout, tree **`ba4b6c878ccf0c93faa2d590e105f54b633a4490`**, containing implementation **`5207e95935c3c3e7ce4d7e2666f6408e4ac0ee3b`**. Its difference from that implementation is only this ledger. Live process hashes, headers and deployment records established the previous source as **`6f3119b1fc835d65a6520be7369b717f13755c39`** on every target; the published implementation changed deployment inputs, so all three needed updating. No upstream synchronization or deferred implementation was performed.
-
-A detached checkout matched the October 10 validated **1627-file** source/test/build manifest **`12c92024218f4a3e3d156d4a4fa0b3fded08c64bc6555928a90a29b700b86cbb`**, excluding only `docs/upstream-sync.md`. All **92 packages / 1043 compiler, test and embed inputs** were represented; `go mod verify` passed. Reused the exact-source full suite (**68 packages / 3849 top-level tests**), race suite (**11 packages / 2205 top-level tests**) and native build evidence recorded above, including its two named macOS local-IP exclusions and optional external TLS-capture limitation. No Linux unit-test run is claimed. Source inputs remained unchanged after cross-builds; ignored user files, the main index, management bundle and catalogs were preserved.
-
-Built locally with **Go 1.27.1**, Linux/amd64, `-mod=readonly -trimpath -buildvcs=false`, and linker flags `-s -w -X main.Version=codexproxy-20261011-1fc6ce95 -X main.Commit=1fc6ce95c51b93e43e7f957cb55777f572b0b45b -X main.BuildDate=2026-10-10T22:39:07Z`. dmit retained **CGO_ENABLED=1**, official **Zig 0.15.2 / x86_64-linux-gnu.2.17**; the compiler archive matched official SHA-256 **`3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`**. dmit2 and bawg retained **CGO_ENABLED=0** and shared the identical static artifact. Toolchain caches/downloads were task-owned. `go version -m`, ELF architecture/linkage, transferred checksums, isolated help smoke checks with an absent configuration and the installed/running executable hashes passed.
-
-| Target | Artifact bytes | Artifact SHA-256 |
-| --- | ---: | --- |
-| dmit | 66,617,512 | `30b9e987262c7433cbdd71a82311bcdce7723e4800dccababae2b07379648796` |
-| dmit2, bawg | 61,055,136 | `7910e97a27b1465f0131945bdd8473cdae5ff78f6eec44a3f40dffd0b05d6e73` |
-
-The exact Git source archive SHA-256 is **`9ad04e667c461d52ef00ddf908c9332e6339c5b65779780a3c0facab343ab622`**. Every local, loopback-gateway and public management GET matched the source's version-substituted bundle, **2,115,303 bytes**, SHA-256 **`adb6e6aaf0d79833a2c24522fb16dabdd552b026e72076d5b9e0da40b83fe031`**.
-
-Activation remained serial **dmit → dmit2 → bawg**; each preceding target passed before activating the next. Docker images used the exact old running image as a pinned local base with `--pull=false`, replacing only the executable; only the selected Compose image changed to `local/codexproxy:20261011-1fc6ce95`. dmit2's persistent `image/codexproxy` was updated and checked against the same static artifact. bawg used atomic executable replacement and restarted only `codexproxy.service`, preserving owner/mode, unit and drop-ins. Configuration, effective runtime settings, mounts/networks/resource limits, auth directories and established production neighbors remained unchanged. No config/data migration was needed.
-
-All times below are **Asia/Shanghai, October 11**. dmit2 has no configured Docker healthcheck; running state and HTTP readiness were checked rather than inventing one.
-
-| Target | Mode | Activation readiness | Last full acceptance | Completion/live-record audit | Restarts / OOM |
-| --- | --- | --- | --- | --- | --- |
-| dmit | Docker / CGO | 2026-10-11 06:42:23 | 2026-10-11 06:52:17 | 2026-10-11 06:53:32 | 0 / false |
-| dmit2 | Docker / static | 2026-10-11 06:46:32 | 2026-10-11 06:50:03 | 2026-10-11 06:53:35 | 0 / false |
-| bawg | systemd / static | 2026-10-11 06:51:07 | 2026-10-11 06:52:16 | 2026-10-11 06:53:37 | 0 / false |
-
-All three passed local `/healthz` **200 / status ok**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, management GET **200**, and exact version/commit headers on unauthenticated management configuration. Loopback gateways and public HTTPS management passed; dmit2 and bawg gateway/public health also passed. dmit's origin/cache headers were preserved. Public TLS verification remained enabled from both servers and the local macOS client; only dmit's established local origin-certificate exception used insecure TLS. new-api's read-only internal path to `http://codexproxy:8317/healthz` passed on dmit2. Authenticated `/v1/models` passed on every target with its existing API credential (11 / 5 / 11 models); authenticated management configuration passed on dmit. **Coverage limit:** dmit2 and bawg had no usable existing plaintext management credential, so those optional authenticated management reads were not performed. No live inference, credential-refresh test or management write was used.
-
-Logs were read from actual current-process start with the observed **-0700** log timezone: dmit Docker logs; dmit2 Docker plus `main.log`; bawg journal plus `main.log`. Final acceptance found **0 errors** on all hosts; **6 / 5 / 4** warnings on dmit / dmit2 / bawg were deliberate unauthenticated probes. dmit2 additionally had **2 GET 404 warnings** whose same path hashes already appeared **276 / 294** times before activation, most recently at 14:33:27 / 14:33:28 server-local time. `HTTP_404_WARNING_DIAGNOSIS.json` retains that preexisting-request evidence; it was not treated as a deployment regression. All restarts were 0; Docker OOM flags and systemd state were normal, with bawg's cgroup OOM counters checked separately.
-
-Verifier corrections were evidence-driven and retained, without changing the artifact or weakening other gates: an initial bytes/string error before activation; unstable Docker Mounts order; Compose reordering unique environment keys and independent Binds; the dmit2 replacement bookkeeping label changing from the old container ID to the just-replaced baseline ID; padded log severity labels; and bawg's simple quoted API-key syntax. Reconstructing the original mount/environment/bind ordering and old replacement label reproduced exact original signatures. Duplicate environment keys and duplicate mount destinations remain rejected. Neighbor IDs/images/start times/restarts and all other runtime/configuration assertions stayed intact. Original verifier source, `VERIFIER_ISSUE.json`, normalization diagnoses, protected raw logs and corrected checks remain in the release directories. No deployment regression or rollback occurred.
-
-Each host retains a protected **`releases/20261011-1fc6ce95`** under **`/root/cpa-deploy`** (dmit), **`/opt/codex-stack/codexproxy`** (dmit2), and **`/opt/codexproxy`** (bawg). These hold exact source/artifact/build metadata, baseline configuration and executable, Compose or unit backups, dmit2's prior persistent build binary, prior latest record, atomic prepared/activated/verified receipts, public/local verification, log evidence and **`ROLLBACK.sh`**. Rollback restores **`6f3119b1`**; Docker rollback re-tags the retained immutable old image ID to the original reference, restores only the target Compose service, and verifies recovery before superseding `LATEST_DEPLOYMENT.json`. systemd rollback restores the old binary metadata and verifies recovery after restarting only CodexProxy. Every rollback was syntax-checked, not executed. Both release-local `deployment.json` and root `LATEST_DEPLOYMENT.json` were read back equal; live artifact/process/configuration/neighbor checks passed through 06:53. Previous release directories/images remain retained.
-
-This is a deployment-only bookkeeping change, intended for one normal commit/push to the verified fork's `main`, with its remote SHA checked separately in the delivery report. The running source stays **`1fc6ce95`** after this ledger commit. The upstream reviewed/released boundaries and pending decisions are unchanged. No tag, Release, other-service activation or shared-resource pruning occurred. Only this run's disposable local worktree, compiler, binaries and caches are cleaned after server evidence is retained. Operational readiness does not establish full provider-protocol correctness.
-
-## Deployed on 2026-10-08 — dmit, dmit2 and bawg
-
-After GitHub publication, the user explicitly requested server deployment. Read-only inspection confirmed the established three targets, their active services and the previous source **`c52107463d54b33cac825d1514353d4a7c5d3fa3`**. The rollout used the verified published commit **`6f3119b1fc835d65a6520be7369b717f13755c39`**, tree **`6f46b5a0950ec5e79deae33dcec0c817218ce90c`**, containing implementation **`e09cd29585ef17eb347c8a5f743f167df524a0f9`**. Its detached worktree remained clean; all **1614** source/test/build files matched the tested manifest **`89acaaa52e4fb5d1eb5a9864c1f1c1af2c5ab35be511b9407f03b761793f249d`**, excluding only this ledger. No source, frontend bundle or catalog refresh was introduced for deployment.
-
-Both Linux/amd64 artifacts were built locally with **Go 1.27.1** on darwin/arm64, `-trimpath -buildvcs=false` and linker flags `-s -w -X main.Version=codexproxy-20261008-6f3119b1 -X main.Commit=6f3119b1fc835d65a6520be7369b717f13755c39 -X main.BuildDate=2026-10-08T04:13:09Z`. Separate temporary build caches were used. The CGO compiler was official **Zig 0.15.2**, target **`x86_64-linux-gnu.2.17`**; its macOS/arm64 archive matched the official SHA-256 **`3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`**. `go version -m`, ELF inspection, transferred checksums, isolated `--help` smoke checks and the installed/running executable hashes verified the build modes and source identity.
-
-| Targets | Build | Bytes | Artifact SHA-256 |
-| --- | --- | ---: | --- |
-| dmit | Linux/amd64, `CGO_ENABLED=1`, dynamically linked | 66,586,824 | `839bdf506e08ce0d7eda2a00af6246338fb69bf9b4d3911b5312cfebf4be28cc` |
-| dmit2, bawg | Linux/amd64, `CGO_ENABLED=0`, statically linked | 61,030,560 | `e4951bf0d32cbc7dd429175072a973dfd295a5cf81e6a3d89f27aa47c54e58f8` |
-
-The archived published source has SHA-256 **`0fa5b1c49a994186808f027479e1bcbca88ef77de7dc580628bf49f11dbed37e`**. All three served management pages, including the public HTTPS responses, match the version-substituted embedded bundle SHA-256 **`089bc744136c916f2ea3528a5627fbe618160d5191d412fa4e8a86299a8675c3`**.
-
-Deployment proceeded serially **dmit → dmit2 → bawg**, completing each target's local, gateway and public checks before activating the next. Docker builds used the exact previously running image IDs as local bases, and only the target service's image reference changed to **`local/codexproxy:6f3119b1`**. dmit2's persistent image-build binary was updated with a retained backup. bawg received an atomic executable replacement and a restart of `codexproxy.service`; its binary ownership/mode, systemd unit and drop-ins were preserved. Config hashes, Docker runtime settings, mounts and networks were preserved. No auth-store replacement or other production-service restart was performed.
-
-| Target | Activation completed, Asia/Shanghai | Last local verification | Result |
-| --- | --- | --- | --- |
-| dmit | 2026-10-08 12:18:13 | 12:20:41 | Docker healthy, restart count 0; `cpa.vpromise.fun` management HTTPS 200 with `x-cpa-origin: dmit` |
-| dmit2 | 2026-10-08 12:19:05 | 12:22:24 | Docker running, restart count 0; no Docker healthcheck configured; `proxy.vpromise.fun` management/health HTTPS 200; new-api container can reach `http://codexproxy:8317/healthz` |
-| bawg | 2026-10-08 12:20:14 | 12:20:40 | systemd active/running, restart count 0; `cpa.hoperouter.com` management/health HTTPS 200 |
-
-Every target returned local `/healthz` **200**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, management-page **200** with the expected bytes, and the expected version/commit headers on the unauthenticated management endpoint. Public HTTPS certificate verification remained enabled. Only dmit's local loopback gateway check used its established origin-certificate exception. Final log review found **0 errors** on each target; the **6 / 10 / 7** warnings on dmit / dmit2 / bawg were all the deliberate unauthenticated verification requests. dmit2's old container already had **3** restarts before deployment; the replacement had **0** throughout these checks.
-
-One strict final dmit2 inventory recheck initially failed because the temporary container `loving_haibt`, present during preparation, had exited successfully and been removed; a separate auto-remove container using **`local/codexkeeper-build:01260976`** appeared. Docker events and an explicit inventory confirmed that the established new-api and usage-keeper containers retained their original IDs, image IDs, start times and restart counts. Verification was narrowed only for that recorded temporary build activity, while retaining exact checks on both production containers and CodexProxy. The initial verifier and **`OTHER_CONTAINER_ACTIVITY.json`** were retained; the subsequent check passed. This deployment did not stop or alter those temporary containers.
-
-Protected release directories **`releases/20261008-6f3119b1`** under **`/root/cpa-deploy`** (dmit), **`/opt/codex-stack/codexproxy`** (dmit2) and **`/opt/codexproxy`** (bawg) retain the artifact, build metadata, published source archive/manifest, verification results, operation/startup logs, previous executable/configuration and **`ROLLBACK.sh`**. Each root's `LATEST_DEPLOYMENT.json` was read back and matched its release record. Rollback restores **`c5210746`** with the previous image/compose or systemd executable and deployment record. Older release directories and images were retained.
-
-The existing source-matched full/race/focused results below were reused; deployment added cross-builds and operational checks, not a new Linux unit-test run. No live provider inference or real credential-refresh smoke request was made. Health and page checks establish operational readiness, not full provider-protocol correctness. This deployment record is a separate documentation-only GitHub follow-up; it does not change the deployed source, upstream boundary, client fingerprints, tags or Releases.
 
 ## Published on 2026-10-08 — October 7–8 selections and four authorized repairs
 
@@ -4127,8 +3229,6 @@ The **1597-file** source/test/build manifest remains **`19f310dfa8053a6e8ade75da
 
 The initial approval denial below remains an accurate historical record. It was followed by an explicit environment-permission change; no force push or bypass of the denied connector call was used. The separate **October 7 three-group candidate is not included**: its patch and evidence remain at `/private/tmp/codexproxy-sync-20261007.8h7ckts8/pending-v8.0.17/` for a future complete validation run. The now-published recovery bundle and its disposable publication directory are removed after final branch/source verification; their commit objects are retained in the local and remote repository.
 
-No GitHub Release, tag, server access or deployment occurred. dmit, dmit2 and bawg retain their last verified October 4 deployment at `c52107463d54b33cac825d1514353d4a7c5d3fa3`. Current fingerprints remain Claude Code **2.1.280**, Codex runtime **0.154.0**, and catalog-fetch default **0.155.0**.
-
 ## Publication attempt on 2026-10-07 — blocked by tool approval policy
 
 This section records the initial blocked attempt; it is superseded by the successful publication above.
@@ -4155,8 +3255,6 @@ Reviewed all **32 commits (27 non-merge, 5 merge)** after `a4acc9f752bd46571f737
 | [v8.0.17](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.17) | 2026-10-07T01:32:41Z | `57bde35179ecbdca176ca8923d39cc18805774f2` |
 
 Prepared **3 logical repair groups from 4 commits**, touching **9 source/test paths**, in a detached temporary worktree of an independent shared clone. This preserves the main checkout and its read-only Git metadata. The base is `32294a10fc0c7b87550469937e88331a92f67be4` plus the exact October 5 working changes: **1597 files**, source/test/build manifest **`19f310dfa8053a6e8ade75daea6826f784f2203285f043b5132cf065bc6277f5`**. Initial ledger SHA-256: `fe391b3d6a33893e3149c32f0caae4cfc515ed902c59f9c2472f68e9dd5f7cf3`. The temporary baseline tree is `c29dad54dd9ffcea8ea54d8294c0756a4ba29ee9`.
-
-**The candidate is not integrated.** The sandbox denies local TCP listeners and prevents the full integration/race suites from completing. Main retains the previously validated October 5 runtime changes; this run changes only this ledger there. Earlier deferred decisions and October 4 publication/deployment history remain effective. No server access, live inference, catalog refresh, commit, push, tag, Release or deployment occurred.
 
 ### Per-commit dispositions
 
@@ -4215,8 +3313,6 @@ Fingerprints remain **Claude Code 2.1.280 / SDK 0.112.1 / Node v26.3.0**, **Code
 ## Local synchronization on 2026-10-05 — v8.0.14 through v8.0.15
 
 Reviewed all **26 commits (24 non-merge, 2 merge)** after `d7914afdedca7af95ee974a42453dc49fc1388ce` through `a4acc9f752bd46571f737a10c04bf413656ab06b`. Both new official releases are accounted for. GitHub release/main APIs, direct tag references and upstream `ls-remote` agree; main equals v8.0.15 at inspection, with no main-only range. The old checkpoint is an ancestor. Fetch used the upstream URL with `--no-tags`, preserving fork remotes, tags and ancestry.
-
-Prepared and validated in an isolated worktree at local base **`32294a10fc0c7b87550469937e88331a92f67be4`**. This selection contains **9 logical repair groups from 9 upstream commits**, spanning **27 source/test paths plus this ledger**. It is integrated locally, uncommitted and unpublished. Earlier deferred and partial decisions remain effective unless expressly amended here. The October 4 published implementation and deployment record below remain unchanged; no server access, restart, Release or live inference was used in this run.
 
 | Release | Published (UTC) | Direct tag commit |
 | --- | --- | --- |
@@ -4286,36 +3382,6 @@ Changed Go files were formatted and `git diff --check` passed. The final diff pr
 A fresh socket bind to `127.0.0.2` failed with macOS **errno 49**, so only the established command-level exclusion for `TestClaudeStandardRoundTripperBindsLocalIP` and `TestClaudeStandardRoundTripperHTTPSProxyKeepsBindAndProxyTLS` was reused. The optional `TestClaudeCodeTLSClientHelloCapture` skipped because `CPA_TLS_FP_PROXY` is unset. Three allocation-budget tests intentionally skipped under race instrumentation: `TestMergeResponsesWebsocketInputBoundsLargeTranscriptAllocations`, `TestNormalizeResponseSubsequentRequestBoundsTranscriptAllocations`, and `TestResponsesWebsocketFallbackTurnBoundsTranscriptAllocations`; all three passed in the ordinary full run. No new test exclusions were added. Linux suite execution and live provider behavior were not exercised.
 
 Client fingerprints remain **Claude Code 2.1.280 / SDK 0.112.1 / Node v26.3.0**, **Codex runtime 0.154.0**, and **catalog-fetch default 0.155.0**. No fingerprint upgrade or model-catalog refresh is justified by this range. The main checkout/base and original ledger hash were rechecked before integration; source manifests matched afterward. Disposable worktree, logs, build output and this run's dedicated caches were removed after recording this evidence. Main retains all 28 paths as unstaged local changes, with no new commit, push, tag, Release or deployment.
-
-## Published and deployed on 2026-10-04 — selected v8.0.5 through v8.0.13 fixes
-
-The user explicitly requested GitHub publication and server deployment. The complete selected October 4 batch below is mapped to **[c5210746](https://github.com/vpromise/CodexProxy/commit/c52107463d54b33cac825d1514353d4a7c5d3fa3)** (`c52107463d54b33cac825d1514353d4a7c5d3fa3`), source tree **`22e40e997a6b805350f58cc288825026d3aa7a8f`**. The destination was verified as **`vpromise/CodexProxy`**, branch **`main`**. Its remote head was still `ae7e498aa9bd319d67ccd3c4c5e8e8875cb9ce01` before staging. Exactly **42 paths** were committed with message `fix: adapt selected upstream streaming and tool compatibility fixes`; normal push succeeded, and both `git ls-remote` and GitHub's commit API returned the implementation SHA. No tag or GitHub Release was created. This documentation update is a separate publication/deployment bookkeeping commit.
-
-The **1585-file** source/test/build manifest and source-only patch hash exactly matched the already-tested selection before commit. The manifest also matched the clean detached artifact worktree and main checkout after both Linux builds. The full **68-package / 3762-test** run, **15-package / 2275-test** race run and native build therefore remain applicable with the environment limitations recorded below. No additional source, dependency, runtime fingerprint, catalog or frontend rebuild was introduced for publication. Source was frozen at the implementation commit; no mutable catalog refresh script ran.
-
-Both Linux amd64 artifacts were built with **Go 1.27.1**, `-trimpath -buildvcs=false`, `-s -w`, version **`codexproxy-20261004-c5210746`**, the full implementation SHA and build date **`2026-10-03T16:55:43Z`**. dmit retains **CGO_ENABLED=1**, using **Zig 0.15.2**, target `x86_64-linux-gnu.2.17`; the official compiler archive matched SHA-256 `3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`. dmit2 and bawg share the exact **CGO_ENABLED=0** static artifact. ELF type, Go build metadata, before/after source manifests and artifact checksums were checked. Both builds exited 0; a local archive-extraction API mismatch was corrected before the successful CGO build and changed no source.
-
-| Artifact | Bytes | SHA-256 |
-| --- | ---: | --- |
-| Linux amd64 CGO, dmit | 66,454,360 | `da0a850d0c3e16830d51a08559f7a5578ad4ab4f809c9481edbdf6077c4ead0e` |
-| Linux amd64 static, dmit2 and bawg | 60,940,448 | `f284a14cff1f4b5826b8c917ef8bebc16ab77977d54c02c00d52ff0a409ccf74` |
-| Frozen source archive | 24,401,920 | `a8429cd74e4932c01b4ad1c150dab7fae723a75094f9f1d4075ca6fce13cc626` |
-
-The version-injected bundled management page SHA-256 is **`b893468c2cf4b08cd56f54b8f494d73db80316a474be45edda35985e995fc31f`** on all three targets.
-
-Read-only preflight established that all targets were healthy on **`32fd3e31e386275c13507b463dadeb0235a409fd`**, with the expected service definitions and build variants. Rollout proceeded **dmit → dmit2 → bawg**, completing each target's independent local/public checks before the next service was changed. Docker images **`local/codexproxy:c5210746`** were built from the exact currently running local image on each host, replacing the binary and revision label. Isolated `--help` smoke checks used no production mounts or network. Only the target Compose image reference changed; existing environment, ports, mounts, networks, healthcheck and restart policy were verified unchanged. dmit2's persistent image-build binary was updated and separately backed up. bawg used an atomic binary replacement, retained ownership/mode and unchanged systemd unit/configuration, and restarted only `codexproxy.service` after its binary smoke check.
-
-| Target | Deployment | Independent verification on October 4 | Process state | Automatic restarts |
-| --- | --- | --- | --- | ---: |
-| dmit | Docker, CGO | 00:58 Asia/Shanghai | healthy | 0 |
-| dmit2 | Docker, static | 01:00 Asia/Shanghai | running; healthcheck remains unconfigured | 0 |
-| bawg | systemd, static | 01:01 Asia/Shanghai | active/running | 0 |
-
-Each installed binary and running `/proc/<pid>/exe` matched its artifact checksum. Loopback `/healthz` returned **200**, `HEAD /api/hello` **204**, and unauthenticated `/v1/models` **401**. Management headers identified the full expected commit, and `/management.html` returned **200** with the exact version-injected page hash. Existing local gateways passed. Public certificate-validated HTTPS checks passed for [dmit management](https://cpa.vpromise.fun/management.html), [dmit2 management](https://proxy.vpromise.fun/management.html) and [bawg management](https://cpa.hoperouter.com/management.html), plus dmit2/bawg `/healthz`. dmit's public page retained `private, no-store` and `x-cpa-origin: dmit`; its intentionally origin-certificate local loopback gateway retained the existing local-only certificate bypass. No gateway route or TLS setting changed. NewAPI's in-container request to `http://codexproxy:8317/healthz` returned `{"status":"ok"}`.
-
-Configuration hashes, unrelated container identities/start times on dmit/dmit2, and Keeper/NewAPI/Caddy process state on bawg remained unchanged. Startup output contained **0 errors and 0 warnings**. Subsequent application-log inspection used the actual **UTC-07** host/container timezone and activation timestamp: dmit Docker logs, dmit2 `logs/main.log` and bawg `logs/main.log` each had **0 errors**. The respective **4, 4 and 5 warnings** were all expected unauthenticated verification probes. Complete UUIDv7 log IDs were observed. No live provider inference or end-to-end Keeper accounting test was sent; these checks establish artifact, startup, routing and identity, not Linux full-suite or live-provider protocol coverage.
-
-Protected evidence and executable **`ROLLBACK.sh`** scripts are retained under **`releases/20261004-c5210746/`** in `/root/cpa-deploy` (dmit), `/opt/codex-stack/codexproxy` (dmit2) and `/opt/codexproxy` (bawg). They include build metadata, source manifest/archive, artifact, previous binary/image, configuration and Compose/unit snapshots, deployment/local/public/log verification, and the previous deployment record. Each rollback returns to **`32fd3e31`**. Each root's `LATEST_DEPLOYMENT.json` records the successful rollout; no older release material was removed. Disposable local worktree, compiler, artifacts and dedicated caches are removed after this evidence is preserved. The reviewed v8.0.13 boundary and all deferred-family decisions remain unchanged.
 
 ## Local synchronization on 2026-10-04 — v8.0.5 through v8.0.13
 
@@ -4398,71 +3464,11 @@ The selected implementation patch (excluding this ledger) has SHA-256 **`fbe6d4c
 
 At the end of this local synchronization, changes were **uncommitted** and the index was empty; no publication or deployment had occurred. The later explicitly authorized publication/deployment is recorded above at `c5210746`. The historical ignored `docs/upstream-sync 2.md` is an older September 22 duplicate, not a second active ledger, and was left untouched. This run's disposable worktree, build output, logs and dedicated caches were removed after evidence was recorded; no task artifact was intentionally retained.
 
-## Deployed to bawg on 2026-09-29
-
-The user explicitly requested the remaining **bawg** rollout. It now runs the same published [32fd3e31](https://github.com/vpromise/CodexProxy/commit/32fd3e31e386275c13507b463dadeb0235a409fd), source tree `0161bfbbe3642fa70a0ea29aad120ec552f0b4b4`, completing the three-target rollout. GitHub `main` was read back as `11ed37df897b1a9b7421a8aa9fc2d88f36ee17a9` before this documentation update. No runtime source, fingerprint, dependency, catalog, UI or configuration change was added; the reviewed **v8.0.4** boundary and deferred families remain unchanged.
-
-The **exact Linux amd64 static artifact already verified on dmit2** was retrieved read-only from its protected `releases/20260929-32fd3e31/` directory, together with `BUILD.json` and the source manifest. No new build was needed. The binary hash/size, metadata and **1570-file** source manifest were rechecked against the existing ledger and local source; Go build metadata and ELF format confirmed **Go 1.27.1**, `CGO_ENABLED=0`, Linux amd64 and static linkage. The manifest remains **`e73640387b617f40e0e44a2dbcefd6206087b371d221b5f2485a382bf8888fa7`**. The completed full/race/frontend checks remain applicable with their recorded limitations; no tests were rerun solely for deployment bookkeeping.
-
-- Binary: **60,797,088 bytes**, SHA-256 **`8160fa50055d202e18f85439adea59f82dbc76273f312424a56c71aa19219a15`**, identical to dmit2.
-- Version: **`codexproxy-20260929-32fd3e31`**; full implementation SHA embedded; original build date **`2026-09-29T03:09:52Z`**.
-- Version-injected management HTML SHA-256: `db7dc54e0565e67d18be52f277017bd7ce3e43ca31ee3ed55cf47b172d198fee`.
-
-Preflight confirmed bawg was active/running at `6e493aeb`, with the expected previous static-binary checksum, under **`codexproxy.service`** as user/group **`codexproxy`**. A native `--help` smoke check reported the expected new source commit before switching. The executable at **`/opt/codexproxy/codexproxy`** was atomically replaced, preserving owner, group and mode. The old binary and unit/configuration snapshots were retained, and only `codexproxy.service` was restarted. Systemd unit hashes, user/group/working-directory settings and configuration hash were verified unchanged. Keeper, NewAPI and Caddy retained their service state, process identity and start time. No server package, reverse-proxy rule or authentication setting changed.
-
-Independent verification at **03:26 UTC / 11:26 Asia/Shanghai** found systemd **active/running** with **0 automatic restarts**. The installed binary and running `/proc/<pid>/exe` matched the artifact checksum. Local `/healthz` returned **200**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, and management headers identified `32fd3e31`. The management page matched the expected version-injected bundle. The existing local TLS gateway passed. Public `https://cpa.hoperouter.com/healthz` and `/management.html` both returned **200** with certificate validation; the public page matched the exact same hash as dmit and dmit2.
-
-A file-based application-log scan since activation, using the host's **UTC−07:00** timezone, observed **25 lines, 0 errors and 3 warnings**; all three warnings came from the intentional unauthenticated 401 probes. A complete UUIDv7 request ID was observed. Journal startup output had no warnings/errors. This establishes artifact identity, startup, HTTP routing and logging checks; no real provider inference or end-to-end Keeper workflow was executed.
-
-Protected evidence and rollback material remain under **`/opt/codexproxy/releases/20260929-32fd3e31/`**, including the exact artifact, `BUILD.json`, source manifest, configuration/unit snapshots, previous binary with preserved ownership, final/public/log verification and executable **`ROLLBACK.sh`** returning to `6e493aeb`. The deployment root's `LATEST_DEPLOYMENT.json` records the successful rollout. Earlier releases were retained. dmit was not accessed during this step; dmit2 was accessed only to retrieve the already verified artifact/metadata, with no service changes. No tag or GitHub Release was created. This deployment ledger is published as a separate documentation commit, and temporary local artifact/script copies are removed after recording evidence. Earlier assessment diagnostics remain intact.
-
-## Deployed to dmit2 on 2026-09-29
-
-Following the successful dmit rollout, the user explicitly requested deployment to **dmit2**. The deployed implementation is the same published [32fd3e31](https://github.com/vpromise/CodexProxy/commit/32fd3e31e386275c13507b463dadeb0235a409fd), with source tree `0161bfbbe3642fa70a0ea29aad120ec552f0b4b4`. No runtime code, configuration, dependency, client fingerprint, catalog or embedded UI changed. The v8.0.4 selection and deferred groups remain as recorded below. GitHub `main` was read back as the preceding publication/deployment-ledger commit `5a54380f371c6dbe3612ef864a0e53be2714a425` before this documentation update.
-
-A clean detached worktree at the implementation SHA matched the verified **1570-file** manifest **`e73640387b617f40e0e44a2dbcefd6206087b371d221b5f2485a382bf8888fa7`**. The completed **3719-test** full Go check, **1824-test** race check and **359-test** frontend verification were reused with the recorded limitations. A new **Linux amd64 static** artifact was built with Go **1.27.1**, `CGO_ENABLED=0`, `-trimpath` and `-buildvcs=false`, retaining dmit2's existing build variant. Go build metadata and the statically linked ELF format were verified. Version is **`codexproxy-20260929-32fd3e31`**, full commit is embedded, and build date is **`2026-09-29T03:09:52Z`**.
-
-- Static binary: **60,797,088 bytes**; SHA-256 **`8160fa50055d202e18f85439adea59f82dbc76273f312424a56c71aa19219a15`**.
-- Source archive SHA-256: `b2dccc9f5a0b3e43e31d7ff5a2f88d630a33846b326d9f2101cc8b2cc39dc8d0`.
-- Version-injected management HTML SHA-256: `db7dc54e0565e67d18be52f277017bd7ce3e43ca31ee3ed55cf47b172d198fee`.
-
-Preflight confirmed dmit2 was running `6e493aeb` without automatic restarts, under Compose project **`codex-stack`**, service **`codexproxy`**, container **`codex-stack-codexproxy-1`**. Its actual configuration has plugins disabled, zero configured plugin instances and no Home section. The new **`local/codexproxy:32fd3e31`** image retained the exact previous image as its runtime base; the ordinary `COPY` form preserved compatibility with the existing Docker builder. An isolated, network-disabled `--help` preflight reported the expected commit before activation. Only the proxy image reference and service were changed. The persistent image-build binary at `/opt/codex-stack/codexproxy/image/codexproxy` was updated, with its previous copy retained for rollback.
-
-Independent verification at **03:12 UTC / 11:12 Asia/Shanghai** confirmed the container was running with **0 automatic restarts**. Docker healthcheck remains unconfigured, as before; direct HTTP and process checks were used. The installed binary, running `/proc/<pid>/exe` and persistent image-build binary all matched the artifact hash. `/healthz` returned **200**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, and management headers reported the expected commit. The local and public management pages both returned **200** and matched the new embedded page hash. Public `https://proxy.vpromise.fun/healthz` returned **200** with certificate validation, the existing local TLS gateway passed, and a probe from the NewAPI container to `http://codexproxy:8317/healthz` returned `{"status":"ok"}`. Configuration and Compose runtime settings were preserved; NewAPI and usage-Keeper container identities/start times were unchanged.
-
-Application logs are file-based on this host. Four full UUIDv7 IDs were observed in recent `logs/main.log`. A follow-up scan since activation, using the container's actual **UTC−07:00** timezone, found **31 application log lines, 0 errors and 4 warnings**, all four caused by the intentional unauthenticated 401 probes. Docker startup output had no warnings/errors. No provider inference or end-to-end usage-Keeper operation was performed; these checks establish deployment, connectivity, artifact identity and logging behavior, not a full Linux test-suite run.
-
-The protected release directory **`/opt/codex-stack/codexproxy/releases/20260929-32fd3e31/`** retains build/source metadata, configuration/Compose snapshots, old binary and image references, old image-build binary, deployment/final/public/log verification and executable **`ROLLBACK.sh`** returning to `6e493aeb`. The deployment root's `LATEST_DEPLOYMENT.json` records the successful rollout. Previous releases were retained. **dmit and bawg were not accessed during this dmit2 rollout; bawg remains undeployed for this batch.** No tag or GitHub Release was created. This deployment ledger is published as a separate documentation commit; disposable local worktree, binary, source archive and dedicated caches are removed after preserving evidence. Earlier assessment diagnostics remain intact.
-
-## Published and deployed to dmit on 2026-09-29
-
-The user explicitly requested pushing to GitHub and deploying to **dmit first**. All **34 selected paths** were committed in [32fd3e31](https://github.com/vpromise/CodexProxy/commit/32fd3e31e386275c13507b463dadeb0235a409fd) and pushed normally to `vpromise/CodexProxy:main`. Both `refs/heads/main` and GitHub's commit API confirmed `32fd3e31e386275c13507b463dadeb0235a409fd`, with source tree `0161bfbbe3642fa70a0ea29aad120ec552f0b4b4`. This publishes the four earlier September 29 compatibility fixes plus full UUIDv7 and narrow native refresh changes described below. v8 configuration migration, Home and unused plugin extensions remain deferred. The reviewed upstream boundary remains **v8.0.4 / `d33f63f8`**; publication does not imply a newer upstream review or a full merge.
-
-The exact **1570-file** source manifest still matched **`e73640387b617f40e0e44a2dbcefd6206087b371d221b5f2485a382bf8888fa7`** before staging and in the clean deployment worktree. The recorded **3719** full Go tests, **1824** race tests, **359** frontend tests, lint/type checks and native compile were therefore reused, with their existing environment exclusions. No runtime code or dependency changed during publication. Client fingerprints remain Claude Code **2.1.280**, SDK **0.112.1**, Node **v26.3.0**, Codex runtime **0.154.0** and catalog-fetch default **0.155.0**.
-
-### Artifact and rollout
-
-A Linux amd64 **CGO** artifact was built from a detached, clean worktree at the published implementation commit, using Go **1.27.1**, `-trimpath`, `-buildvcs=false`, and checksum-verified official Zig **0.15.2**, targeting `x86_64-linux-gnu.2.17`. The Zig archive SHA-256 was `3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`. Catalogs and the already verified embedded UI were not regenerated. The build identifies version **`codexproxy-20260929-32fd3e31`**, full source SHA and build date **`2026-09-29T02:49:39Z`**.
-
-- Binary: **66,311,424 bytes**; SHA-256 **`a2abbfbaec03132552a248a4864bb3e72aa5cc863aea23a8f12d08b76dbcdd5b`**.
-- Source archive SHA-256: `b2dccc9f5a0b3e43e31d7ff5a2f88d630a33846b326d9f2101cc8b2cc39dc8d0`.
-- Version-injected management HTML SHA-256: `db7dc54e0565e67d18be52f277017bd7ce3e43ca31ee3ed55cf47b172d198fee`.
-
-Read-only inspection confirmed dmit was healthy at `6e493aeb`, using Compose project **`cpa-production`**, service/container **`cpa`**. Its actual configuration has plugins disabled, zero configured plugin instances, zero plugin files and no Home section, supporting continued deferral of the unused plugin credential fixes. Only these whitelisted settings were inspected; configuration/credential contents were not printed or changed. Keeper remains image `local/codexkeeper:20260923-a4098412`; its container identity and start time were preserved. This rollout does not claim an end-to-end Keeper usage/log-retrieval test.
-
-The new image **`local/codexproxy:32fd3e31`** was built from the exact previously running local image, replacing its binary and revision label. Its isolated `--help` preflight used no production mounts, credentials or network and reported the expected source commit. Only the Compose image reference changed, and only `cpa` was recreated. Existing environment, ports, mounts, networks, healthcheck, restart policy, configuration hash and unrelated service identities were verified unchanged.
-
-At **02:51 UTC / 10:51 Asia/Shanghai**, independent final verification found dmit running and Docker **healthy**, with **0 automatic restarts**. Both the installed binary and `/proc/<pid>/exe` matched the artifact checksum. `/healthz` returned **200**, `HEAD /api/hello` **204**, unauthenticated `/v1/models` **401**, and management responses identified the expected commit. The management page returned **200** and matched the version-injected bundled HTML byte-for-byte. The existing local gateway passed its management-route check; its origin-certificate loopback probe retained the existing local-only certificate bypass. A separate public HTTPS `curl` probe validated the public certificate and returned **200** with the exact new page hash, `no-store` and `x-cpa-origin: dmit`. An initial Python `urllib` public probe returned **403**; this client-specific result is retained in `PUBLIC_VERIFICATION.json` without attributing a cause. Two distinct full UUIDv7 IDs were observed in application logs. Startup logs contained **0 warnings and 0 errors**. No live provider inference was sent; these are artifact, startup, routing and identity checks, not Linux full-suite or provider-protocol validation.
-
-Rollback and evidence are retained on dmit in **`/root/cpa-deploy/releases/20260929-32fd3e31/`**: `BUILD.json`, source manifest, protected configuration/Compose snapshots, previous binary/image, `deployment.json`, final/public verification, and executable **`ROLLBACK.sh`** returning to `6e493aeb`. `/root/cpa-deploy/LATEST_DEPLOYMENT.json` records the successful rollout. No older release or rollback material was deleted. **dmit2 and bawg were not accessed or deployed.** No tag or GitHub Release was created. Publication/deployment bookkeeping is a separate documentation commit. Disposable local worktree, compiler, artifact, archive and dedicated caches are removed after preserving this evidence; earlier assessment diagnostics remain intact.
-
 ## Authorized local adaptation on 2026-09-29 — UUID and native refresh
 
 The user requested implementation of complete UUID support, selection of refresh changes against the current platform, and plugin fixes only if the current version actually uses those paths. All other deferred families remain deferred. This batch follows the preceding concrete proposal and preserves the earlier four uncommitted fixes; it is not a full upstream merge. The reviewed upstream boundary remains **v8.0.4 / `d33f63f8e3d98428440ebca5a5b6a981a61ff71e`**.
 
 ### Current configuration and selected scope
-
-A read-only, whitelisted inspection of the local `config.yaml` found **`plugins.enabled=false`**, **0 configured plugin instances**, no custom plugin directory and no Home section. The default `plugins/` directory contains **0 files**. No config contents, credentials or secrets were printed, copied into tests or changed. `Host.ApplyConfig` publishes an empty plugin snapshot when disabled; `Service.registerExecutorForAuth` selects native Codex/Claude executors, and normal native file synthesis/management mutations do not invoke `HostAuthSave` or the plugin refresh adapters. The builtin Redis usage plugin is a different usage-accounting interface and does not activate plugin credential handling. Therefore **`5756d76e` and the plugin portions of `5530cbd2` are not synchronized**. This establishes the current local configuration/code path, not a live audit of dmit/dmit2/bawg; no remote server or production credential directory was accessed.
 
 | Batch | Implemented behavior | Retained boundaries |
 | --- | --- | --- |
@@ -4516,8 +3522,6 @@ A future migration still needs an explicit rollout: retain v0 alongside filtered
 `b9971ee3` / `ac42accc` make the selected Home credential's `credential_options` and routed model authoritative for compatibility, prompt-cache support, max-completion-token conversion and tool-result normalization. These matter if a Home control plane supplies those options; no such deployment/consumer was established. They interact with the deferred resolved-capability work (`ed980be3`) and must preserve canonical thinking and suffix precedence. Local direct-provider compatibility options should remain unchanged. The public quota wrappers are independently separable *upstream*, but this fork has neither the corresponding `sdk/pluginapi` quota request types nor the internal plugin host quota operations, so copying the small wrapper file would not be a standalone working fix. `6cd86fb2` adds an explicit terminal scheduler rejection contract; useful if an enabled scheduler needs to deny selection instead of falling back, but no such local consumer was identified. Keep these extensions deferred until that requirement exists.
 
 ### Correction: Keeper identity semantics
-
-Read-only inspection of sibling **CodexKeeper `f7ea9f75b56abb904d7dbedbcb19f3158928fde5`** found that `internal/service/redis_usage.go:toUsageEvent` assigns `request_id` to `event_key`, but `internal/repository/db.go:InsertUsageEvents` deliberately inserts duplicate IDs as separate records. Migration `20260514_usage_event_event_key_index.go` removes the old unique index; `20260610_remove_usage_event_write_heavy_indexes.go` later removes the nonunique index too. `UsageEvent.RequestID` and `EventKey` are strings without an eight-character restriction. Therefore prior references to Keeper deduplicating by request ID were incorrect for this inspected source. This corrects the logging/trace-ID rationale, not published implementation or deployment history. No production Keeper binary/database was inspected.
 
 Keeper's request-log service does use the complete request ID to fetch logs and to coalesce concurrent fetches. UUIDs therefore have a concrete correlation benefit without requiring an event-deduplication change. Existing usage-retention semantics should remain intact. Any later implementation must verify the actual deployed consumer version; this source review is not a live compatibility test.
 
@@ -4604,40 +3608,6 @@ All completed commands below exited 0:
 A fresh local bind to `127.0.0.2` failed with errno 49 (`EADDRNOTAVAIL`), confirming the existing two command-level exclusions. The optional `TestClaudeCodeTLSClientHelloCapture` skipped because its external capture proxy was not configured. No new environment exclusion was added. This is local macOS fixture coverage, not Linux validation or live provider inference.
 
 The final source/test/build manifest is **`915df6569b6e85167be30608ffa204f96250bdbb8ceb868bceb655163f7f4aa3`**, covering **1562** regular files excluding this ledger, using the existing sorted SHA-256/path manifest algorithm documented below. The final patch has **5 production paths and 4 test paths**, plus this ledger. Source inputs matched before and after final checks and after exact application to the unchanged main-checkout base. The index remains empty. Changes are local and uncommitted; no push, tag, Release or deployment occurred. Disposable worktree, binary, logs and dedicated caches were removed after recording this evidence; the shared module cache and user-owned files were retained.
-
-## Published and deployed on 2026-09-26
-
-The user explicitly requested pushing to GitHub and deployment to dmit, dmit2 and bawg. The exact 15 selected paths were committed in [6e493aeb](https://github.com/vpromise/CodexProxy/commit/6e493aebddff1a476dbe509cc26614ab9d5b0e71) and pushed normally to `vpromise/CodexProxy:main`. GitHub's branch and commit APIs confirmed SHA `6e493aebddff1a476dbe509cc26614ab9d5b0e71` and tree `ecca59ff220fb55d0c62f57b9e4f6443c18d61d3`. The **1561-file** input manifest still matched `6360028e807f5e362e297a7b2baabdfd9acdbe88e116977274c00a42a554bbf6`, allowing reuse of the recorded 3702-test full check, 1721-test race check and successful compile. No runtime code changed during publication or deployment.
-
-Artifacts were built from a detached, clean worktree at that published SHA, without refreshing catalogs or rebuilding the unchanged bundled UI. Both builds used Go **1.27.1**, `GOOS=linux`, `GOARCH=amd64`, `-trimpath`, `-buildvcs=false` and embedded version `codexproxy-20260926-6e493aeb`, the full source SHA and build time `2026-09-26T03:26:34Z`. The CGO variant used a checksum-verified official Zig **0.15.2** compiler targeting `x86_64-linux-gnu.2.17`, matching the prior deployment toolchain. Go build metadata and ELF format were inspected; each artifact passed a native Linux `--help` version smoke check before switching its target. These are artifact/startup checks, not a claim that the full test suite ran on Linux.
-
-| Artifact | SHA-256 | Size |
-| --- | --- | --- |
-| Linux amd64 CGO | `93500c7d7b026a864bc13abe39d83e2f78d31a34a2b6896dffd50a117c95ff84` | 66,290,224 bytes |
-| Linux amd64 static | `dff36272f2600d520258fe705f55323db759b92ff488af526aa636507acbc6be` | 60,780,704 bytes |
-
-The immutable source archive SHA-256 was `1a95fbcc08dd4a0fd5c58bc7753f68ddbda2ba922ec2b3e9ff82b58610d6b25c`. This task did not create a GitHub tag or Release.
-
-### Server rollout and verification
-
-All targets previously ran `8bf1f13c090a31a4f5c1b7049d3a719828674903`; the rollout therefore includes the already published September 24 logging/citation/cooldown repairs as well as the September 25 selection. Servers were switched and verified sequentially. Existing configuration files, management passwords, credentials, data mounts, Docker networks and systemd units were preserved. Only CodexProxy was restarted; Keeper and the other application services retained their process/container identity and start time.
-
-| Target | Existing deployment method retained | Final state | Rollback and evidence directory |
-| --- | --- | --- | --- |
-| dmit | Docker Compose `cpa-production` / `cpa`; CGO binary; image `local/codexproxy:6e493aeb` | Running, Docker healthy, zero automatic restarts | `/root/cpa-deploy/releases/20260926-6e493aeb/` |
-| dmit2 | Docker Compose `codex-stack` / `codexproxy`; static binary; image `local/codexproxy:6e493aeb` | Running, HTTP checks passed, zero automatic restarts; Docker healthcheck remains unconfigured | `/opt/codex-stack/codexproxy/releases/20260926-6e493aeb/` |
-| bawg | Existing `codexproxy.service`; static `/opt/codexproxy/codexproxy` | Active/running, zero automatic restarts | `/opt/codexproxy/releases/20260926-6e493aeb/` |
-
-At **03:42 UTC / 11:42 Asia/Shanghai**, all three running binaries matched the artifact checksums above and exposed commit `6e493aebddff1a476dbe509cc26614ab9d5b0e71` in management response headers. Local health returned **200**, Claude connection warmup returned **204**, unauthenticated inference-model listing returned **401**, and the management page returned **200**. Configuration hashes and unrelated services matched their pre-deployment state; startup logs contained zero warnings/errors. No live provider inference was issued.
-
-The existing reverse proxies also passed checks. Public HTTPS probes with certificate validation returned **200** for [dmit management](https://cpa.vpromise.fun/management.html), [dmit2 health](https://proxy.vpromise.fun/healthz) and [bawg health](https://cpa.hoperouter.com/healthz). dmit intentionally exposes management/keeper/callback routes on its public host, while `/healthz` and `/v1` remain unavailable there; its internal health/API checks used loopback. Its local TLS listener uses an origin certificate, so that loopback-only probe bypassed certificate-chain verification; the separate public HTTPS probe verified the public certificate normally. No reverse-proxy route, TLS configuration or access rule was changed.
-
-Two deployment-tool compatibility issues were handled and recorded:
-
-- dmit's first switched attempt passed health checks, then automatically rolled back because Docker reordered otherwise identical environment variables and mount bindings. Comparing those unordered lists by content preserved all values/paths; the subsequent deployment and final verification succeeded. The failed attempt remains in `deployment-attempt1.json` alongside rollback evidence.
-- dmit2's first image-build attempt stopped before service switching because its legacy Docker builder does not support `COPY --chmod`. Setting the source file mode to 0755 and using ordinary `COPY` built the same verified binary successfully. The failure and successful attempt are recorded separately; the Docker daemon/tooling was not upgraded.
-
-Each server retains `BUILD.json`, `deployment.json`, `FINAL_VERIFICATION.json`, `PUBLIC_VERIFICATION.json`, a protected configuration snapshot, the prior binary/image and executable `ROLLBACK.sh`. The deployment root's `LATEST_DEPLOYMENT.json` points to the successful version and final verification. The Docker images were built from the exact previously running local image to preserve their runtime base; no mutable registry pull was needed. Temporary local worktree, downloaded compiler, archives, binaries, dedicated caches and verification logs were removed after recording this evidence. The user's duplicate-source backup remains intact outside the repository.
 
 ## Local implementation on 2026-09-25 — selected v7.3.17 repairs
 
@@ -4756,29 +3726,6 @@ At that earlier check, GitHub's official release API and release page identified
 Local `main` and GitHub's fork `main` both resolve to `dc32d876d69462ceab192626092eeee4b190e134`; the checkout and index were clean before this documentation update. No selected work is pending from the completed September 23 batch. All earlier partial, deferred and excluded dispositions remain unchanged, including the deferred instruction-shortening portion of `673131f5`; this check does not mark them integrated.
 
 Source inspection confirms Claude Code **2.1.280**, SDK **0.112.1**, Node **v26.3.0**, Codex runtime **0.154.0**, and standalone catalog-fetch defaults **0.155.0**. No fingerprint or model-directory update was selected. The source/test/build input manifest is still `99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b` across **1551** regular files, excluding this ledger, exactly matching the final September 23 validation snapshot. The diff from implementation `2067d9f3` to the current HEAD contains only this ledger. Prior validation remains applicable with its recorded macOS exclusions; functional, race and build checks were not rerun for this documentation-only check. `git diff --check` passed. The local toolchain remains Go **1.27.1**, darwin/arm64.
-
-This run changes only the local review ledger. It does not create a commit, push, tag, Release, server operation or background job; the existing publication and deployment records below remain intact. No disposable worktree, binary or build cache was created.
-
-## Deployed on 2026-09-23 — dmit, dmit2 and bawg
-
-Deployed the immutable published source [8bf1f13c](https://github.com/vpromise/CodexProxy/commit/8bf1f13c090a31a4f5c1b7049d3a719828674903), tree `aa64c546526d726a7fc70cb664c01e120cb9a9d2`, including implementation `2067d9f3`. Both binaries identify version `codexproxy-20260923-8bf1f13c`, the full source commit and build date **2026-09-23T03:22:22Z**. The source/test manifest remained `99c53d4af79932f6dde59d9273c3c905e17f641e021fd49603255e4c81d8f16b`; existing full/race validation was reused without source changes or catalog refreshes.
-
-| Host | Preserved runtime | Verified deployment and rollback directory |
-| --- | --- | --- |
-| dmit | Linux amd64 CGO build; Docker Compose project `cpa-production`, service/container `cpa`; image `local/codexproxy:8bf1f13c` | `/root/cpa-deploy/releases/20260923-8bf1f13c` |
-| dmit2 | Linux amd64 static build; Compose project `codex-stack`, service `codexproxy`; image `local/codexproxy:8bf1f13c` | `/opt/codex-stack/codexproxy/releases/20260923-8bf1f13c` |
-| bawg | Linux amd64 static build; `codexproxy.service`, binary `/opt/codexproxy/codexproxy` | `/opt/codexproxy/releases/20260923-8bf1f13c` |
-
-Builds completed locally with Go **1.27.1**, `-trimpath` and explicit version/commit/date metadata. The CGO build used Zig **0.15.2**, targeting `x86_64-linux-gnu.2.17`; the static build used `CGO_ENABLED=0`. Binary SHA-256 values were checked before deployment and against the installed/running files:
-
-- CGO, dmit: `0049bb5949d0d86ab0ba8cae8810632b9065967f5c0798e0141bedd16472622f`.
-- Static, dmit2 and bawg: `46c4fdf977309c8c9ced63bac822d4605ec183d90a36eb0f515751b6514423c3`.
-
-Each host passed executable preflight with an empty config before activation. Docker images retained their existing runtime base, with the compiled binary replaced. Only the proxy service was recreated or restarted, in order: dmit, dmit2, bawg. On dmit2, the legacy builder rejected `COPY --chmod` during image preparation; the existing service remained running. Retrying with an executable source file and ordinary `COPY` succeeded, without changing the binary, Docker installation or service settings. Its preparation failure remains recorded in `deployment-attempt1.json`. The persistent dmit2 image-build binary was also updated and its previous copy retained.
-
-Final verification at **03:39 UTC** found all three services running with **zero automatic restarts**, `/healthz` returning **200**, and `HEAD /api/hello` returning **204**. dmit's configured Docker healthcheck was healthy; dmit2 has no Docker healthcheck, so its running process and HTTP endpoints were checked directly. Gateway-to-proxy checks passed from sub2api on dmit and NewAPI on dmit2. Config hashes, Docker runtime settings, bawg's systemd unit and unrelated gateway/service identities were preserved. Logs since activation contained **zero warnings and zero errors** at verification. No real provider inference request was sent; these checks verify deployment and connectivity, not end-to-end inference behavior.
-
-Each host's `LATEST_DEPLOYMENT.json` and release-local `deployment.json` contain the build identifiers, checksums, before/after state and final verification. Release directories retain `BUILD.json`, config snapshots, the previous image reference or binary, and executable `ROLLBACK.sh`; rollback targets `7c96a1cc`. No old release or rollback material was deleted, and no GitHub Release was created. Local disposable source, compiler, binaries and dedicated caches were removed after preserving the deployment evidence.
 
 ## Published on 2026-09-23 — selected v7.3.13 through v7.3.15 repairs
 
@@ -4927,8 +3874,6 @@ Defer [ac3849e5](https://github.com/router-for-me/CLIProxyAPI/commit/ac3849e5d98
 
 Initial review evidence: focused probes in an isolated snapshot of unchanged `7c96a1cc` reproduced all four groups across three packages. The existing SSE error-preservation behavior passed on the baseline. Applying only `dd013f9e` in that temporary snapshot made telemetry filtering pass but made both error-precedence probes fail: `event: codex.rate_limits` with a `response.failed` error payload, and `event: error` with a `codex.private_error` error payload, were discarded with no terminal error recorded. These are synthetic boundary cases, not observed production incidents. The initial review changed only this ledger and removed its temporary snapshot and dedicated caches. The later implementation and validation are recorded above.
 
-The earlier September 21 runtime checkpoint was superseded by the September 23 deployment recorded above. On September 21, dmit retained its CGO build and Docker service `cpa`; dmit2 retained its static build and Compose service `codexproxy`; bawg retained its static build and `codexproxy.service`. All three returned HTTP 200 from `/healthz` and HTTP 204 from `HEAD /api/hello`. Gateway-to-proxy health checks passed on dmit and dmit2. Configuration hashes, container runtime settings and unrelated gateway services were preserved. The retained `releases/20260921-7c96a1cc` directories contain that deployment and its rollback records; per-server `LATEST_DEPLOYMENT.json` now records September 23. Those earlier checks establish the September 21 state, not continuous health since then.
-
 ## Published on 2026-09-21 — selected v7.3.9/v7.3.10 repairs
 
 All three groups are published in [4208d16c](https://github.com/vpromise/CodexProxy/commit/4208d16c32aeb362f94ad0fdb92677944c8f6324), based on `8bf0c9821949f03dec68cf9573a493016f8d155c`. Publication did not deploy the server.
@@ -5072,5 +4017,3 @@ The earlier backlog remains deferred. The September 19 batch includes only the f
 ## Local artifact cleanup
 
 On 2026-09-21, at the user's request, generated upstream review/sync archives, publication verification records, lifecycle/reliability test artifacts, the obsolete `CodexProxy-review.*` snapshot, and their standalone review notes were removed from the parent directory. The essential upstream commit mappings, implementation/publication boundaries, deferred decisions and verification summaries remain in this tracked ledger.
-
-Earlier references to local archives describe historical verification; their raw patches, logs and source-hash snapshots are no longer available. The active `CodexProxy` source tree and its unpublished changes were retained. Separate projects, deployment records, incident diagnostics and the `codex_analyses` notes were not part of this cleanup.
