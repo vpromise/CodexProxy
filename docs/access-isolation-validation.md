@@ -22,30 +22,10 @@ expanded pass are now resolved.
 
 Verification on the fixed source:
 
-- Full shuffled macOS race suite: **68 packages / 7,508 test and subtest passes**;
-  only the two previously documented macOS bind tests were explicitly excluded.
-- The deterministic auth-upload race regression and targeted logging/stream
-  lifecycle tests passed three race iterations. The real service OAuth lifecycle
-  and pool-egress service integration passed five race iterations.
-- Full **`go vet ./...` passed with no diagnostics**.
-- Linux/amd64: all five changed package suites passed on `toth`, with **718 test
-  and subtest passes**, no skips and no exclusions. These were isolated temporary
-  network-namespace runs with synthetic credentials and no external route.
-- Darwin/arm64 and static Linux/amd64 server builds passed. Formatting and
-  `git diff --check` passed. No service deployment was performed.
-
 Evidence and source hashes are retained at `/var/folders/b_/t12ytcwj16g3_wglff38ljj80000gn/T/codexproxy-fix-runtime-89or6xvi`. Remote temporary
 files and local disposable builds/snapshots were removed after verification.
 
 ## Extended verification — 2026-11-10
-
-The expanded pass used source-only snapshots, synthetic credentials and local
-upstreams. macOS Go tests ran with outbound network restricted to loopback.
-Linux/amd64 test binaries ran on `toth` in temporary network namespaces without
-an external route. The final namespace included a private veth interface so
-Pion could gather non-loopback candidates. Separate credential-free HTTPS probes
-verified the three assigned public exits. No service deployment or host routing
-change was performed.
 
 | Check | Observed result |
 | --- | --- |
@@ -229,22 +209,6 @@ completed every acceptance criterion until these outstanding checks are resolved
 
 ## Production findings and repair plan — 2026-10-22
 
-| Finding | Repair | Acceptance |
-| --- | --- | --- |
-| Successful policy saves can precede runtime revocation | Publish an immutable access-policy snapshot and client authentication synchronously; isolate executor reloads; reject stale reload grants against persisted policy | Delayed reload tests for enable/revoke through dedicated and full-YAML APIs; immediate HTTP key replacement and scoped catalogs; stale replay and external edits; active generation preservation |
-| File log viewer disabled and misleading product wording | Add a localized enable action and explain future-only file logs; enable file logging on dmit with a protected configuration backup | Local logging toggle/query regression; verify production `/logs` returns 200 and main.log exists while all other effective settings remain equal |
-| Missing request-to-account audit trail | Emit structured, non-secret decision references, policy fingerprint and per-operation counter at selection/rejection/session boundaries | Real mocked execution and revocation assert selected identity, changed revision, no denied upstream attempt, and no private values in formatted output |
-| Remote catalog rejected for missing a fixed default model | Keep record validation; select a deterministic fallback template | Complete alternate-slug catalogs accepted; malformed catalogs rejected; usable fallback template and existing template refresh tests |
-
-Production configuration repair: dmit application file logging was enabled without
-restarting the container. The log query returned 200, main.log was created, health
-remained healthy, and the container ID/restart count were unchanged. All other
-effective configuration fields, including isolation bindings and full request
-logging, compared equal before/after. Backup:
-`/root/cpa-deploy/releases/file-logging-fix-20261022T085320Z/config.before.yaml`.
-The same directory contains a verification receipt. This was a configuration
-repair, not activation of the new source code.
-
 The repair tests use synthetic credentials only, with real credential paths and
 non-loopback network access denied. A source-only temporary checkout is used for
 the full Go suite so package discovery does not enter the real auth directory.
@@ -268,20 +232,7 @@ Repair verification results:
   build. The Go-embedded page was regenerated with `VERSION=__CLI_PROXYAPI_VERSION__`.
 - Server compilation, embedded-page contract tests and `git diff --check` passed.
 
-New source activation on dmit is separate from the completed file-logging
-configuration repair. No new source deployment or real-provider inference was
-performed as part of these code fixes.
-
 ## Integration with updated main — 2026-10-22
-
-Integrated feature head `5e986f5e432f96abd8abda69a2783cd5abc65b07` into main
-head `90cd989d` using a merge commit. Main's 19 intervening commits remain in
-history, including Claude/Codex stream terminal handling, request semantics,
-per-response tool metadata and synchronized plugin-host snapshots. The six
-jointly modified Go files merged without textual conflicts and were reviewed
-for preservation of both request isolation and the newer handler behavior.
-The deployment-ledger conflict retains main's v8.0.38 review boundary and
-feature-branch dmit rollout history.
 
 Validation of the combined source in an isolated worktree:
 
@@ -298,20 +249,7 @@ Validation of the combined source in an isolated worktree:
   the tracked Go-embedded management page.
 - Required server build and `git diff --check` passed.
 
-Go tests were restricted to loopback networking and denied access to the real
-checkout's config, environment and auth stores and known local credential
-stores. Tests used synthetic accounts; no real-provider inference was sent.
-The October 22 dmit deployment separately passed the two loopback tests in
-Linux on feature source `7fef3e38`; that is not Linux-suite evidence for this
-combined main source. Browser acceptance retains the managed-policy limitation
-recorded above. This integration does not activate a new server deployment.
-
 ## Revoked client key cleanup — 2026-10-23
-
-Read-only inspection of dmit2 found the running implementation `baabdc29`, two
-active client keys and three isolation bindings, including one binding absent
-from the active key list. No secrets or key identifiers were exported. Isolation
-was disabled at the time of inspection; no production setting or key was changed.
 
 The root cause is an omitted UI cleanup action: replacing a client secret keeps
 its old isolation metadata, and KeyBindings displays that metadata as Revoked
@@ -321,14 +259,6 @@ The fix adds Remove record only to revoked rows, uses the existing confirmation
 modal and pending-change save/discard flow, and guards against removing active
 key bindings through this action. All four supported locales and the embedded
 management page are updated.
-
-Validation used a separate worktree based on `c0900414`, whose implementation
-matches dmit2. The frontend regression was observed red first: two failed and
-one passed, specifically detecting the absent removal control. After the fix,
-all three pass, together with the four existing key-filter regressions. The
-backend lifecycle regression passes with isolation enabled and disabled: full
-YAML key replacement, metadata cleanup, stale revision 409, file reload, and
-preservation of active keys, pools, other metadata and unrelated settings.
 
 - Final frontend `bun run verify` passed **369 tests**, ESLint, TypeScript and the
   production build with the CI-pinned Bun **1.3.14** and
@@ -346,23 +276,6 @@ preservation of active keys, pools, other metadata and unrelated settings.
 - Visual inspection confirmed the shared button/confirmation styles fit the
   existing page. The temporary browser window and both fixture servers were
   closed after validation. No debug instrumentation was added to production code.
-
-The repair was developed on `codex/fix-revoked-key-removal`. These validation
-steps did not activate a server release or change production configuration. The
-existing dmit2 service, real revoked record, logging settings and resource
-protections remain unchanged. Production rollout and any intentional cleanup of
-real metadata are separate from these tests.
-
-
-Publication integration rebased this one repair commit onto latest main
-`20205ee7988ecd37876f1ebdfaf428efbfe7cbaf`, preserving its October 23 WebSocket and
-response fixes. The earlier `codex/memory-retention-fix` commits remained separate at that
-checkpoint; the subsequent memory merge and combined validation are recorded in
-`docs/upstream-sync.md`.
-The complete frontend and management-asset inputs match the previously verified
-repair tree exactly. Management-handler, configuration and management-asset
-package tests and the server build passed again on the integrated tree. The main
-working checkout's preexisting deployment-ledger edits were left untouched.
 
 ## Claude session identity repair — 2026-10-24
 
@@ -399,7 +312,6 @@ not modified, and no disabled credential was re-enabled. This repair addresses a
 reproduced compatibility defect; it does not establish the reason for the
 reported account ban.
 
-
 ## Main integration and PR validation — 2026-11-10
 
 The five isolation feature/runtime/deployment commits were rebased onto published
@@ -408,14 +320,6 @@ revoked-key cleanup, memory-retention repair, native Claude session preservation
 and later selective upstream fixes. The previous feature tip is retained in a
 local recovery reference and bundle; the three fully merged remote branches were
 removed, preserving their local worktrees and all commits reachable from main.
-
-The embedded panel conflict was resolved by building the combined frontend with
-`VERSION=__CLI_PROXYAPI_VERSION__`; the generated file matches the Go embed exactly.
-The deployment ledger retains all 110 main sections and the additional historical
-operational records. Plugin stream cleanup now supplies main's caller ownership
-argument, preserving both cancellation cleanup and the newer ownership checks.
-The inherited main-to-dev PR automation is restricted to the upstream repository;
-this fork can continue targeting main without a dev branch.
 
 Fresh validation covers implementation `418bf06dba03b38bdc76ed4d55687070d201df3d`:
 
@@ -443,16 +347,3 @@ Fresh validation covers implementation `418bf06dba03b38bdc76ed4d55687070d201df3d
   1190 assertions**, ESLint, TypeScript and production build using Bun **1.4.4**.
   Workflow YAML parsing, Go formatting, embed equality and `git diff --check`
   passed. No new browser acceptance or live-provider inference is claimed.
-
-The tracked input manifest (excluding this validation document and the deployment
-ledger) covers **1799 files**, SHA-256
-`ce04a95a6d24ac9eaa78175dc7921e3b204b3932376a461f6ea14103c844bec9`.
-Darwin build SHA-256 is
-`53e3d6805501ce12173ea3c62233e7f682da85739532be9ad0a4e841716bf21b`;
-Linux build SHA-256 is
-`1153b91cc16f2baba8640c6ba13d0d33956e94531ac1cdcd8ee91ef1e9f0e121`.
-Linux receipts and original failures are retained under
-`/opt/codexproxy/releases/validation-rebase-20261110-drdpodf7` and its `-v2`
-sibling. Later documentation bookkeeping does not change tested inputs.
-The prior toth deployment remains source `2e045edb`; this PR integration does
-not deploy the new main source to any server.
