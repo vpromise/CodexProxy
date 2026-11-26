@@ -140,9 +140,11 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	}
 	incomingHeaders, claudeCodeDetection := detectIncomingClaudeCodeRequest(ctx, opts.Headers, originalPayload, true, e.cfg)
 	nativeAnthropic := from == to && isAnthropicUpstreamBase(baseURL)
-	apiVersion := strings.TrimSpace(incomingHeaders.Get("Anthropic-Version"))
-	if nativeAnthropic {
-		if err := helps.ValidateNativeClaudeRequest(originalPayload, req, upstreamModel, apiVersion, false, true); err != nil {
+	usesNativeContract := nativeAnthropic && helps.ClaudeModelUsesNativeContract(req, upstreamModel)
+	if usesNativeContract {
+		validation := claudeNativeValidationOptions(req, opts, auth, incomingHeaders)
+		validation.CountTokens = true
+		if err := helps.ValidateNativeClaudeRequest(originalPayload, req, upstreamModel, validation); err != nil {
 			return cliproxyexecutor.Response{}, err
 		}
 	}
@@ -162,7 +164,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		return cliproxyexecutor.Response{}, errThread
 	}
 	nativeThinkingWire := bytes.Clone(body)
-	body, errThinking := applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
+	body, errThinking := applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier(), nativeAnthropic)
 	if errThinking != nil {
 		return cliproxyexecutor.Response{}, errThinking
 	}
@@ -246,7 +248,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	if err != nil {
 		return cliproxyexecutor.Response{}, err
 	}
-	if errHeaders := applyClaudeHeaders(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, nativePassthrough, claudeSessionID); errHeaders != nil {
+	if errHeaders := applyClaudeHeadersWithNativeProfile(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, nativePassthrough, false, usesNativeContract, claudeSessionID); errHeaders != nil {
 		return cliproxyexecutor.Response{}, errHeaders
 	}
 	if fp.ProfileClaudeCodeCLI || cloaked || nativePassthrough {

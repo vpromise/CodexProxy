@@ -360,6 +360,7 @@ func TestApplyClaudeHeadersHelperRequestIDFollowsUpstreamBase(t *testing.T) {
 				incoming,
 				true,
 				true,
+				true,
 				claudeNativeHelperSessionID,
 			); errHeaders != nil {
 				t.Fatalf("applyClaudeHeadersWithNativeProfile() error = %v", errHeaders)

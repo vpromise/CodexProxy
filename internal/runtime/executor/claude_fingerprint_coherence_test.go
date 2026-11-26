@@ -176,7 +176,7 @@ func TestClaudeReconstructedEnvironmentHeaders(t *testing.T) {
 					auth.Attributes["header:"+name] = incoming.Get(name)
 				}
 			}
-			if errHeaders := applyClaudeHeadersWithNativeProfile(request, auth, "sk-ant-oat-environment-test", false, nil, []byte(`{"model":"claude-opus-5"}`), &config.Config{}, incoming, tc.native, false, claudeNativeHelperSessionID); errHeaders != nil {
+			if errHeaders := applyClaudeHeadersWithNativeProfile(request, auth, "sk-ant-oat-environment-test", false, nil, []byte(`{"model":"claude-opus-5"}`), &config.Config{}, incoming, tc.native, false, tc.native, claudeNativeHelperSessionID); errHeaders != nil {
 				t.Fatal(errHeaders)
 			}
 			for _, name := range []string{"X-Client-App", "X-Claude-Remote-Container-Id", "X-Claude-Remote-Session-Id"} {

@@ -39,10 +39,13 @@ func ValidateFinalClaudeThinking(body []byte, req cliproxyexecutor.Request) erro
 	return thinking.ValidateClaudeModelRequest(body, claudeModelInfoForRequest(req, model))
 }
 
-// ValidateNativeClaudeRequest checks fields from the caller as sent, before
-// the canonical thinking pipeline can translate them into different options.
-func ValidateNativeClaudeRequest(body []byte, req cliproxyexecutor.Request, model, apiVersion string, stream, countTokens bool) error {
-	return thinking.ValidateNativeClaudeModelRequest(body, claudeModelInfoForRequest(req, model), apiVersion, stream, countTokens)
+// ValidateNativeClaudeRequest checks native fields using the effective upstream model.
+func ValidateNativeClaudeRequest(body []byte, req cliproxyexecutor.Request, model string, opts thinking.ClaudeNativeRequestOptions) error {
+	return thinking.ValidateNativeClaudeModelRequest(body, claudeModelInfoForRequest(req, model), opts)
+}
+
+func ClaudeModelUsesNativeContract(req cliproxyexecutor.Request, model string) bool {
+	return thinking.ClaudeModelUsesNativeContract(claudeModelInfoForRequest(req, model))
 }
 
 func ClaudeModelChecksThinkingPrefix(req cliproxyexecutor.Request, model string) bool {
