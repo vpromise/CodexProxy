@@ -62,12 +62,6 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	originalPayload := originalPayloadSource
 	incomingHeaders, claudeCodeDetection := detectIncomingClaudeCodeRequest(ctx, opts.Headers, originalPayload, false, e.cfg)
 	nativeAnthropic := from == to && isAnthropicUpstreamBase(baseURL)
-	apiVersion := strings.TrimSpace(incomingHeaders.Get("Anthropic-Version"))
-	if nativeAnthropic {
-		if err := helps.ValidateNativeClaudeRequest(originalPayload, req, upstreamModel, apiVersion, true, false); err != nil {
-			return nil, err
-		}
-	}
 	confirmedClaudeCode := claudeCodeDetection.Confirmed
 	claudeSessionID := ""
 	if fp.ProfileClaudeCodeCLI {
@@ -97,7 +91,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 
 	// Native recognition only restores a measured representation after the
 	// canonical thinking pipeline validates it; it is not a trust boundary.
-	body, err = applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier())
+	body, err = applyClaudeRequestThinking(body, req, opts, from.String(), to.String(), e.Identifier(), nativeAnthropic)
 	if err != nil {
 		return nil, err
 	}
@@ -175,10 +169,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		requestedModel,
 		requestPath,
 		opts.Headers,
-		"context_management",
-		"fallbacks",
-		"thinking.display",
-		"diagnostics",
+		claudeMessagesTrackedPayloadPaths...,
 	)
 	contextManagementState.payloadRuleTouched = touchedPayloadPaths["context_management"]
 	body = reconcileClaudeCodeSystemPlacementAfterPayload(body, systemPlacementState)
@@ -228,16 +219,21 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	body = ensureModelMaxTokens(body, baseModel)
 
 	finalModel := gjson.GetBytes(body, "model").String()
-	if nativeAnthropic {
-		if err := helps.ValidateNativeClaudeRequest(body, req, finalModel, apiVersion, true, false); err != nil {
+	usesNativeContract := nativeAnthropic && helps.ClaudeModelUsesNativeContract(req, finalModel)
+	if usesNativeContract {
+		validation := claudeNativeValidationOptions(req, opts, auth, incomingHeaders)
+		validation.Stream = true
+		if err := validateNativeClaudeMessages(originalPayload, body, req, finalModel, validation, touchedPayloadPaths); err != nil {
 			return nil, err
 		}
 	}
-
-	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
-	body = disableThinkingIfToolChoiceForced(body)
+	if !usesNativeContract || cloaked {
+		body = disableThinkingIfToolChoiceForced(body)
+	}
 	body = reconcileClaudeCodeContextManagement(body, contextManagementState)
-	body = normalizeClaudeSamplingForUpstream(body, nativePassthrough)
+	if !usesNativeContract || cloaked {
+		body = normalizeClaudeSamplingForUpstream(body, nativePassthrough)
+	}
 
 	// Anthropic validates the whole caller prefix on these models. Preserve
 	// native history and cache policy independently of client fingerprinting.
@@ -324,6 +320,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 		incomingHeaders,
 		nativePassthrough,
 		nativeHelperProfile,
+		usesNativeContract,
 		claudeSessionID,
 	); errHeaders != nil {
 		return nil, errHeaders

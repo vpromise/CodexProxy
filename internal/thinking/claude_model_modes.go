@@ -9,29 +9,62 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// ValidateNativeClaudeModelRequest checks explicit Messages API options before
-// cross-format compatibility helpers can convert or remove them.
-func ValidateNativeClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo, apiVersion string, stream, countTokens bool) error {
-	if modelInfo == nil || modelInfo.UserDefined || modelInfo.IsCompat {
+// ClaudeNativeRequestOptions describes the effective Messages request contract.
+type ClaudeNativeRequestOptions struct {
+	APIVersion         string
+	Stream             bool
+	CountTokens        bool
+	ThinkingOverridden bool
+}
+
+// ClaudeModelUsesNativeContract excludes explicitly compatible and user-defined models.
+func ClaudeModelUsesNativeContract(modelInfo *registry.ModelInfo) bool {
+	return !IsUserDefinedModel(modelInfo) && !modelInfo.IsCompat &&
+		(modelInfo.Type == "" || strings.EqualFold(modelInfo.Type, "claude"))
+}
+
+// ValidateNativeClaudeModelRequest checks explicit Messages API options that
+// the canonical thinking pipeline or the executor might rewrite.
+func ValidateNativeClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo, opts ClaudeNativeRequestOptions) error {
+	if !ClaudeModelUsesNativeContract(modelInfo) {
 		return nil
-	}
-	if err := ValidateClaudeModelRequest(body, modelInfo); err != nil {
-		return err
 	}
 	invalid := func(message string) error {
 		return NewThinkingErrorWithModel(ErrInvalidThinkingConfig, message, modelInfo.ID)
+	}
+	mode := ""
+	if !opts.ThinkingOverridden {
+		if err := ValidateClaudeModelRequest(body, modelInfo); err != nil {
+			return err
+		}
+		mode = gjson.GetBytes(body, "thinking.type").String()
+		switch mode {
+		case "auto":
+			return invalid("thinking.type auto is not supported; use adaptive thinking")
+		case "adaptive":
+			if gjson.GetBytes(body, "thinking.budget_tokens").Exists() {
+				return invalid("adaptive thinking does not accept budget_tokens")
+			}
+		case "disabled", "between_tools":
+			if gjson.GetBytes(body, "thinking.block_binding").Exists() {
+				return invalid("thinking.block_binding requires adaptive thinking")
+			}
+		}
 	}
 	toolChoice := gjson.GetBytes(body, "tool_choice.type").String()
 	forcedTool := toolChoice == "any" || toolChoice == "tool"
 	model := claudeThinkingModel(modelInfo)
 	if forcedTool {
+		if mode == "enabled" {
+			return invalid("manual thinking does not support forced tool choice")
+		}
 		switch model {
 		case "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-fable-5-2", "claude-mythos-5-1", "claude-mythos-5-2":
 			return invalid("tool_choice type tool and any are not supported for this model")
 		}
 	}
-	if maxTokens := gjson.GetBytes(body, "max_tokens"); !countTokens && maxTokens.Type == gjson.Number && maxTokens.Num == 0 {
-		if stream || gjson.GetBytes(body, "stream").Bool() || gjson.GetBytes(body, "thinking.type").String() == "enabled" ||
+	if maxTokens := gjson.GetBytes(body, "max_tokens"); !opts.CountTokens && maxTokens.Type == gjson.Number && maxTokens.Num == 0 {
+		if opts.Stream || gjson.GetBytes(body, "stream").Bool() || mode == "enabled" ||
 			gjson.GetBytes(body, "output_config.format").IsObject() || forcedTool {
 			return invalid("max_tokens: 0 requires a non-streaming request without manual thinking, output format, or forced tool choice")
 		}
@@ -43,7 +76,7 @@ func ValidateNativeClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo
 	if !temperature.Exists() && !topP.Exists() && !topK.Exists() {
 		return nil
 	}
-	if _, err := time.Parse(time.DateOnly, apiVersion); err == nil && apiVersion >= "2026-10-21" {
+	if _, err := time.Parse(time.DateOnly, opts.APIVersion); err == nil && opts.APIVersion >= "2026-10-21" {
 		return invalid("temperature, top_p and top_k are not supported by this Anthropic API version")
 	}
 	switch model {
@@ -62,6 +95,17 @@ func ValidateNativeClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo
 		}
 		if temperature.Type != gjson.Null && topP.Type != gjson.Null {
 			return invalid("temperature and top_p cannot both be set for this model")
+		}
+	default:
+		if (model == "claude-haiku-4-5" || model == "claude-sonnet-4-5" || model == "claude-opus-4-5" || model == "claude-opus-4-1") &&
+			temperature.Type != gjson.Null && topP.Type != gjson.Null {
+			return invalid("temperature and top_p cannot both be set for this model")
+		}
+		if mode == "enabled" || mode == "adaptive" {
+			if topK.Type != gjson.Null || (temperature.Type != gjson.Null && temperature.Num != 1) ||
+				(topP.Type != gjson.Null && (topP.Num < 0.95 || topP.Num > 1)) {
+				return invalid("sampling options are incompatible with active thinking")
+			}
 		}
 	}
 	return nil
@@ -131,7 +175,7 @@ func ValidateClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo) erro
 }
 
 func claudeThinkingModel(modelInfo *registry.ModelInfo) string {
-	if IsUserDefinedModel(modelInfo) || modelInfo.IsCompat || (modelInfo.Type != "" && !strings.EqualFold(modelInfo.Type, "claude")) {
+	if !ClaudeModelUsesNativeContract(modelInfo) {
 		return ""
 	}
 	model := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(modelInfo.ID)), ".", "-")
@@ -148,7 +192,7 @@ func claudeThinkingModel(modelInfo *registry.ModelInfo) string {
 		"claude-fable-5", "claude-fable-5-1", "claude-fable-5-2",
 		"claude-mythos-5", "claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview",
 		"claude-sonnet-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
-		"claude-sonnet-4-6", "claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5":
+		"claude-sonnet-4-6", "claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1":
 		return model
 	default:
 		return ""

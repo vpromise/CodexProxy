@@ -23,6 +23,9 @@ func TestClaudeNativeRequestValidatesBeforeNormalization(t *testing.T) {
 				name, fields, apiVersion string
 			}{
 				{name: "manual budget", fields: `,"thinking":{"type":"enabled","budget_tokens":2048}`},
+				{name: "adaptive with manual budget", fields: `,"thinking":{"type":"adaptive","budget_tokens":2048},"output_config":{"effort":"high"}`},
+				{name: "non-native thinking type", fields: `,"thinking":{"type":"auto"},"output_config":{"effort":"high"}`},
+				{name: "unsupported effort", fields: `,"thinking":{"type":"adaptive"},"output_config":{"effort":"ultra"}`},
 				{name: "disabled", fields: `,"thinking":{"type":"disabled"}`},
 				{name: "between tools", fields: `,"thinking":{"type":"between_tools"}`},
 				{name: "forced tool", fields: `,"tool_choice":{"type":"any"}`},
@@ -106,6 +109,174 @@ func TestClaudeNativeRequestPreservesAPIVersion(t *testing.T) {
 		if got := helps.HeaderValueCaseInsensitive(upstream.headers, "Anthropic-Version"); got != tt.version {
 			t.Errorf("upstream API version = %q, want %q", got, tt.version)
 		}
+	}
+}
+
+func TestClaudeNativeRequestHonorsThinkingSuffix(t *testing.T) {
+	const model = "claude-opus-5-5"
+	req := cliproxyexecutor.Request{
+		Model:   model + "(high)",
+		Payload: []byte(`{"model":"claude-opus-5-5(high)","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"disabled"}}`),
+	}
+	auth := midSystemAuth()
+	for _, route := range []string{"execute", "stream", "count"} {
+		t.Run(route, func(t *testing.T) {
+			upstream := &midSystemUpstream{}
+			executor := NewClaudeExecutor(&config.Config{DisableClaudeCloakMode: true})
+			if err := runFinalThinkingExecutor(route, executor, upstream.context(t, nil), auth, req); err != nil {
+				t.Fatal(err)
+			}
+			if got := gjson.GetBytes(upstream.body, "thinking.type").String(); got != "adaptive" {
+				t.Errorf("upstream thinking.type = %q, want adaptive from suffix", got)
+			}
+		})
+	}
+}
+
+func TestClaudeNativeRequestUsesCredentialAPIVersion(t *testing.T) {
+	for _, tt := range []struct {
+		incoming, configured, wantVersion string
+		wantError                         bool
+	}{
+		{incoming: "2026-10-21", configured: "2023-06-01", wantVersion: "2023-06-01"},
+		{incoming: "2023-06-01", configured: "$X-Configured-Version", wantVersion: "2026-10-21", wantError: true},
+	} {
+		t.Run(tt.configured, func(t *testing.T) {
+			headers := http.Header{"Anthropic-Version": {tt.incoming}, "X-Configured-Version": {tt.wantVersion}}
+			upstream := &midSystemUpstream{}
+			executor := NewClaudeExecutor(midSystemConfig())
+			auth := midSystemAuth()
+			auth.Attributes["header:anthropic-version"] = tt.configured
+			req := cliproxyexecutor.Request{Model: "claude-opus-5-5", Payload: []byte(`{"model":"claude-opus-5-5","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],"temperature":1}`)}
+			err := runFinalThinkingExecutor("execute", executor, upstream.context(t, headers), auth, req)
+			if tt.wantError {
+				assertFinalThinkingRequestError(t, err, upstream.called)
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := helps.HeaderValueCaseInsensitive(upstream.headers, "Anthropic-Version"); got != tt.wantVersion {
+				t.Errorf("upstream API version = %q, want %q", got, tt.wantVersion)
+			}
+		})
+	}
+}
+
+func TestClaudeTranslatedRequestKeepsFixedAPIVersion(t *testing.T) {
+	const model = "claude-opus-5"
+	body := []byte(`{"model":"claude-opus-5","max_tokens":128,"messages":[{"role":"user","content":"hi"}]}`)
+	upstream := &midSystemUpstream{}
+	headers := http.Header{"Anthropic-Version": {"2026-10-21"}}
+	executor := NewClaudeExecutor(midSystemConfig())
+	req := cliproxyexecutor.Request{Model: model, Payload: body}
+	opts := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatOpenAI}
+	if _, err := executor.Execute(upstream.context(t, headers), midSystemAuth(), req, opts); err != nil {
+		t.Fatal(err)
+	}
+	if got := helps.HeaderValueCaseInsensitive(upstream.headers, "Anthropic-Version"); got != "2023-06-01" {
+		t.Errorf("translated upstream API version = %q, want fixed CLI version", got)
+	}
+}
+
+func TestClaudeNativeForcedToolHonorsThinking(t *testing.T) {
+	for _, tt := range []struct {
+		model, thinking string
+		wantError       bool
+	}{
+		{model: "claude-opus-5", thinking: `{"type":"adaptive"}`},
+		{model: "claude-sonnet-4-6", thinking: `{"type":"enabled","budget_tokens":2048}`, wantError: true},
+	} {
+		for _, route := range []string{"execute", "stream"} {
+			t.Run(tt.model+"/"+route, func(t *testing.T) {
+				upstream := &midSystemUpstream{}
+				executor := NewClaudeExecutor(&config.Config{DisableClaudeCloakMode: true})
+				auth := midSystemAuth()
+				auth.Attributes["cloak_mode"] = "never"
+				req := cliproxyexecutor.Request{Model: tt.model, Payload: []byte(`{"model":"` + tt.model + `","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"read","input_schema":{"type":"object"}}],"tool_choice":{"type":"any"},"output_config":{"effort":"high"},"thinking":` + tt.thinking + `}`)}
+				err := runFinalThinkingExecutor(route, executor, upstream.context(t, nil), auth, req)
+				if tt.wantError {
+					assertFinalThinkingRequestError(t, err, upstream.called)
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if values := gjson.GetManyBytes(upstream.body, "thinking.type", "output_config.effort"); values[0].String() != "adaptive" || values[1].String() != "high" {
+					t.Errorf("upstream adaptive thinking or effort was removed: %s", upstream.body)
+				}
+			})
+		}
+	}
+}
+
+func TestClaudeNativeRequestValidatesEffectiveModel(t *testing.T) {
+	executor := NewClaudeExecutor(&config.Config{Payload: config.PayloadConfig{Override: []config.PayloadRule{{
+		Models: []config.PayloadModelRule{{Name: "*"}},
+		Params: map[string]any{"model": "claude-opus-4-6"},
+	}}}})
+	req := cliproxyexecutor.Request{Model: "claude-opus-5-5", Payload: []byte(`{"model":"claude-opus-5-5","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"read","input_schema":{"type":"object"}}],"tool_choice":{"type":"any"}}`)}
+	for _, route := range []string{"execute", "stream"} {
+		t.Run(route, func(t *testing.T) {
+			upstream := &midSystemUpstream{}
+			if err := runFinalThinkingExecutor(route, executor, upstream.context(t, nil), midSystemAuth(), req); err != nil {
+				t.Fatal(err)
+			}
+			if got := gjson.GetBytes(upstream.body, "model").String(); got != "claude-opus-4-6" {
+				t.Errorf("upstream model = %q, want configured override", got)
+			}
+		})
+	}
+}
+
+func TestClaudeNativeRequestHonorsPayloadOptionOverride(t *testing.T) {
+	executor := NewClaudeExecutor(&config.Config{Payload: config.PayloadConfig{Override: []config.PayloadRule{{
+		Models: []config.PayloadModelRule{{Name: "*"}},
+		Params: map[string]any{"tool_choice.type": "auto"},
+	}}}})
+	req := cliproxyexecutor.Request{Model: "claude-opus-5-5", Payload: []byte(`{"model":"claude-opus-5-5","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"read","input_schema":{"type":"object"}}],"tool_choice":{"type":"any"}}`)}
+	for _, route := range []string{"execute", "stream"} {
+		t.Run(route, func(t *testing.T) {
+			upstream := &midSystemUpstream{}
+			if err := runFinalThinkingExecutor(route, executor, upstream.context(t, nil), midSystemAuth(), req); err != nil {
+				t.Fatal(err)
+			}
+			if got := gjson.GetBytes(upstream.body, "tool_choice.type").String(); got != "auto" {
+				t.Errorf("upstream tool_choice.type = %q, want configured override", got)
+			}
+		})
+	}
+}
+
+func TestClaudeNativePrewarmRejectsManualThinkingSuffix(t *testing.T) {
+	upstream := &midSystemUpstream{}
+	executor := NewClaudeExecutor(&config.Config{})
+	req := cliproxyexecutor.Request{Model: "claude-opus-4-6(2048)", Payload: []byte(`{"model":"claude-opus-4-6(2048)","max_tokens":0,"messages":[{"role":"user","content":"warmup"}]}`)}
+	err := runFinalThinkingExecutor("execute", executor, upstream.context(t, nil), midSystemAuth(), req)
+	assertFinalThinkingRequestError(t, err, upstream.called)
+}
+
+func TestClaudeNativeLegacyRejectsConflictingSampling(t *testing.T) {
+	upstream := &midSystemUpstream{}
+	executor := NewClaudeExecutor(&config.Config{})
+	req := cliproxyexecutor.Request{Model: "claude-haiku-4-5-20251001", Payload: []byte(`{"model":"claude-haiku-4-5-20251001","max_tokens":128,"messages":[{"role":"user","content":"hi"}],"temperature":0.7,"top_p":0.99}`)}
+	auth := midSystemAuth()
+	auth.Attributes["cloak_mode"] = "never"
+	err := runFinalThinkingExecutor("execute", executor, upstream.context(t, nil), auth, req)
+	assertFinalThinkingRequestError(t, err, upstream.called)
+}
+
+func TestClaudeNativeLegacyThinkingRejectsIncompatibleOptions(t *testing.T) {
+	for _, fields := range []string{
+		`"thinking":{"type":"adaptive"},"top_p":0.5`,
+		`"thinking":{"type":"adaptive"},"top_k":2`,
+		`"thinking":{"type":"disabled","block_binding":{"prefix_mismatch_behavior":"error"}}`,
+	} {
+		upstream := &midSystemUpstream{}
+		executor := NewClaudeExecutor(&config.Config{})
+		req := cliproxyexecutor.Request{Model: "claude-sonnet-4-6", Payload: []byte(`{"model":"claude-sonnet-4-6","max_tokens":4096,"messages":[{"role":"user","content":"hi"}],` + fields + "}")}
+		err := runFinalThinkingExecutor("execute", executor, upstream.context(t, nil), midSystemAuth(), req)
+		assertFinalThinkingRequestError(t, err, upstream.called)
 	}
 }
 

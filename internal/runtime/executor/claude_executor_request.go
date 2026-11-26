@@ -80,13 +80,87 @@ const (
 )
 
 // applyClaudeRequestThinking always runs the canonical validation pipeline.
-func applyClaudeRequestThinking(body []byte, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, fromFormat, toFormat, provider string) ([]byte, error) {
+func applyClaudeRequestThinking(body []byte, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, fromFormat, toFormat, provider string, nativeAnthropic bool) ([]byte, error) {
 	requestedSuffix := thinking.ParseSuffix(helps.PayloadRequestedModel(opts, req.Model))
 	if requestedSuffix.HasSuffix {
 		baseModel := thinking.ParseSuffix(req.Model).ModelName
 		req.Model = fmt.Sprintf("%s(%s)", baseModel, requestedSuffix.RawSuffix)
 	}
-	return helps.ApplyRequestThinking(body, req, opts, fromFormat, toFormat, provider)
+	normalized, err := helps.ApplyRequestThinking(body, req, opts, fromFormat, toFormat, provider)
+	if err != nil && nativeAnthropic && helps.ClaudeModelUsesNativeContract(req, req.Model) {
+		var invalid *thinking.ThinkingError
+		if errors.As(err, &invalid) && (invalid.Code == thinking.ErrLevelNotSupported || invalid.Code == thinking.ErrBudgetOutOfRange) {
+			// These client inputs cannot be fixed by rotating the credential.
+			requestError := *invalid
+			requestError.Code = thinking.ErrInvalidThinkingConfig
+			return normalized, &requestError
+		}
+	}
+	return normalized, err
+}
+
+func claudeNativeValidationOptions(req cliproxyexecutor.Request, opts cliproxyexecutor.Options, auth *cliproxyauth.Auth, incomingHeaders http.Header) thinking.ClaudeNativeRequestOptions {
+	version := strings.TrimSpace(incomingHeaders.Get("Anthropic-Version"))
+	if auth != nil {
+		for key := range auth.Attributes {
+			if name, ok := strings.CutPrefix(key, "header:"); ok && strings.EqualFold(strings.TrimSpace(name), "Anthropic-Version") {
+				// Use the same precedence and dynamic header substitution as dispatch.
+				headers := &http.Request{Header: make(http.Header)}
+				util.ApplyCustomHeadersFromAttrs(headers, auth.Attributes, incomingHeaders)
+				if configured := strings.TrimSpace(headers.Header.Get("Anthropic-Version")); configured != "" {
+					version = configured
+				}
+				break
+			}
+		}
+	}
+	return thinking.ClaudeNativeRequestOptions{
+		APIVersion: version,
+		ThinkingOverridden: thinking.ParseSuffix(helps.PayloadRequestedModel(opts, req.Model)).HasSuffix ||
+			thinking.ParseSuffix(req.Model).HasSuffix,
+	}
+}
+
+var claudeNativeValidationFields = []string{
+	"thinking.type", "thinking.budget_tokens", "thinking.display", "thinking.block_binding",
+	"output_config.effort", "output_config.format", "tool_choice.type",
+	"max_tokens", "stream", "temperature", "top_p", "top_k",
+}
+
+var claudeMessagesTrackedPayloadPaths = append(
+	[]string{"context_management", "fallbacks", "diagnostics"},
+	claudeNativeValidationFields...,
+)
+
+func validateNativeClaudeMessages(original, rendered []byte, req cliproxyexecutor.Request, model string, options thinking.ClaudeNativeRequestOptions, touched map[string]bool) error {
+	// Retain caller controls removed during rendering, and use the rendered
+	// value wherever a suffix or an applied payload rule owns the field.
+	if options.ThinkingOverridden {
+		original = useRenderedClaudeValidationField(original, rendered, "thinking")
+		options.ThinkingOverridden = false
+	}
+	for _, field := range claudeNativeValidationFields {
+		if touched[field] {
+			original = useRenderedClaudeValidationField(original, rendered, field)
+		}
+	}
+	if err := helps.ValidateNativeClaudeRequest(original, req, model, options); err != nil {
+		return err
+	}
+	return helps.ValidateNativeClaudeRequest(rendered, req, model, options)
+}
+
+func useRenderedClaudeValidationField(original, rendered []byte, field string) []byte {
+	value := gjson.GetBytes(rendered, field)
+	if value.Raw == gjson.GetBytes(original, field).Raw {
+		return original
+	}
+	if value.Exists() {
+		original, _ = sjson.SetRawBytes(original, field, []byte(value.Raw))
+	} else {
+		original, _ = sjson.DeleteBytes(original, field)
+	}
+	return original
 }
 
 // restoreClaudeHelperOutputConfigIfEligible handles the one measured exception
@@ -1030,6 +1104,7 @@ func applyClaudeHeaders(r *http.Request, auth *cliproxyauth.Auth, apiKey string,
 		incomingHeaders,
 		confirmedClaudeCode,
 		false,
+		false,
 		sessionIDs...,
 	)
 }
@@ -1045,6 +1120,7 @@ func applyClaudeHeadersWithNativeProfile(
 	incomingHeaders http.Header,
 	confirmedClaudeCode bool,
 	helperProfile bool,
+	honorCallerAPIVersion bool,
 	sessionIDs ...string,
 ) error {
 	if r == nil {
@@ -1318,7 +1394,7 @@ func applyClaudeHeadersWithNativeProfile(
 		}
 		r.Header.Set(name, fallback)
 	}
-	if isAnthropicBase {
+	if isAnthropicBase && honorCallerAPIVersion {
 		misc.EnsureHeader(r.Header, incomingHeaders, "Anthropic-Version", "2023-06-01")
 	} else {
 		identityHeader("Anthropic-Version", "2023-06-01")
