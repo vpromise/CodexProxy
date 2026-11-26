@@ -11,6 +11,8 @@ Go 1.26+ proxy server focused on Codex, Claude, and OpenAI-compatible APIs with 
 ## Repository
 - GitHub: https://github.com/router-for-me/CLIProxyAPI
 
+Keep deployment records, host identities, live configuration, and recovery details outside source control. Record operational evidence on the target host or in the private deployment ledger.
+
 ## Commands
 ```bash
 gofmt -w . # Format (required after Go changes)
