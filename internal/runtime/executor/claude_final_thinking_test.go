@@ -3,16 +3,111 @@ package executor
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+func TestClaudeNativeRequestValidatesBeforeNormalization(t *testing.T) {
+	for _, model := range []string{"claude-opus-5-5", "claude-fable-5-2"} {
+		for _, path := range []string{"execute", "stream", "count"} {
+			for _, tt := range []struct {
+				name, fields, apiVersion string
+			}{
+				{name: "manual budget", fields: `,"thinking":{"type":"enabled","budget_tokens":2048}`},
+				{name: "disabled", fields: `,"thinking":{"type":"disabled"}`},
+				{name: "between tools", fields: `,"thinking":{"type":"between_tools"}`},
+				{name: "forced tool", fields: `,"tool_choice":{"type":"any"}`},
+				{name: "top k", fields: `,"top_k":2`},
+				{name: "temperature", fields: `,"temperature":0.2`},
+				{name: "top p", fields: `,"top_p":1`},
+				{name: "multiple sampling fields", fields: `,"temperature":1,"top_p":0.99`},
+				{name: "sampling removed in newer API", fields: `,"temperature":1`, apiVersion: "2026-10-21"},
+			} {
+				t.Run(model+"/"+path+"/"+tt.name, func(t *testing.T) {
+					upstream := &midSystemUpstream{}
+					cfg := &config.Config{DisableClaudeCloakMode: true}
+					auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "fixture-claude-native"}}
+					req := cliproxyexecutor.Request{Model: model, Payload: []byte(`{"model":"` + model + `","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]` + tt.fields + `}`)}
+					headers := make(http.Header)
+					if tt.apiVersion != "" {
+						headers.Set("Anthropic-Version", tt.apiVersion)
+					}
+					errRun := runFinalThinkingExecutor(path, NewClaudeExecutor(cfg), upstream.context(t, headers), auth, req)
+					assertFinalThinkingRequestError(t, errRun, upstream.called)
+				})
+			}
+		}
+	}
+}
+
+func TestClaudeNativeCachePrewarming(t *testing.T) {
+	const model = "claude-opus-5-5"
+	const payload = `{"model":"claude-opus-5-5","max_tokens":0,
+		"system":[{"type":"text","text":"cached context","cache_control":{"type":"ephemeral","ttl":"1h"}}],
+		"messages":[{"role":"user","content":"hi"}]`
+	for _, tt := range []struct {
+		name, path, fields string
+		wantError          bool
+	}{
+		{name: "prewarm", path: "execute"},
+		{name: "explicit stream flag", path: "execute", fields: `,"stream":true`, wantError: true},
+		{name: "stream entry point", path: "stream", wantError: true},
+		{name: "structured output", path: "execute", fields: `,"output_config":{"format":{"type":"json_schema","schema":{"type":"object"}}}`, wantError: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := &midSystemUpstream{}
+			cfg := &config.Config{DisableClaudeCloakMode: true}
+			auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "fixture-claude-native"}}
+			req := cliproxyexecutor.Request{Model: model, Payload: []byte(payload + tt.fields + "}")}
+			err := runFinalThinkingExecutor(tt.path, NewClaudeExecutor(cfg), upstream.context(t, nil), auth, req)
+			if tt.wantError {
+				assertFinalThinkingRequestError(t, err, upstream.called)
+				return
+			}
+			if err != nil || !upstream.called {
+				t.Fatalf("valid prewarm request failed: dispatched=%v error=%v", upstream.called, err)
+			}
+			if got := gjson.GetBytes(upstream.body, "max_tokens"); got.Type != gjson.Number || got.Num != 0 {
+				t.Fatalf("max_tokens = %s, want explicit zero", got.Raw)
+			}
+			if got := gjson.GetBytes(upstream.body, "system.0.cache_control.ttl").String(); got != "1h" {
+				t.Fatalf("cache TTL = %q, want 1h", got)
+			}
+		})
+	}
+}
+
+func TestClaudeNativeRequestPreservesAPIVersion(t *testing.T) {
+	auth := midSystemAuth()
+	executor := NewClaudeExecutor(midSystemConfig())
+	for _, tt := range []struct {
+		version, fields string
+	}{
+		{version: "2023-06-01", fields: `,"temperature":1`},
+		{version: "2023-06-01", fields: `,"top_p":0.99`},
+		{version: "2026-10-21"},
+	} {
+		upstream := &midSystemUpstream{}
+		headers := make(http.Header)
+		headers.Set("Anthropic-Version", tt.version)
+		req := cliproxyexecutor.Request{Model: "claude-opus-5-5", Payload: []byte(`{"model":"claude-opus-5-5","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]` + tt.fields + "}")}
+		if err := runFinalThinkingExecutor("execute", executor, upstream.context(t, headers), auth, req); err != nil {
+			t.Fatalf("valid request for version %s with fields %q failed: %v", tt.version, tt.fields, err)
+		}
+		if got := helps.HeaderValueCaseInsensitive(upstream.headers, "Anthropic-Version"); got != tt.version {
+			t.Errorf("upstream API version = %q, want %q", got, tt.version)
+		}
+	}
+}
 
 func TestClaudeFinalThinkingAfterPayloadOverride(t *testing.T) {
 	for _, path := range []string{"execute", "stream"} {
@@ -117,6 +212,7 @@ func runFinalThinkingExecutor(path string, executor *ClaudeExecutor, ctx context
 		_, err := executor.CountTokens(ctx, auth, req, opts)
 		return err
 	case "stream":
+		opts.OriginalRequest = req.Payload
 		req.Payload, _ = sjson.SetBytes(req.Payload, "stream", true)
 		opts.Stream = true
 		result, err := executor.ExecuteStream(ctx, auth, req, opts)

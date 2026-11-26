@@ -4522,6 +4522,32 @@ func TestRelocateClaudeSystemPromptForCountTokensKeepsBlocksSeparate(t *testing.
 	}
 }
 
+func TestClaudeAdvisorDeclarationKeepsCallerSystemPlacementStable(t *testing.T) {
+	const initial = `{"model":"claude-opus-5","system":[{"type":"text","text":"caller guidance"}],
+		"tools":[{"type":"advisor_20260301","name":"advisor","model":"claude-haiku-4-5-20251001"}],
+		"messages":[{"role":"user","content":"hello"}]`
+	const continuation = `,
+		{"role":"assistant","content":[{"type":"server_tool_use","id":"srvtoolu_adv1","name":"advisor","input":{}}]},
+		{"role":"user","content":[{"type":"advisor_tool_result","tool_use_id":"srvtoolu_adv1","content":{"type":"advisor_redacted_result","encrypted_content":"fixture"}}]}]`
+
+	for _, body := range []string{initial + "}", strings.TrimSuffix(initial, "]") + continuation + "}"} {
+		wantCount := gjson.Get(body, "messages.#").Int()
+		messages := checkSystemInstructionsWithSigningModeAt([]byte(body), false, true, "2.1.280", "cli", "", time.Now(), false, "", "", false)
+		if got := gjson.GetBytes(messages, "system.2.text").String(); got != "caller guidance" {
+			t.Errorf("Messages system block = %q, want top-level caller guidance", got)
+		}
+		count := relocateClaudeSystemPromptForCountTokensWithPolicy([]byte(body), false, false)
+		if got := gjson.GetBytes(count, "system.0.text").String(); got != "caller guidance" {
+			t.Errorf("CountTokens system block = %q, want top-level caller guidance", got)
+		}
+		for _, result := range [][]byte{messages, count} {
+			if got := gjson.GetBytes(result, "messages.#").Int(); got != wantCount {
+				t.Errorf("messages count = %d, want %d unchanged", got, wantCount)
+			}
+		}
+	}
+}
+
 func TestCheckSystemInstructionsWithMode_AdvisorToolResultPreservesTopLevelSystemAndKeepsMessagesIntact(t *testing.T) {
 	payload := []byte(`{
 		"model": "claude-opus-5",

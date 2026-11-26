@@ -35,7 +35,22 @@ func ApplyRequestThinking(body []byte, req cliproxyexecutor.Request, opts clipro
 // thinking again. A late payload model override must not inherit a different
 // configured model's compatibility contract.
 func ValidateFinalClaudeThinking(body []byte, req cliproxyexecutor.Request) error {
-	finalModel := strings.TrimSpace(thinking.ParseSuffix(strings.TrimSpace(gjson.GetBytes(body, "model").String())).ModelName)
+	model := gjson.GetBytes(body, "model").String()
+	return thinking.ValidateClaudeModelRequest(body, claudeModelInfoForRequest(req, model))
+}
+
+// ValidateNativeClaudeRequest checks fields from the caller as sent, before
+// the canonical thinking pipeline can translate them into different options.
+func ValidateNativeClaudeRequest(body []byte, req cliproxyexecutor.Request, model, apiVersion string, stream, countTokens bool) error {
+	return thinking.ValidateNativeClaudeModelRequest(body, claudeModelInfoForRequest(req, model), apiVersion, stream, countTokens)
+}
+
+func ClaudeModelChecksThinkingPrefix(req cliproxyexecutor.Request, model string) bool {
+	return thinking.ClaudeModelChecksThinkingPrefix(claudeModelInfoForRequest(req, model))
+}
+
+func claudeModelInfoForRequest(req cliproxyexecutor.Request, model string) *registry.ModelInfo {
+	finalModel := strings.TrimSpace(thinking.ParseSuffix(strings.TrimSpace(model)).ModelName)
 	var modelInfo *registry.ModelInfo
 	if selectedInfo, ok := cliproxyauth.ResolvedAPIKeyModelInfo(req); ok {
 		selectedModel := strings.TrimSpace(thinking.ParseSuffix(strings.TrimSpace(selectedInfo.ID)).ModelName)
@@ -51,5 +66,5 @@ func ValidateFinalClaudeThinking(body []byte, req cliproxyexecutor.Request) erro
 	if modelInfo == nil {
 		modelInfo = registry.LookupModelInfo(finalModel, "claude")
 	}
-	return thinking.ValidateClaudeModelRequest(body, modelInfo)
+	return modelInfo
 }

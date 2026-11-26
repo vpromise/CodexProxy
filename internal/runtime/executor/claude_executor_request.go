@@ -1318,7 +1318,11 @@ func applyClaudeHeadersWithNativeProfile(
 		}
 		r.Header.Set(name, fallback)
 	}
-	identityHeader("Anthropic-Version", "2023-06-01")
+	if isAnthropicBase {
+		misc.EnsureHeader(r.Header, incomingHeaders, "Anthropic-Version", "2023-06-01")
+	} else {
+		identityHeader("Anthropic-Version", "2023-06-01")
+	}
 	identityHeader("Anthropic-Dangerous-Direct-Browser-Access", "true")
 	identityHeader("X-App", "cli")
 	// Values below match Claude Code 2.1.280 / @anthropic-ai/sdk 0.112.1.
