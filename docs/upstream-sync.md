@@ -101,6 +101,10 @@ At 05:00:23 Asia/Shanghai, GitHub listed stable [v8.1.5](https://github.com/rout
 - Account model reporting and subscription changes already present in verified main were accounted for. Existing feature checkouts and unpublished local review, catalog and Console edits remain separate, with no unfinished approved upstream-sync batch found.
 - The K1–K6 and U1–U8 decisions and later deferred items below carry forward, excluding the resolved Advisor placement item above. Claude 2.1.321 / SDK 0.128.0 / Node v26.12.1 and Codex 0.154.0 defaults match the previously reviewed versions. No account routing, refresh, cooldown or catalog changes are selected.
 
+### Verified publication
+
+Implementation [`29846d4e`](https://github.com/vpromise/CodexProxy/commit/29846d4e86122b9209e744ee72bedca6194833aa) was published to `vpromise/CodexProxy/main` by normal fast-forward push. GitHub branch and commit APIs and the SSH ref agreed at 05:09:22 Asia/Shanghai. The implementation tree is `df4c75ca75884a0440eaa537c9ff0d6995129875`. GitHub returned zero Actions runs, zero check-runs and zero commit status entries, with an empty pending aggregate. Existing workflows trigger for PRs or tags. The local checks above cover the published code. This receipt changes only the ledger.
+
 ## Current checkpoint - 2026-11-26
 
 At 04:57:38 Asia/Shanghai, stable [v8.1.3](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.3) resolved to `8cd6817b831f34caa593c76242d2c1f0674bf794`, and stable [v8.1.4](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.4) and upstream main resolved to `38fe929502f19f7cce03c69c19aacddf30f1ef5e`. The prior release checkpoint `85225381d89915595598ed13766cd79890c03a84` is an ancestor of both. The complete range has 45 commits through v8.1.3 and 48 more through v8.1.4. Four merges contribute no independent remerge changes, and there are no main-only commits. The fork base was verified origin main `45c2f20d6187dec81827cac11f63ba44969900d5`. The selected paths had no exact stable patch-ID match in local history. Issues #7970, #7974 and #8066 describe three of the concrete failures.
