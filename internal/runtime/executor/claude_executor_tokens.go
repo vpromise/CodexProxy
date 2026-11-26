@@ -139,6 +139,13 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		originalPayload = opts.OriginalRequest
 	}
 	incomingHeaders, claudeCodeDetection := detectIncomingClaudeCodeRequest(ctx, opts.Headers, originalPayload, true, e.cfg)
+	nativeAnthropic := from == to && isAnthropicUpstreamBase(baseURL)
+	apiVersion := strings.TrimSpace(incomingHeaders.Get("Anthropic-Version"))
+	if nativeAnthropic {
+		if err := helps.ValidateNativeClaudeRequest(originalPayload, req, upstreamModel, apiVersion, false, true); err != nil {
+			return cliproxyexecutor.Response{}, err
+		}
+	}
 	confirmedClaudeCode := claudeCodeDetection.Confirmed
 	claudeSessionID := ""
 	if fp.ProfileClaudeCodeCLI {
@@ -185,9 +192,11 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		}
 	}
 
-	// Keep count_tokens requests compatible with Anthropic cache-control constraints too.
-	body = enforceCacheControlLimit(body, 4)
-	body = normalizeCacheControlTTL(body)
+	preserveNativePrefix := nativeAnthropic && !cloaked && helps.ClaudeModelChecksThinkingPrefix(req, gjson.GetBytes(body, "model").String())
+	if !preserveNativePrefix {
+		body = enforceCacheControlLimit(body, 4)
+		body = normalizeCacheControlTTL(body)
+	}
 
 	// Extract betas from body and convert to header (for count_tokens too)
 	var extraBetas []string
@@ -198,7 +207,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		mcpAliases := resolveClaudeMCPAliasOptions(ctx)
 		body, _ = prepareClaudeOAuthToolNamesForUpstream(body, mcpAliases)
 	}
-	body = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, body, baseModel, helps.APIKeyModelIsCompat(req))
+	body = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, body, baseModel, preserveNativePrefix || helps.APIKeyModelIsCompat(req))
 	// Two different reasons converge on the same deletions, and they must stay
 	// separable.
 	//

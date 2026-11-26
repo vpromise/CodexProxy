@@ -3,10 +3,81 @@ package thinking
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/tidwall/gjson"
 )
+
+// ValidateNativeClaudeModelRequest checks explicit Messages API options before
+// cross-format compatibility helpers can convert or remove them.
+func ValidateNativeClaudeModelRequest(body []byte, modelInfo *registry.ModelInfo, apiVersion string, stream, countTokens bool) error {
+	if modelInfo == nil || modelInfo.UserDefined || modelInfo.IsCompat {
+		return nil
+	}
+	if err := ValidateClaudeModelRequest(body, modelInfo); err != nil {
+		return err
+	}
+	invalid := func(message string) error {
+		return NewThinkingErrorWithModel(ErrInvalidThinkingConfig, message, modelInfo.ID)
+	}
+	toolChoice := gjson.GetBytes(body, "tool_choice.type").String()
+	forcedTool := toolChoice == "any" || toolChoice == "tool"
+	model := claudeThinkingModel(modelInfo)
+	if forcedTool {
+		switch model {
+		case "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-fable-5-2", "claude-mythos-5-1", "claude-mythos-5-2":
+			return invalid("tool_choice type tool and any are not supported for this model")
+		}
+	}
+	if maxTokens := gjson.GetBytes(body, "max_tokens"); !countTokens && maxTokens.Type == gjson.Number && maxTokens.Num == 0 {
+		if stream || gjson.GetBytes(body, "stream").Bool() || gjson.GetBytes(body, "thinking.type").String() == "enabled" ||
+			gjson.GetBytes(body, "output_config.format").IsObject() || forcedTool {
+			return invalid("max_tokens: 0 requires a non-streaming request without manual thinking, output format, or forced tool choice")
+		}
+	}
+
+	temperature := gjson.GetBytes(body, "temperature")
+	topP := gjson.GetBytes(body, "top_p")
+	topK := gjson.GetBytes(body, "top_k")
+	if !temperature.Exists() && !topP.Exists() && !topK.Exists() {
+		return nil
+	}
+	if _, err := time.Parse(time.DateOnly, apiVersion); err == nil && apiVersion >= "2026-10-21" {
+		return invalid("temperature, top_p and top_k are not supported by this Anthropic API version")
+	}
+	switch model {
+	case "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-opus-5-5",
+		"claude-sonnet-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+		"claude-fable-5", "claude-fable-5-1", "claude-fable-5-2",
+		"claude-mythos-5", "claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview":
+		if temperature.Type != gjson.Null && (temperature.Type != gjson.Number || temperature.Num != 1) {
+			return invalid("non-default temperature is not supported for this model")
+		}
+		if topP.Type != gjson.Null && (topP.Type != gjson.Number || topP.Num != 0.99) {
+			return invalid("non-default top_p is not supported for this model")
+		}
+		if topK.Type != gjson.Null {
+			return invalid("top_k is deprecated for this model")
+		}
+		if temperature.Type != gjson.Null && topP.Type != gjson.Null {
+			return invalid("temperature and top_p cannot both be set for this model")
+		}
+	}
+	return nil
+}
+
+// ClaudeModelChecksThinkingPrefix reports whether Anthropic can bind a
+// thinking block to the original system, tools, and conversation history.
+func ClaudeModelChecksThinkingPrefix(modelInfo *registry.ModelInfo) bool {
+	switch claudeThinkingModel(modelInfo) {
+	case "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+		"claude-fable-5-1", "claude-fable-5-2", "claude-mythos-5-1", "claude-mythos-5-2":
+		return true
+	default:
+		return false
+	}
+}
 
 // ClaudeThinkingTypeForNone maps canonical none to the model's supported wire
 // setting. Always-on models must report an error instead of enabling thinking.

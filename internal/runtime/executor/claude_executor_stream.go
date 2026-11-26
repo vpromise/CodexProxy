@@ -61,6 +61,13 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	}
 	originalPayload := originalPayloadSource
 	incomingHeaders, claudeCodeDetection := detectIncomingClaudeCodeRequest(ctx, opts.Headers, originalPayload, false, e.cfg)
+	nativeAnthropic := from == to && isAnthropicUpstreamBase(baseURL)
+	apiVersion := strings.TrimSpace(incomingHeaders.Get("Anthropic-Version"))
+	if nativeAnthropic {
+		if err := helps.ValidateNativeClaudeRequest(originalPayload, req, upstreamModel, apiVersion, true, false); err != nil {
+			return nil, err
+		}
+	}
 	confirmedClaudeCode := claudeCodeDetection.Confirmed
 	claudeSessionID := ""
 	if fp.ProfileClaudeCodeCLI {
@@ -219,47 +226,25 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	)
 	body = ensureModelMaxTokens(body, baseModel)
 
+	finalModel := gjson.GetBytes(body, "model").String()
+	if nativeAnthropic {
+		if err := helps.ValidateNativeClaudeRequest(body, req, finalModel, apiVersion, true, false); err != nil {
+			return nil, err
+		}
+	}
+
 	// Disable thinking if tool_choice forces tool use (Anthropic API constraint)
 	body = disableThinkingIfToolChoiceForced(body)
 	body = reconcileClaudeCodeContextManagement(body, contextManagementState)
 	body = normalizeClaudeSamplingForUpstream(body, nativePassthrough)
 
-	// Default cache_control for translated entrypoints (Responses/Chat) and other
-	// non-native callers. A recognized native client in passthrough mode owns its
-	// marker placement and must
-	// not be rewritten. Cloaked requests always run section-independent ensure so cloaking's
-	// first-user marker cannot suppress system/latest-user breakpoints.
-	cpaOwnsCacheControl := shouldEnsureCacheControl(body, cloaked, nativePassthrough)
-	if cpaOwnsCacheControl {
-		body = ensureCacheControl(body)
+	// Anthropic validates the whole caller prefix on these models. Preserve
+	// native history and cache policy independently of client fingerprinting.
+	preserveNativePrefix := nativeAnthropic && !cloaked && helps.ClaudeModelChecksThinkingPrefix(req, finalModel)
+	if !preserveNativePrefix {
+		ownsCacheControl := shouldEnsureCacheControl(body, cloaked, nativePassthrough)
+		body = prepareClaudeCacheControlForUpstream(body, incomingHeaders, ownsCacheControl, fp.ProfileClaudeCodeCLI, isProbeOrHelper)
 	}
-
-	// Enforce Anthropic's cache_control block limit (max 4 breakpoints per request).
-	body = enforceCacheControlLimit(body, 4)
-
-	// Native selects the 1h cache pool only for OAuth credentials and pairs it with
-	// extended-cache-ttl-2025-04-11, which claudeCodeCLIBetas emits on exactly the
-	// same credential condition. Upgrading after placement is settled mirrors the
-	// native ttl helper.
-	//
-	// This runs only while CPA owns placement, and it then owns the ttl of every
-	// breakpoint it can reach: a marker carrying no ttl is the wire default, not an
-	// opt-in to 5m, so a cloaked caller's bare {"type":"ephemeral"} is upgraded too.
-	// Only a ttl the caller wrote out explicitly survives, because
-	// upgradeClaudeCacheControlTTL skips any block that already has one.
-	// claude-code-cli fingerprint profiles emit extended-cache-ttl and must use the same 1h pool.
-	// In native Claude Code, subagents default to 5m unless 1h is explicitly configured;
-	// probes omit both 1h cache and extended-cache-ttl.
-	isSubagent := helps.IsClaudeSubagentRequest(incomingHeaders, body)
-	subagent1h := isSubagent && helps.ClaudeSubagentRequests1h(incomingHeaders, body)
-	if cpaOwnsCacheControl && fp.ProfileClaudeCodeCLI && (!isSubagent || subagent1h) && !isProbeOrHelper {
-		body = upgradeClaudeCacheControlTTL(body, claudeCacheControlTTL1h)
-	} else if isProbeOrHelper || (isSubagent && !subagent1h) {
-		body = stripClaudeCacheControlTTL(body)
-	}
-
-	// Normalize TTL values to prevent ordering violations under prompt-caching-scope-2026-01-05.
-	body = normalizeCacheControlTTL(body)
 
 	// Extract betas from body and convert to header
 	var extraBetas []string
@@ -281,7 +266,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 			bodyForUpstream, oauthToolNamesReverseMap = prepareClaudeOAuthToolNamesForUpstream(bodyForUpstream, mcpAliases)
 		}
 	}
-	bodyForUpstream = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, bodyForUpstream, baseModel, helps.APIKeyModelIsCompat(req))
+	bodyForUpstream = sanitizeClaudeMessagesForClaudeUpstreamWithDebug(ctx, bodyForUpstream, baseModel, preserveNativePrefix || helps.APIKeyModelIsCompat(req))
 	if fp.ApplyCLIIdentity {
 		bodyForUpstream, err = applyClaudeCLIIdentity(bodyForUpstream, auth, apiKey, claudeSessionID, fp.SynthesizeIdentity)
 		if err != nil {

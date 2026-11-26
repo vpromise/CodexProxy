@@ -362,7 +362,7 @@ func checkSystemInstructionsWithSigningModeAt(
 	if len(forwardedSystemBlocks) == 0 {
 		return injectClaudeCodeCurrentDate(payload, now)
 	}
-	if claudeHistoryHasAdvisorCallOrResult(payload) {
+	if claudeBodyHasAdvisorTool(payload) || claudeHistoryHasAdvisorCallOrResult(payload) {
 		for _, block := range forwardedSystemBlocks {
 			systemBlocks = append(systemBlocks, buildTextBlock(block, nil))
 		}
@@ -411,11 +411,9 @@ func relocateClaudeSystemPromptForCountTokensWithPolicy(payload []byte, strictMo
 		updated, _ := sjson.DeleteBytes(payload, "system")
 		return updated
 	}
-	if claudeHistoryHasAdvisorCallOrResult(payload) {
-		// When an advisor call or result is present, the Messages path preserves
-		// caller system blocks in top-level system to prevent shifting message
-		// positions. Keep them in top-level system here as well so token counting
-		// remains aligned with the Messages path without splicing messages[].
+	if claudeBodyHasAdvisorTool(payload) || claudeHistoryHasAdvisorCallOrResult(payload) {
+		// Match Messages placement from the first advisor declaration so neither
+		// path shifts message positions before or after the advisor call.
 		blocks := make([]string, 0, len(forwardedSystemBlocks))
 		for _, block := range forwardedSystemBlocks {
 			blocks = append(blocks, buildTextBlock(block, nil))
@@ -1796,6 +1794,24 @@ func forEachClaudeCacheControlBlock(payload []byte, visit func(path string, bloc
 
 func shouldEnsureCacheControl(payload []byte, cloaked, confirmedClaudeCode bool) bool {
 	return !confirmedClaudeCode && (cloaked || countCacheControls(payload) == 0)
+}
+
+func prepareClaudeCacheControlForUpstream(body []byte, incomingHeaders http.Header, ownsCacheControl, profileCLI, isProbeOrHelper bool) []byte {
+	if ownsCacheControl {
+		body = ensureCacheControl(body)
+	}
+	body = enforceCacheControlLimit(body, 4)
+
+	// A CLI profile that owns placement uses the 1h pool for unqualified
+	// breakpoints. Probes and subagents without an explicit 1h opt-in use 5m.
+	isSubagent := helps.IsClaudeSubagentRequest(incomingHeaders, body)
+	subagent1h := isSubagent && helps.ClaudeSubagentRequests1h(incomingHeaders, body)
+	if ownsCacheControl && profileCLI && (!isSubagent || subagent1h) && !isProbeOrHelper {
+		body = upgradeClaudeCacheControlTTL(body, claudeCacheControlTTL1h)
+	} else if isProbeOrHelper || (isSubagent && !subagent1h) {
+		body = stripClaudeCacheControlTTL(body)
+	}
+	return normalizeCacheControlTTL(body)
 }
 
 func countCacheControls(payload []byte) int {

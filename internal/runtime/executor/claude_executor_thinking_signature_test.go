@@ -3,13 +3,18 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
-	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
-
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // thinkingSignatureFixtures are signature shapes that survive a JSON round trip
@@ -82,6 +87,83 @@ func buildThinkingHistoryPayload(t *testing.T, signatures []string, firstUserTex
 		t.Fatalf("marshal fixture payload: %v", errMarshal)
 	}
 	return encoded
+}
+
+func TestClaudeFable52NativeSignedContinuation(t *testing.T) {
+	const model = "claude-fable-5-2"
+	const signature = "ErUBCkYIBRgCKkDq+9zN/vQ7aB1c2dEf=="
+	body, err := sjson.SetBytes(buildThinkingHistoryPayload(t, []string{signature}, "question"), "model", model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binding := range []string{"", "error"} {
+		t.Run("binding="+binding, func(t *testing.T) {
+			request := body
+			if binding != "" {
+				var errSet error
+				request, errSet = sjson.SetBytes(body, "thinking.block_binding.prefix_mismatch_behavior", binding)
+				if errSet != nil {
+					t.Fatal(errSet)
+				}
+			}
+			for _, stream := range []bool{false, true} {
+				transport := roundTripperFunc(func(out *http.Request) (*http.Response, error) {
+					wire, errRead := io.ReadAll(out.Body)
+					if errRead != nil {
+						t.Fatal(errRead)
+					}
+					for _, path := range []string{"messages", "tools", "max_tokens"} {
+						if got, want := gjson.GetBytes(wire, path).Raw, gjson.GetBytes(request, path).Raw; got != want {
+							t.Errorf("signed request %s = %s, want %s", path, got, want)
+						}
+					}
+					if got := gjson.GetBytes(wire, "thinking.block_binding.prefix_mismatch_behavior").String(); got != binding {
+						t.Errorf("block binding = %q, want %q", got, binding)
+					}
+					if binding != "" && !strings.Contains(helps.HeaderValueCaseInsensitive(out.Header, "Anthropic-Beta"), claudeThinkingBindingBeta) {
+						t.Error("explicit binding is missing its Anthropic-Beta")
+					}
+					contentType := "application/json"
+					resp := `{"id":"msg_fixture","type":"message","role":"assistant","model":"claude-fable-5-2","content":[{"type":"thinking","thinking":"continued","signature":"EgI="}],"stop_reason":"max_tokens","usage":{"input_tokens":8,"output_tokens":1024},"input_transformations":[]}`
+					if stream {
+						contentType = "text/event-stream"
+						resp = claudeReplayThinkingStream()
+					}
+					return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(resp)), Request: out}, nil
+				})
+				ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
+				executor := NewClaudeExecutor(&config.Config{DisableClaudeCloakMode: true})
+				auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "fixture-native-fable"}}
+				opts := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude, Stream: stream}
+				req := cliproxyexecutor.Request{Model: model, Payload: request}
+				if stream {
+					req.Payload = helps.SetBoolIfDifferent(request, "stream", true)
+					out, errStream := executor.ExecuteStream(ctx, auth, req, opts)
+					if errStream != nil {
+						t.Fatal(errStream)
+					}
+					var events strings.Builder
+					for chunk := range out.Chunks {
+						if chunk.Err != nil {
+							t.Fatal(chunk.Err)
+						}
+						events.Write(chunk.Payload)
+					}
+					if !strings.Contains(events.String(), `"type":"signature_delta","signature":"EgI="`) {
+						t.Errorf("native stream lost the signature event: %s", events.String())
+					}
+					continue
+				}
+				out, errExecute := executor.Execute(ctx, auth, req, opts)
+				if errExecute != nil {
+					t.Fatal(errExecute)
+				}
+				if got := gjson.GetManyBytes(out.Payload, "content.0.signature", "stop_reason", "input_transformations"); got[0].String() != "EgI=" || got[1].String() != "max_tokens" || !got[2].IsArray() {
+					t.Errorf("native response lost the signature, stop reason or transformations: %s", out.Payload)
+				}
+			}
+		})
+	}
 }
 
 // TestClaudeThinkingSignaturesSurviveUpstreamPreparation pins the roadmap
