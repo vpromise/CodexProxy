@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -215,6 +216,51 @@ func (m *Manager) selectionModelForAuth(auth *Auth, routeModel string) string {
 
 func (m *Manager) selectionModelKeyForAuth(auth *Auth, routeModel string) string {
 	return canonicalModelKey(m.selectionModelForAuth(auth, routeModel))
+}
+
+// ModelUnavailableForDiscovery reports current evidence that a registered
+// model should be omitted from this account's available models.
+func (m *Manager) ModelUnavailableForDiscovery(auth *Auth, routeModel string, now time.Time) bool {
+	if auth == nil {
+		return false
+	}
+	if auth.Disabled || auth.Status == StatusDisabled {
+		return true
+	}
+	if auth.Provider != "claude" && auth.Provider != "codex" {
+		return false
+	}
+	upstreamModel := m.applyAPIKeyModelAlias(auth, m.selectionModelForAuth(auth, routeModel))
+	state := existingModelState(auth, m.stateModelForExecution(auth, routeModel, upstreamModel, false))
+	if state == nil {
+		return false
+	}
+	if state.Status == StatusDisabled {
+		return true
+	}
+	err := state.LastError
+	if err == nil || !state.Unavailable || err.IsRequestScoped() ||
+		(!state.NextRetryAfter.IsZero() && !state.NextRetryAfter.After(now)) {
+		return false
+	}
+	switch err.StatusCode() {
+	case http.StatusNotFound, http.StatusBadRequest, http.StatusUnprocessableEntity:
+		if isExplicitModelNotFoundError(err, upstreamModel) {
+			return true
+		}
+	default:
+		return false
+	}
+	if err.StatusCode() == http.StatusNotFound {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(err.Code), "model_not_supported") {
+		return true
+	}
+	message := strings.ToLower(err.Message)
+	return isModelSupportResultError(err) &&
+		!strings.Contains(message, "model unavailable") &&
+		!strings.Contains(message, "model is unavailable")
 }
 
 func (m *Manager) clientModelProjectionForAuth(auth *Auth, routeModel string, now time.Time) registry.ClientModelProjection {

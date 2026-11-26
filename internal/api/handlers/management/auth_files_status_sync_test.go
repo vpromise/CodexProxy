@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +17,83 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 )
+
+func TestAuthFileAvailableModelsUsesAccountSupportEvidence(t *testing.T) {
+	manager := coreauth.NewManager(nil, nil, nil)
+	reg := registry.GetGlobalRegistry()
+	fileName := t.Name() + ".json"
+	otherFileName := t.Name() + "-other.json"
+	dated := "claude-test-20251101"
+	results := []struct {
+		model string
+		err   *coreauth.Error
+	}{
+		{"missing-model", &coreauth.Error{HTTPStatus: http.StatusNotFound, Code: "model_not_found"}},
+		{"unsupported-model", &coreauth.Error{HTTPStatus: http.StatusBadRequest, Code: "model_not_supported"}},
+		{"generic-404", &coreauth.Error{HTTPStatus: http.StatusNotFound, Message: "Not Found"}},
+		{"limited-model", &coreauth.Error{HTTPStatus: http.StatusTooManyRequests, Message: "quota exhausted"}},
+		{"busy-model", &coreauth.Error{HTTPStatus: http.StatusServiceUnavailable, Message: "upstream unavailable"}},
+		{"ambiguous-model", &coreauth.Error{HTTPStatus: http.StatusBadRequest, Message: "requested model is unavailable"}},
+	}
+	models := []*registry.ModelInfo{{ID: dated}}
+	for _, result := range results {
+		models = append(models, &registry.ModelInfo{ID: result.model})
+	}
+	for _, name := range []string{fileName, otherFileName} {
+		if _, err := manager.Register(t.Context(), &coreauth.Auth{
+			ID: name, FileName: name, Provider: "claude", Status: coreauth.StatusActive,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reg.RegisterClient(name, "claude", models)
+		t.Cleanup(func() { reg.UnregisterClient(name) })
+	}
+	h := NewHandlerWithoutConfigFilePath(&config.Config{}, manager)
+	for _, result := range results {
+		manager.MarkResult(t.Context(), coreauth.Result{
+			AuthID: fileName, Provider: "claude", Model: result.model, Error: result.err,
+		})
+	}
+	list := func(name string, onlyAvailable bool) []string {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		path := "/v0/management/auth-files/models?name=" + name
+		if onlyAvailable {
+			path += "&available=true"
+		}
+		ctx.Request = httptest.NewRequest(http.MethodGet, path, nil)
+		h.GetAuthFileModels(ctx)
+		var body struct {
+			Models []struct{ ID string } `json:"models"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || rec.Code != http.StatusOK {
+			t.Fatalf("models response: %d %s", rec.Code, rec.Body.String())
+		}
+		var ids []string
+		for _, model := range body.Models {
+			ids = append(ids, model.ID)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	want := []string{"ambiguous-model", "busy-model", dated, "generic-404", "limited-model"}
+	if got := list(fileName, true); !slices.Equal(got, want) {
+		t.Fatalf("available models = %v, want %v", got, want)
+	}
+	if got := list(otherFileName, true); len(got) != len(models) {
+		t.Fatalf("other account lost models: %v", got)
+	}
+	if got := list(fileName, false); len(got) != len(models) {
+		t.Fatalf("registered model list changed: %v", got)
+	}
+	manager.MarkResult(t.Context(), coreauth.Result{
+		AuthID: fileName, Provider: "claude", Model: "missing-model", Success: true,
+	})
+	if got := list(fileName, true); !slices.Contains(got, "missing-model") {
+		t.Fatalf("successful call did not restore model visibility: %v", got)
+	}
+}
 
 func TestPatchAuthFileStatusInvokesPostAuthPersistHook(t *testing.T) {
 	t.Setenv("MANAGEMENT_PASSWORD", "")

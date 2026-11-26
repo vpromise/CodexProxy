@@ -524,12 +524,14 @@ export const authFilesApi = {
     }
   },
 
-  // 获取认证凭证支持的模型
+  // Load a credential's registered or currently available models.
   async getModelsForAuthFile(
-    name: string
+    name: string,
+    availableOnly = false
   ): Promise<{ id: string; display_name?: string; type?: string; owned_by?: string }[]> {
+    const available = availableOnly ? '&available=true' : '';
     const data = await apiClient.get<Record<string, unknown>>(
-      `/auth-files/models?name=${encodeURIComponent(name)}`
+      `/auth-files/models?name=${encodeURIComponent(name)}${available}`
     );
     const models = data.models ?? data['models'];
     return Array.isArray(models)

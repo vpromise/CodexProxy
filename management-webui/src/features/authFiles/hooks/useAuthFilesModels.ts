@@ -12,11 +12,9 @@ export type UseAuthFilesModelsResult = {
   modelsLoading: boolean;
   modelsList: AuthFileModelItem[];
   modelsFileName: string;
-  modelsFileType: string;
   modelsError: ModelsError;
   showModels: (item: AuthFileItem) => Promise<void>;
   closeModelsModal: () => void;
-  /** 文件集变更后失效缓存；不传 names 则全部清空。 */
   invalidateModels: (names?: string[]) => void;
 };
 
@@ -28,66 +26,30 @@ export function useAuthFilesModels(): UseAuthFilesModelsResult {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsList, setModelsList] = useState<AuthFileModelItem[]>([]);
   const [modelsFileName, setModelsFileName] = useState('');
-  const [modelsFileType, setModelsFileType] = useState('');
   const [modelsError, setModelsError] = useState<ModelsError>(null);
-  const modelsCacheRef = useRef<Map<string, AuthFileModelItem[]>>(new Map());
-  const modelsCacheVersionRef = useRef(0);
-  const modelsFileVersionRef = useRef<Map<string, number>>(new Map());
+  const activeFileRef = useRef('');
   const activeModelsRequestIdRef = useRef(0);
 
   const closeModelsModal = useCallback(() => {
+    activeFileRef.current = '';
     activeModelsRequestIdRef.current += 1;
     setModelsModalOpen(false);
     setModelsLoading(false);
   }, []);
 
-  const invalidateModels = useCallback((names?: string[]) => {
-    if (!names) {
-      modelsCacheRef.current.clear();
-      modelsFileVersionRef.current.clear();
-      modelsCacheVersionRef.current += 1;
-      return;
-    }
-    new Set(names.map((name) => name.trim()).filter(Boolean)).forEach((name) => {
-      modelsCacheRef.current.delete(name);
-      modelsFileVersionRef.current.set(name, (modelsFileVersionRef.current.get(name) ?? 0) + 1);
-    });
-  }, []);
-
-  const showModels = useCallback(
-    async (item: AuthFileItem) => {
-      const cacheKey = item.name.trim();
+  const loadModels = useCallback(
+    async (fileName: string) => {
       const requestId = ++activeModelsRequestIdRef.current;
-
-      setModelsFileName(item.name);
-      setModelsFileType(item.type || '');
-      setModelsList([]);
-      setModelsError(null);
-      setModelsModalOpen(true);
-
-      const cached = modelsCacheRef.current.get(cacheKey);
-      if (cached) {
-        setModelsList(cached);
-        setModelsLoading(false);
-        return;
-      }
-
-      const cacheVersion = modelsCacheVersionRef.current;
-      const fileVersion = modelsFileVersionRef.current.get(cacheKey) ?? 0;
-      const isCacheCurrent = () =>
-        cacheVersion === modelsCacheVersionRef.current &&
-        fileVersion === (modelsFileVersionRef.current.get(cacheKey) ?? 0);
       const isRequestCurrent = () => requestId === activeModelsRequestIdRef.current;
 
+      setModelsList([]);
+      setModelsError(null);
       setModelsLoading(true);
       try {
-        const models = await authFilesApi.getModelsForAuthFile(item.name);
-        if (isCacheCurrent()) {
-          modelsCacheRef.current.set(cacheKey, models);
-          if (isRequestCurrent()) setModelsList(models);
-        }
+        const models = await authFilesApi.getModelsForAuthFile(fileName, true);
+        if (isRequestCurrent()) setModelsList(models);
       } catch (err) {
-        if (!isRequestCurrent() || !isCacheCurrent()) return;
+        if (!isRequestCurrent()) return;
         const errorMessage = err instanceof Error ? err.message : '';
         if (
           errorMessage.includes('404') ||
@@ -105,12 +67,31 @@ export function useAuthFilesModels(): UseAuthFilesModelsResult {
     [showNotification, t]
   );
 
+  const invalidateModels = useCallback(
+    (names?: string[]) => {
+      const fileName = activeFileRef.current;
+      if (fileName && (!names || names.some((name) => name.trim() === fileName.trim()))) {
+        void loadModels(fileName);
+      }
+    },
+    [loadModels]
+  );
+
+  const showModels = useCallback(
+    async (item: AuthFileItem) => {
+      activeFileRef.current = item.name;
+      setModelsFileName(item.name);
+      setModelsModalOpen(true);
+      await loadModels(item.name);
+    },
+    [loadModels]
+  );
+
   return {
     modelsModalOpen,
     modelsLoading,
     modelsList,
     modelsFileName,
-    modelsFileType,
     modelsError,
     showModels,
     closeModelsModal,

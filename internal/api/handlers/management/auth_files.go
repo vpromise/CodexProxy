@@ -165,7 +165,7 @@ func (h *Handler) lookupAuthFile(name string, authIndex string) (*coreauth.Auth,
 	return nil, false
 }
 
-// GetAuthFileModels returns the models supported by a specific auth file
+// GetAuthFileModels returns registered models and optionally filters known unsupported models.
 func (h *Handler) GetAuthFileModels(c *gin.Context) {
 	name := c.Query("name")
 	if name == "" {
@@ -173,28 +173,29 @@ func (h *Handler) GetAuthFileModels(c *gin.Context) {
 		return
 	}
 
-	// Try to find auth ID via authManager
-	var authID string
+	authID := name
+	var account *coreauth.Auth
 	if h.authManager != nil {
-		auths := h.authManager.List()
-		for _, auth := range auths {
+		for _, auth := range h.authManager.List() {
 			if auth.FileName == name || auth.ID == name {
 				authID = auth.ID
+				account = auth
 				break
 			}
 		}
 	}
 
-	if authID == "" {
-		authID = name // fallback to filename as ID
+	availableOnly := c.Query("available") == "true"
+	if availableOnly {
+		c.Header("Cache-Control", "no-store")
 	}
-
-	// Get models from registry
-	reg := registry.GetGlobalRegistry()
-	models := reg.GetModelsForClient(authID)
-
+	models := registry.GetGlobalRegistry().GetModelsForClient(authID)
+	now := time.Now()
 	result := make([]gin.H, 0, len(models))
 	for _, m := range models {
+		if availableOnly && account != nil && h.authManager.ModelUnavailableForDiscovery(account, m.ID, now) {
+			continue
+		}
 		entry := gin.H{
 			"id": m.ID,
 		}
