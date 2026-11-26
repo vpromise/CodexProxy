@@ -54,8 +54,8 @@ func convertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 	}
 
 	// Map reasoning effort
-	if v := gjson.GetBytes(rawJSON, "reasoning_effort"); v.Exists() {
-		out, _ = sjson.SetBytes(out, "reasoning.effort", v.Value())
+	if v := root.Get("reasoning_effort"); v.Type == gjson.String && strings.TrimSpace(v.String()) != "" {
+		out, _ = sjson.SetBytes(out, "reasoning.effort", strings.TrimSpace(v.String()))
 	} else {
 		out, _ = sjson.SetBytes(out, "reasoning.effort", "medium")
 	}

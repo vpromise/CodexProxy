@@ -223,7 +223,7 @@ func convertCompletionsRequestToChatCompletions(rawJSON []byte) []byte {
 	out := []byte(`{"model":"","messages":[{"role":"user","content":""}]}`)
 
 	// Set model
-	if model := root.Get("model"); model.Exists() {
+	if model := root.Get("model"); model.Type == gjson.String {
 		out, _ = sjson.SetBytes(out, "model", model.String())
 	}
 
@@ -231,43 +231,49 @@ func convertCompletionsRequestToChatCompletions(rawJSON []byte) []byte {
 	out, _ = sjson.SetBytes(out, "messages.0.content", prompt)
 
 	// Copy other parameters from completions to chat completions
-	if maxTokens := root.Get("max_tokens"); maxTokens.Exists() {
+	if maxTokens := root.Get("max_tokens"); maxTokens.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "max_tokens", maxTokens.Int())
 	}
 
-	if temperature := root.Get("temperature"); temperature.Exists() {
+	if temperature := root.Get("temperature"); temperature.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "temperature", temperature.Float())
 	}
 
-	if topP := root.Get("top_p"); topP.Exists() {
+	if topP := root.Get("top_p"); topP.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "top_p", topP.Float())
 	}
 
-	if frequencyPenalty := root.Get("frequency_penalty"); frequencyPenalty.Exists() {
+	if frequencyPenalty := root.Get("frequency_penalty"); frequencyPenalty.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "frequency_penalty", frequencyPenalty.Float())
 	}
 
-	if presencePenalty := root.Get("presence_penalty"); presencePenalty.Exists() {
+	if presencePenalty := root.Get("presence_penalty"); presencePenalty.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "presence_penalty", presencePenalty.Float())
 	}
 
-	if stop := root.Get("stop"); stop.Exists() {
+	if stop := root.Get("stop"); stop.Exists() && stop.Type != gjson.Null {
 		out, _ = sjson.SetRawBytes(out, "stop", []byte(stop.Raw))
 	}
 
-	if stream := root.Get("stream"); stream.Exists() {
+	if stream := root.Get("stream"); stream.IsBool() {
 		out, _ = sjson.SetBytes(out, "stream", stream.Bool())
 	}
 
-	if logprobs := root.Get("logprobs"); logprobs.Exists() {
+	if logprobs := root.Get("logprobs"); logprobs.IsBool() {
 		out, _ = sjson.SetBytes(out, "logprobs", logprobs.Bool())
+	} else if logprobs.Type == gjson.Number {
+		n := logprobs.Int()
+		out, _ = sjson.SetBytes(out, "logprobs", n > 0)
+		if n > 0 {
+			out, _ = sjson.SetBytes(out, "top_logprobs", n)
+		}
 	}
 
-	if topLogprobs := root.Get("top_logprobs"); topLogprobs.Exists() {
+	if topLogprobs := root.Get("top_logprobs"); topLogprobs.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "top_logprobs", topLogprobs.Int())
 	}
 
-	if echo := root.Get("echo"); echo.Exists() {
+	if echo := root.Get("echo"); echo.IsBool() {
 		out, _ = sjson.SetBytes(out, "echo", echo.Bool())
 	}
 
@@ -361,7 +367,7 @@ func convertChatCompletionsStreamChunkToCompletions(chunkData []byte) []byte {
 
 	// Check if this chunk has any meaningful content
 	hasContent := false
-	hasUsage := root.Get("usage").Exists()
+	hasUsage := root.Get("usage").IsObject()
 	if chatChoices := root.Get("choices"); chatChoices.Exists() && chatChoices.IsArray() {
 		chatChoices.ForEach(func(_, choice gjson.Result) bool {
 			// Check if delta has content or finish_reason
@@ -372,7 +378,7 @@ func convertChatCompletionsStreamChunkToCompletions(chunkData []byte) []byte {
 				}
 			}
 			// Also check for finish_reason to ensure we don't skip final chunks
-			if finishReason := choice.Get("finish_reason"); finishReason.Exists() && finishReason.String() != "" && finishReason.String() != "null" {
+			if finishReason := choice.Get("finish_reason"); finishReason.Type == gjson.String && finishReason.String() != "" && finishReason.String() != "null" {
 				hasContent = true
 				return false // Break out of forEach
 			}
@@ -441,7 +447,7 @@ func convertChatCompletionsStreamChunkToCompletions(chunkData []byte) []byte {
 	}
 
 	// Copy usage if present
-	if usage := root.Get("usage"); usage.Exists() {
+	if usage := root.Get("usage"); usage.IsObject() {
 		out, _ = sjson.SetRawBytes(out, "usage", []byte(usage.Raw))
 	}
 

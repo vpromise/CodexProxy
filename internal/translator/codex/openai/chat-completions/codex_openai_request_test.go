@@ -1577,3 +1577,18 @@ func TestHistoricalToolCallCollisionWithDeclaredTool(t *testing.T) {
 		t.Fatalf("expected reverse map for historical %q to be %q, got %q", histCallName, historicalName, got)
 	}
 }
+
+func TestConvertOpenAIRequestToCodex_ReasoningEffortNullAndEmpty(t *testing.T) {
+	for _, tc := range []struct{ value, want string }{
+		{"null", "medium"}, {`""`, "medium"}, {`"  "`, "medium"}, {"123", "medium"}, {`" high "`, "high"}, {`"none"`, "none"},
+	} {
+		input := []byte(`{"messages":[{"role":"user","content":"hi"}],"reasoning_effort":` + tc.value + `}`)
+		out, err := ConvertOpenAIRequestToCodexChecked("gpt-5.4", input, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := gjson.GetBytes(out, "reasoning.effort").String(); got != tc.want {
+			t.Errorf("reasoning effort for %s = %q, want %q", tc.value, got, tc.want)
+		}
+	}
+}

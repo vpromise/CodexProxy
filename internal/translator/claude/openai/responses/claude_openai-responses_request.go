@@ -605,7 +605,6 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 			case "auto":
 				out, _ = sjson.SetRawBytes(out, "tool_choice", []byte(`{"type":"auto"}`))
 			case "none":
-				// Leave unset; implies no tools
 				toolChoiceNone = true
 			case "required":
 				if len(includedToolNames) > 0 {
@@ -654,6 +653,10 @@ func convertOpenAIResponsesRequestToClaude(modelName string, inputRawJSON []byte
 		default:
 
 		}
+	}
+
+	if toolChoiceNone && len(toolItems) > 0 {
+		out, _ = sjson.SetRawBytes(out, "tool_choice", []byte(`{"type":"none"}`))
 	}
 
 	// parallel_tool_calls=false maps to Anthropic's disable_parallel_tool_use,

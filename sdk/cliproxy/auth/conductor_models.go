@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"bytes"
 	"net/http"
 	"strconv"
 	"strings"
@@ -579,19 +578,7 @@ func rewriteForceMappedStreamChunk(rewriter *StreamRewriter, payload []byte) []b
 	if rewriter == nil || len(payload) == 0 {
 		return payload
 	}
-	rewritten := rewriter.RewriteChunk(payload)
-	if len(rewritten) > 0 {
-		return rewritten
-	}
-	if bytes.Contains(payload, []byte("data:")) {
-		if lineWise := rewriteSSEPayloadLines(payload, rewriter.options.RewriteModel); len(lineWise) > 0 {
-			return lineWise
-		}
-	}
-	if len(rewriter.pendingBuf) > 0 {
-		return nil
-	}
-	return nil
+	return rewriter.RewriteChunk(payload)
 }
 
 func finishForceMappedStreamChunks(rewriter *StreamRewriter) []byte {

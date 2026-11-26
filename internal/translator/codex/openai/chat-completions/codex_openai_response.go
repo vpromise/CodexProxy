@@ -533,7 +533,6 @@ func ConvertCodexResponseToOpenAINonStream(_ context.Context, _ string, original
 							if text := summaryItem.Get("text").String(); text != "" {
 								reasoningText += text
 							}
-							break
 						}
 					}
 				}

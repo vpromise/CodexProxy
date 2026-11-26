@@ -854,3 +854,25 @@ func TestConvertCodexResponseToOpenAI_RestoresNormalizedToolNames(t *testing.T) 
 		t.Fatalf("stream expected restored name %q, got %q", originalName, gotNameStream)
 	}
 }
+
+func TestConvertCodexResponseToOpenAINonStream_MultipleSummaryTextItems(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("concatenates all summary_text items", func(t *testing.T) {
+		raw := []byte(`{"type":"response.completed","response":{"id":"resp_sum_multi","created_at":1700000000,"model":"gpt-5.4","status":"completed","output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"Step 1."},{"type":"summary_text","text":"Step 2."}]},{"type":"message","content":[{"type":"output_text","text":"Done"}]}]}}`)
+		out := ConvertCodexResponseToOpenAINonStream(ctx, "gpt-5.4", nil, nil, raw, nil)
+		got := gjson.GetBytes(out, "choices.0.message.reasoning_content").String()
+		if got != "Step 1.Step 2." {
+			t.Fatalf("reasoning_content = %q, want %q; payload=%s", got, "Step 1.Step 2.", string(out))
+		}
+	})
+
+	t.Run("leading empty summary_text does not drop subsequent items", func(t *testing.T) {
+		raw := []byte(`{"type":"response.completed","response":{"id":"resp_sum_empty","created_at":1700000000,"model":"gpt-5.4","status":"completed","output":[{"type":"reasoning","summary":[{"type":"summary_text","text":""},{"type":"summary_text","text":"Step 2."}]},{"type":"message","content":[{"type":"output_text","text":"Done"}]}]}}`)
+		out := ConvertCodexResponseToOpenAINonStream(ctx, "gpt-5.4", nil, nil, raw, nil)
+		got := gjson.GetBytes(out, "choices.0.message.reasoning_content").String()
+		if got != "Step 2." {
+			t.Fatalf("reasoning_content = %q, want %q; payload=%s", got, "Step 2.", string(out))
+		}
+	})
+}

@@ -109,27 +109,32 @@ func convertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream,
 	// Max tokens configuration with fallback to default value.
 	// OpenAI Chat Completions deprecated max_tokens in favor of
 	// max_completion_tokens, so accept either spelling.
-	if maxTokens := firstExisting(root.Get("max_tokens"), root.Get("max_completion_tokens")); maxTokens.Exists() {
-		out, _ = sjson.SetBytes(out, "max_tokens", maxTokens.Int())
+	for _, field := range []string{"max_tokens", "max_completion_tokens"} {
+		if maxTokens := root.Get(field); maxTokens.Type == gjson.Number {
+			out, _ = sjson.SetBytes(out, "max_tokens", maxTokens.Int())
+			break
+		}
 	}
 
 	// Top P setting for nucleus sampling.
-	if topP := root.Get("top_p"); topP.Exists() {
+	if topP := root.Get("top_p"); topP.Type == gjson.Number {
 		out, _ = sjson.SetBytes(out, "top_p", topP.Float())
 	}
 
 	// Stop sequences configuration for custom termination conditions
-	if stop := root.Get("stop"); stop.Exists() {
+	if stop := root.Get("stop"); stop.IsArray() || stop.Type == gjson.String {
 		if stop.IsArray() {
 			var stopSequences []string
 			stop.ForEach(func(_, value gjson.Result) bool {
-				stopSequences = append(stopSequences, value.String())
+				if value.Type == gjson.String && value.String() != "" {
+					stopSequences = append(stopSequences, value.String())
+				}
 				return true
 			})
 			if len(stopSequences) > 0 {
 				out, _ = sjson.SetBytes(out, "stop_sequences", stopSequences)
 			}
-		} else {
+		} else if stop.String() != "" {
 			out, _ = sjson.SetBytes(out, "stop_sequences", []string{stop.String()})
 		}
 	}
@@ -605,16 +610,6 @@ func convertOpenAIToolResultContent(content gjson.Result) (string, bool) {
 	}
 
 	return content.Raw, false
-}
-
-// firstExisting returns the first result that exists, or an empty result.
-func firstExisting(values ...gjson.Result) gjson.Result {
-	for _, value := range values {
-		if value.Exists() {
-			return value
-		}
-	}
-	return gjson.Result{}
 }
 
 // ConvertOpenAIRequestToClaudeChecked preserves the legacy conversion and reports emptied user turns.
