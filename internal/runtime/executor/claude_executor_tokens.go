@@ -180,7 +180,8 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	// so its tokens stay counted, and obfuscate sensitive words exactly like the
 	// Messages path.
 	policy, settings := resolveClaudeWirePolicy(e.cfg, auth, apiKey, confirmedClaudeCode)
-	cloaked := policy.Cloak
+	nativePrefix := nativeAnthropic && helps.ClaudeModelChecksThinkingPrefix(req, upstreamModel)
+	cloaked := policy.Cloak && !preserveClaudeCallerCache(body, policy, settings, nativePrefix)
 	nativePassthrough := confirmedClaudeCode && !cloaked
 	body = restoreClaudeHelperOutputConfigIfEligible(nativeThinkingWire, body, req, opts, from.String(), to.String(), claudeCodeDetection, nativePassthrough)
 	if cloaked {

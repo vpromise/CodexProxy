@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -183,6 +184,7 @@ func fetchModelsFromRemote(ctx context.Context) (*staticModelsJSON, string) {
 			log.Warnf("models validate failed from %s: %v", url, err)
 			continue
 		}
+		removeRetiredClaudeModels(&parsed)
 
 		return &parsed, url
 	}
@@ -295,11 +297,30 @@ func loadModelsFromBytes(data []byte, source string) error {
 	if err := validateModelsCatalog(&parsed); err != nil {
 		return fmt.Errorf("%s: validate models catalog: %w", source, err)
 	}
+	removeRetiredClaudeModels(&parsed)
 
 	modelsCatalogStore.mu.Lock()
 	modelsCatalogStore.data = &parsed
 	modelsCatalogStore.mu.Unlock()
 	return nil
+}
+
+// Both embedded and remotely refreshed catalogs must omit retired Claude snapshots.
+func removeRetiredClaudeModels(data *staticModelsJSON) {
+	data.Claude = slices.DeleteFunc(data.Claude, func(model *ModelInfo) bool {
+		switch strings.TrimSpace(model.ID) {
+		case "claude-3-5-haiku-20241022",
+			"claude-3-7-sonnet-20250219",
+			"claude-sonnet-4-20250514",
+			"claude-opus-4-20250514",
+			"claude-opus-4-1-20250805",
+			"claude-sonnet-4-5-20250929",
+			"claude-opus-4-5-20251101":
+			return true
+		default:
+			return false
+		}
+	})
 }
 
 func getModels() *staticModelsJSON {

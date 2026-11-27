@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	"github.com/tidwall/gjson"
 )
 
@@ -645,6 +646,51 @@ func TestUpgradeClaudeCacheControlTTL(t *testing.T) {
 // section, freezing the rolling breakpoint on messages[0] for the whole
 // conversation. Section-independent ensure has to keep that breakpoint advancing
 // as the history grows, so a reintroduced global short-circuit fails here.
+func TestClaudeExecutorPreservesNativeCallerCacheInAuto(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		mode         string
+		stream       bool
+		wantOriginal bool
+	}{
+		{name: "prewarm", mode: "auto", wantOriginal: true},
+		{name: "stream", mode: "auto", stream: true, wantOriginal: true},
+		{name: "forced cloaking", mode: "always"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			budget := 0
+			if tc.stream {
+				budget = 48
+			}
+			payload := []byte(fmt.Sprintf(`{"model":"claude-fable-5-2","max_tokens":%d,"stream":%t,"system":[{"type":"text","text":"first","cache_control":{"type":"ephemeral","ttl":"1h"}},{"type":"text","text":"second","cache_control":{"type":"ephemeral","ttl":"5m"}}],"messages":[{"role":"user","content":"hello"}]}`, budget, tc.stream))
+			auth := &cliproxyauth.Auth{
+				Attributes: map[string]string{"api_key": "sk-ant-oat-cache-fixture", "cloak_mode": tc.mode},
+				Metadata:   claudeOAuthTestMetadata(),
+			}
+			outbound := captureClaudeMessagesRequest(t, &config.Config{}, auth, payload, tc.stream)
+			if _, ok := claudeBillingCCHDigitsOffset(outbound); !ok {
+				t.Fatal("outbound OAuth request has no CCH")
+			}
+			if maxTokens := gjson.GetBytes(outbound, "max_tokens"); !maxTokens.Exists() || maxTokens.Int() != int64(budget) {
+				t.Fatalf("outbound max_tokens = %s, want %d", maxTokens.Raw, budget)
+			}
+			if tc.wantOriginal {
+				for i, want := range gjson.GetBytes(payload, "system").Array() {
+					got := gjson.GetBytes(outbound, fmt.Sprintf("system.%d", i+1))
+					if got.Raw != want.Raw {
+						t.Errorf("caller system block %d = %s, want %s", i, got.Raw, want.Raw)
+					}
+				}
+				if got := gjson.GetBytes(outbound, "messages").Raw; got != gjson.GetBytes(payload, "messages").Raw {
+					t.Errorf("caller messages changed: %s", got)
+				}
+			} else if gjson.GetBytes(outbound, "system.1.text").String() != claudeCodeCLIIdentity {
+				t.Fatal("explicit always mode did not apply the CLI system block")
+			}
+		})
+	}
+}
+
 func TestClaudeExecutorCloakedRollingCacheBreakpointAdvances(t *testing.T) {
 	buildConversation := func(exchanges int) []byte {
 		messages := make([]string, 0, exchanges*2)
