@@ -1311,6 +1311,7 @@ type claudeWirePolicy struct {
 	ProfileClaudeCodeCLI bool // request fingerprint looks like Claude Code CLI
 	ConfirmedClaudeCode  bool
 	Cloak                bool
+	AutoCloak            bool
 }
 
 type claudeCloakSettings struct {
@@ -1370,8 +1371,28 @@ func resolveClaudeWirePolicy(cfg *config.Config, auth *cliproxyauth.Auth, apiKey
 		// explicit fingerprint-profile opt-ins, or credentials with explicit cloak
 		// settings. Recognized native clients retain their measured shape in auto.
 		policy.Cloak = policy.Cloak && !confirmedClaudeCode
+		policy.AutoCloak = true
 	}
 	return policy, settings
+}
+
+func preserveClaudeCallerCache(body []byte, policy claudeWirePolicy, settings claudeCloakSettings, nativePrefix bool) bool {
+	if !nativePrefix || !policy.AutoCloak || settings.strictMode || len(settings.sensitiveWords) != 0 || settings.cacheUserID {
+		return false
+	}
+	// Keep automatic caching on the existing breakpoint materialization path.
+	if isValidTopClaudeCacheControl(gjson.GetBytes(body, "cache_control")) {
+		return false
+	}
+	callerCache := false
+	forEachClaudeCacheControlBlock(body, func(_ string, block gjson.Result) {
+		cacheControl := block.Get("cache_control")
+		ttl := cacheControl.Get("ttl").String()
+		if isValidTopClaudeCacheControl(cacheControl) && (ttl == "5m" || ttl == "1h") {
+			callerCache = true
+		}
+	})
+	return callerCache
 }
 
 // applyCloaking applies the shared Messages/count_tokens wire policy. The
@@ -1385,7 +1406,7 @@ func applyCloaking(
 	confirmedClaudeCode bool,
 	cchSigning bool,
 ) ([]byte, bool, error) {
-	return applyCloakingInternal(ctx, cfg, auth, payload, apiKey, confirmedClaudeCode, cchSigning, true)
+	return applyCloakingInternal(ctx, cfg, auth, payload, apiKey, confirmedClaudeCode, cchSigning, true, false)
 }
 
 func applyCloakingInternal(
@@ -1397,9 +1418,12 @@ func applyCloakingInternal(
 	confirmedClaudeCode bool,
 	cchSigning bool,
 	obfuscateSensitiveWords bool,
+	nativePrefix bool,
 ) ([]byte, bool, error) {
 	policy, settings := resolveClaudeWirePolicy(cfg, auth, apiKey, confirmedClaudeCode)
-	if !policy.Cloak {
+	// Auto may keep a native caller's cache prefix verbatim. Final OAuth
+	// identity and CCH processing still runs at the outbound Messages boundary.
+	if !policy.Cloak || preserveClaudeCallerCache(payload, policy, settings, nativePrefix) {
 		return payload, false, nil
 	}
 	// A continuation inherits its system and tools from the stored thread.

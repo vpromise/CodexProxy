@@ -8918,6 +8918,12 @@ func TestClaudeExecutorPayloadOverrideReenablesThinking(t *testing.T) {
 
 func executeClaudeContextManagementRequest(t *testing.T, cfg *config.Config, payload []byte, stream bool) []byte {
 	t.Helper()
+	auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "key-payload-rule", "cloak_mode": "always"}}
+	return captureClaudeMessagesRequest(t, cfg, auth, payload, stream)
+}
+
+func captureClaudeMessagesRequest(t *testing.T, cfg *config.Config, auth *cliproxyauth.Auth, payload []byte, stream bool) []byte {
+	t.Helper()
 
 	var upstreamBody []byte
 	transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -8941,7 +8947,6 @@ func executeClaudeContextManagementRequest(t *testing.T, cfg *config.Config, pay
 	})
 	ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
 	executor := NewClaudeExecutor(cfg)
-	auth := &cliproxyauth.Auth{Attributes: map[string]string{"api_key": "key-payload-rule", "cloak_mode": "always"}}
 	request := cliproxyexecutor.Request{Model: gjson.GetBytes(payload, "model").String(), Payload: payload}
 	options := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude}
 

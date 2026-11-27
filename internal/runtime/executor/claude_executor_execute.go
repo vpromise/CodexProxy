@@ -114,6 +114,7 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		confirmedClaudeCode,
 		cchSigning,
 		false,
+		nativeAnthropic && helps.ClaudeModelChecksThinkingPrefix(req, upstreamModel),
 	)
 	if err != nil {
 		return resp, err
