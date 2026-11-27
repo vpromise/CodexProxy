@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -161,6 +162,75 @@ func TestClaudeFable52NativeSignedContinuation(t *testing.T) {
 				if got := gjson.GetManyBytes(out.Payload, "content.0.signature", "stop_reason", "input_transformations"); got[0].String() != "EgI=" || got[1].String() != "max_tokens" || !got[2].IsArray() {
 					t.Errorf("native response lost the signature, stop reason or transformations: %s", out.Payload)
 				}
+			}
+		})
+	}
+}
+
+func TestClaudeFableOAuthContinuationKeepsIdentityAndCachePrefix(t *testing.T) {
+	const model = "claude-fable-5-2"
+	const signature = "ErUBCkYIBRgCKkDq+9zN/vQ7aB1c2dEf=="
+	const first = `{"model":"claude-fable-5-2","max_tokens":256,"system":[{"type":"text","text":"Stable prefix","cache_control":{"type":"ephemeral","ttl":"5m"}}],"messages":[{"role":"user","content":"Start."}]}`
+	const mockResponse = `{"id":"msg_fixture","type":"message","role":"assistant","model":"claude-fable-5-2","content":[{"type":"thinking","thinking":"","signature":"` + signature + `"},{"type":"text","text":"next"}],"stop_reason":"end_turn","usage":{"input_tokens":9,"output_tokens":3},"input_transformations":[]}`
+
+	for _, mode := range []string{"auto", "never"} {
+		t.Run(mode, func(t *testing.T) {
+			var wire [][]byte
+			transport := roundTripperFunc(func(out *http.Request) (*http.Response, error) {
+				body, errRead := io.ReadAll(out.Body)
+				if errRead != nil {
+					return nil, errRead
+				}
+				wire = append(wire, body)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
+					Body: io.NopCloser(strings.NewReader(mockResponse)), Request: out}, nil
+			})
+			ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", http.RoundTripper(transport))
+			executor := NewClaudeExecutor(&config.Config{})
+			auth := &cliproxyauth.Auth{
+				Attributes: map[string]string{"api_key": "sk-ant-oat-fable-continuation-fixture", "cloak_mode": mode},
+				Metadata:   claudeOAuthTestMetadata(),
+			}
+			opts := cliproxyexecutor.Options{SourceFormat: sdktranslator.FormatClaude, Headers: http.Header{"X-Session-Id": {"session-fixture"}}}
+			firstTurn, errFirst := executor.Execute(ctx, auth, cliproxyexecutor.Request{Model: model, Payload: []byte(first)}, opts)
+			if errFirst != nil {
+				t.Fatal(errFirst)
+			}
+			content := gjson.GetBytes(firstTurn.Payload, "content").Raw
+			second, errSet := sjson.SetRawBytes([]byte(first), "messages.-1", []byte(`{"role":"assistant","content":`+content+`}`))
+			if errSet != nil {
+				t.Fatal(errSet)
+			}
+			second, errSet = sjson.SetRawBytes(second, "messages.-1", []byte(`{"role":"user","content":"Continue."}`))
+			if errSet != nil {
+				t.Fatal(errSet)
+			}
+			if _, errSecond := executor.Execute(ctx, auth, cliproxyexecutor.Request{Model: model, Payload: second}, opts); errSecond != nil {
+				t.Fatal(errSecond)
+			}
+			if len(wire) != 2 {
+				t.Fatalf("upstream request count = %d, want two", len(wire))
+			}
+			if user := gjson.GetBytes(wire[0], "metadata.user_id").String(); user == "" ||
+				gjson.GetBytes(wire[1], "metadata.user_id").String() != user {
+				t.Fatal("upstream user identity changed with the same credential and session")
+			}
+			cachePrefix := func(body []byte) []string {
+				var prefix []string
+				gjson.GetBytes(body, "system").ForEach(func(_, block gjson.Result) bool {
+					if !strings.HasPrefix(block.Get("text").String(), "x-anthropic-billing-header:") {
+						prefix = append(prefix, block.Raw)
+					}
+					return true
+				})
+				return prefix
+			}
+			if before, after := cachePrefix(wire[0]), cachePrefix(wire[1]); len(before) == 0 || !slices.Equal(before, after) ||
+				gjson.GetBytes(wire[0], "messages.0").Raw != gjson.GetBytes(wire[1], "messages.0").Raw {
+				t.Fatal("the stable system and first-message prefix changed on continuation")
+			}
+			if got := collectThinkingSignatures(t, wire[1]); !slices.Equal(got, []string{signature}) {
+				t.Fatal("the signed history was not relayed on the second turn")
 			}
 		})
 	}
