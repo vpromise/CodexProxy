@@ -62,6 +62,7 @@ const (
 	claudeInlineToolsBeta            = "inline-tools-2026-09-15"
 	claudeMidConvSystemClearAtBeta   = "mid-conversation-system-clear-at-2026-08-21"
 	claudeDangerousToolUseBeta       = "dangerous-tool-use-2026-09-03"
+	claudeThresholdCompactionBeta    = "compact-2026-01-12"
 	claudeThinkingBindingBeta        = "thinking-binding-controls-2026-08-01"
 	claudeThinkingResumptionBeta     = "thinking-resumption-2026-07-17"
 	claudePromptCachingEvictBeta     = "prompt-caching-evict-2026-05-12"
@@ -131,6 +132,36 @@ var claudeMessagesTrackedPayloadPaths = append(
 	[]string{"context_management", "fallbacks", "diagnostics"},
 	claudeNativeValidationFields...,
 )
+
+// validateClaudeMessagesBetas checks caller-owned features before CLI compatibility
+// logic can synthesize the corresponding headers.
+func validateClaudeMessagesBetas(payload []byte, headers http.Header) error {
+	updates := claudeThinkingDisplayUpdates(payload)
+	safeguards := gjson.GetBytes(payload, "safeguards").Exists()
+	if !updates && !safeguards {
+		return nil
+	}
+	requested := claudeRequestedBetas(strings.Join(helps.HeaderValuesCaseInsensitive(headers, "Anthropic-Beta"), ","), nil)
+	if updates && !requested[claudeThinkingDisplayUpdatesBeta] {
+		return claudeMessagesBetaError{field: "thinking.display=updates", beta: claudeThinkingDisplayUpdatesBeta}
+	}
+	if safeguards && !requested[claudeDangerousToolUseBeta] {
+		return claudeMessagesBetaError{field: "safeguards", beta: claudeDangerousToolUseBeta}
+	}
+	return nil
+}
+
+type claudeMessagesBetaError struct {
+	field string
+	beta  string
+}
+
+func (e claudeMessagesBetaError) Error() string {
+	return e.field + " requires the " + e.beta + " beta in the Anthropic-Beta header"
+}
+
+func (claudeMessagesBetaError) StatusCode() int       { return http.StatusBadRequest }
+func (claudeMessagesBetaError) IsRequestScoped() bool { return true }
 
 func validateNativeClaudeMessages(original, rendered []byte, req cliproxyexecutor.Request, model string, options thinking.ClaudeNativeRequestOptions, touched map[string]bool) error {
 	// Retain caller controls removed during rendering, and use the rendered
@@ -1278,6 +1309,11 @@ func applyClaudeHeadersWithNativeProfile(
 				appendBeta(beta)
 			}
 		}
+	}
+	// The CLI profile rebuilds its beta list. Keep an explicitly requested
+	// compaction schema on Messages, which accepts the caller's edit unchanged.
+	if !countTokens && requestedBetas[claudeThresholdCompactionBeta] {
+		appendBeta(claudeThresholdCompactionBeta)
 	}
 	// A Thread declares capabilities for all turns. Start with the caller's
 	// declared profile, then retain credential and body-required additions.

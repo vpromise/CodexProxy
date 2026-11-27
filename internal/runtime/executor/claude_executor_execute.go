@@ -61,6 +61,11 @@ func (e *ClaudeExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 	incomingHeaders, claudeCodeDetection := detectIncomingClaudeCodeRequest(ctx, opts.Headers, originalPayload, false, e.cfg)
 	nativeAnthropic := from == to && isAnthropicUpstreamBase(baseURL)
 	confirmedClaudeCode := claudeCodeDetection.Confirmed
+	if nativeAnthropic && !confirmedClaudeCode {
+		if errBeta := validateClaudeMessagesBetas(originalPayload, incomingHeaders); errBeta != nil {
+			return resp, errBeta
+		}
+	}
 	claudeSessionID := ""
 	if fp.ProfileClaudeCodeCLI {
 		claudeSessionID = helps.ClaudeAgentSessionUUIDForRequest(incomingHeaders, originalPayload, req.Payload, confirmedClaudeCode, opts.Metadata, req.Metadata)

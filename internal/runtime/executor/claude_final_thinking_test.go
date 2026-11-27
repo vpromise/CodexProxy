@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
@@ -48,6 +49,80 @@ func TestClaudeNativeRequestValidatesBeforeNormalization(t *testing.T) {
 					assertFinalThinkingRequestError(t, errRun, upstream.called)
 				})
 			}
+		}
+	}
+}
+
+func TestClaudeNativeMessagesBetaContract(t *testing.T) {
+	const model = "claude-opus-5-5"
+	const displayBeta = "thinking-display-updates-2026-08-18"
+	const safeguardsBeta = "dangerous-tool-use-2026-09-03"
+	const compactBeta = "compact-2026-01-12"
+	const display = `,"thinking":{"type":"adaptive","display":"updates"}`
+	const safeguards = `,"safeguards":[{"type":"dangerous_tool_use","classifier_context":{"v":1,"permission_mode":"auto"}}]`
+	const compaction = `,"context_management":{"edits":[{"type":"compact_20260112"}]}`
+
+	for _, path := range []string{"execute", "stream"} {
+		for _, tc := range []struct {
+			name, fields, beta, required string
+			claudeCode, delegated        bool
+		}{
+			{name: "missing updates beta", fields: display, required: displayBeta},
+			{name: "wrong safeguards beta", fields: safeguards, beta: displayBeta, required: safeguardsBeta},
+			{name: "explicit updates beta", fields: display, beta: displayBeta},
+			{name: "explicit safeguards beta", fields: safeguards, beta: safeguardsBeta},
+			{name: "explicit compaction beta", fields: compaction, beta: compactBeta},
+			{name: "no auto compaction beta", fields: compaction},
+			{name: "recognized Claude Code retains its profile", fields: display, beta: claudeCodeBeta, claudeCode: true},
+			{name: "delegated upstream retains its contract", fields: display, delegated: true},
+		} {
+			t.Run(path+"/"+tc.name, func(t *testing.T) {
+				upstream := &midSystemUpstream{}
+				auth := midSystemAuth()
+				headers := http.Header{}
+				if tc.beta != "" {
+					headers.Set("Anthropic-Beta", tc.beta)
+				}
+				req := cliproxyexecutor.Request{
+					Model:   model,
+					Payload: []byte(`{"model":"claude-opus-5-5","max_tokens":256,"messages":[{"role":"user","content":"Reply OK."}]` + tc.fields + `}`),
+				}
+				if tc.claudeCode {
+					headers = claudeNativeHelperHeaders(tc.beta)
+					var err error
+					req.Payload, err = sjson.SetBytes(req.Payload, "metadata.user_id", claudeNativeHelperUserID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !helps.DetectClaudeCodeRequest(headers, req.Payload, false).Confirmed {
+						t.Fatal("fixture must be recognized as Claude Code")
+					}
+				}
+				if tc.delegated {
+					auth.Attributes["base_url"] = "https://compatible.example.invalid"
+				}
+				err := runFinalThinkingExecutor(path, NewClaudeExecutor(&config.Config{}), upstream.context(t, headers), auth, req)
+				if tc.required != "" {
+					assertFinalThinkingRequestError(t, err, upstream.called)
+					if !strings.Contains(err.Error(), tc.required) {
+						t.Fatalf("missing required beta %q in error: %v", tc.required, err)
+					}
+					return
+				}
+				if err != nil || !upstream.called {
+					t.Fatalf("request not relayed: dispatched=%v error=%v", upstream.called, err)
+				}
+				betas := claudeRequestedBetas(strings.Join(helps.HeaderValuesCaseInsensitive(upstream.headers, "Anthropic-Beta"), ","), nil)
+				if tc.beta != "" && !betas[tc.beta] {
+					t.Fatalf("upstream header lost the explicit %s beta", tc.beta)
+				}
+				if tc.beta == "" && betas[compactBeta] {
+					t.Fatal("upstream header added an unrequested compaction beta")
+				}
+				if tc.fields == compaction && gjson.GetBytes(upstream.body, "context_management.edits.0.type").String() != "compact_20260112" {
+					t.Fatal("upstream request changed the caller's compaction edit")
+				}
+			})
 		}
 	}
 }
